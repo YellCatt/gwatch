@@ -184,7 +184,7 @@ func runTests(paths []string) {
 
 	// 如果没有测试用例，直接返回
 	if len(testCases) == 0 {
-		logger.Info("No test cases to run")
+		logger.Info("No test cases to run", zap.Strings("paths", paths))
 		return
 	}
 
