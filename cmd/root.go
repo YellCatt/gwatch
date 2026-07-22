@@ -96,13 +96,14 @@ func initConfig() {
 	logger.Info("当前可用变量", zap.Any("vars", vars.GetAll()))
 
 	email.InitEmail(email.EmailConfig{
-		Enabled:    config.AppConfig.Email.Enabled,
-		FromEmail:  config.AppConfig.Email.From,
-		ToEmail:    config.AppConfig.Email.To,
-		AuthCode:   config.AppConfig.Email.AuthCode,
-		SMTPServer: config.AppConfig.Email.SMTPServer,
-		SMTPPort:   config.AppConfig.Email.SMTPPort,
-		DeviceName: config.AppConfig.Test.DeviceName,
+		Enabled:      config.AppConfig.Email.Enabled,
+		FromEmail:    config.AppConfig.Email.From,
+		ToEmail:      config.AppConfig.Email.To,
+		AuthCode:     config.AppConfig.Email.AuthCode,
+		SMTPServer:   config.AppConfig.Email.SMTPServer,
+		SMTPPort:     config.AppConfig.Email.SMTPPort,
+		DeviceName:   config.AppConfig.App.HostName,
+		ErrorSubject: config.AppConfig.Email.ErrorSubject,
 	})
 }
 
@@ -130,8 +131,8 @@ func runTests(paths []string) {
 	httpclient.InitClient()
 
 	// 初始化 CSV 存储
-	logger.Info("准备初始化 CSV 存储", zap.String("DataDir", config.AppConfig.Test.DataDir))
-	if err := storage.InitDB(config.AppConfig.Test.DataDir); err != nil {
+	logger.Info("准备初始化 CSV 存储", zap.String("DataDir", config.AppConfig.App.DataDir))
+	if err := storage.InitDB(config.AppConfig.App.DataDir); err != nil {
 		logger.Warn("CSV 存储初始化失败", zap.Error(err))
 	} else {
 		logger.Info("CSV 存储初始化成功")

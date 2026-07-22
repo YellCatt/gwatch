@@ -13,13 +13,14 @@ import (
 )
 
 type EmailConfig struct {
-	Enabled    bool
-	FromEmail  string
-	ToEmail    []string
-	AuthCode   string
-	SMTPServer string
-	SMTPPort   int
-	DeviceName string
+	Enabled      bool
+	FromEmail    string
+	ToEmail      []string
+	AuthCode     string
+	SMTPServer   string
+	SMTPPort     int
+	DeviceName   string
+	ErrorSubject string
 }
 
 var Config EmailConfig
@@ -130,6 +131,16 @@ func SendEmail(subject, body string) error {
 
 
 
+// buildErrorSubject 构建异常报告邮件标题
+func buildErrorSubject() string {
+	if Config.ErrorSubject != "" {
+		subject := strings.ReplaceAll(Config.ErrorSubject, "{{device}}", getDeviceName())
+		subject = strings.ReplaceAll(subject, "{{time}}", timeutil.FormatDateTime(timeutil.Now()))
+		return subject
+	}
+	return fmt.Sprintf("【测试异常】gwatch - %s - %s", getDeviceName(), timeutil.FormatDateTime(timeutil.Now()))
+}
+
 // SendErrorReportEmail 发送异常退出报告邮件
 func SendErrorReportEmail(errorMessage string) error {
 	if !Config.Enabled {
@@ -141,7 +152,7 @@ func SendErrorReportEmail(errorMessage string) error {
 		return nil
 	}
 
-	subject := fmt.Sprintf("【测试异常】gwatch - %s - %s", getDeviceName(), timeutil.FormatDateTime(timeutil.Now()))
+	subject := buildErrorSubject()
 
 	var body strings.Builder
 	body.WriteString("===== 测试异常报告 =====\n\n")

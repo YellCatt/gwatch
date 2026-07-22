@@ -264,7 +264,7 @@ func sendAlertEmail(result MonitorResult) {
 // saveAlertRecord 保存告警记录到文件
 func saveAlertRecord(content, testCaseID string) {
 	// 构建告警目录路径
-	reportDir := config.AppConfig.Test.ReportDir
+	reportDir := config.AppConfig.App.ReportDir
 	if reportDir == "" {
 		reportDir = "./reports"
 	}

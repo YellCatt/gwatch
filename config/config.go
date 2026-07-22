@@ -18,7 +18,7 @@ var CfgFile string
 type Config struct {
 	Target  TargetConfig      `mapstructure:"target"`  // 目标 API 配置
 	Log     LogConfig         `mapstructure:"log"`     // 日志配置
-	Test    TestConfig        `mapstructure:"test"`    // 测试配置
+	App     AppConfig         `mapstructure:"app"`     // 应用配置
 	HTTP    HTTPConfig        `mapstructure:"http"`    // HTTP 客户端配置
 	Email   EmailConfig       `mapstructure:"email"`   // 邮件配置
 	Cleaner CleanupConfig     `mapstructure:"cleaner"` // 自动清理配置
@@ -46,26 +46,27 @@ type LogConfig struct {
 	Output   string `mapstructure:"output"`   // 输出位置 (stdout 或文件路径)
 }
 
-// TestConfig 表示测试相关的配置
-type TestConfig struct {
-	ReportDir     string   `mapstructure:"report_dir"`     // 测试报告输出目录
-	TestCaseDir   string   `mapstructure:"test_case_dir"`  // 默认测试用例目录
+// AppConfig 表示应用相关的配置
+type AppConfig struct {
+	ReportDir     string   `mapstructure:"report_dir"`     // 报告输出目录（包括告警记录）
+	CaseDir       string   `mapstructure:"case_dir"`       // 默认测试用例/监控配置目录
 	DataDir       string   `mapstructure:"data_dir"`       // 数据存储目录（用于 CSV 文件）
 
 	SevereStatus  []int    `mapstructure:"severe_status"`  // 严重错误状态码列表，这些状态码的测试用例失败时优先于其他失败用例
 	GlobalPre     []string `mapstructure:"global_pre"`     // 全局前置条件测试用例ID列表（所有测试执行前运行）
 	GlobalPost    []string `mapstructure:"global_post"`    // 全局后置条件测试用例ID列表（所有测试执行后运行）
-	DeviceName    string   `mapstructure:"device_name"`    // 测试设备名称（未配置时自动使用主机名）
+	HostName      string   `mapstructure:"host_name"`      // 主机名称（未配置时自动使用主机名）
 }
 
 // EmailConfig 表示邮件发送相关的配置
 type EmailConfig struct {
-	Enabled    bool     `mapstructure:"enabled"`    // 是否启用邮件发送
-	From       string   `mapstructure:"from"`       // 发件人邮箱
-	To         []string `mapstructure:"to"`         // 收件人邮箱列表
-	AuthCode   string   `mapstructure:"auth_code"`  // 邮箱授权码
-	SMTPServer string   `mapstructure:"smtp_server"` // SMTP 服务器地址
-	SMTPPort   int      `mapstructure:"smtp_port"`  // SMTP 端口
+	Enabled         bool     `mapstructure:"enabled"`          // 是否启用邮件发送
+	From            string   `mapstructure:"from"`             // 发件人邮箱
+	To              []string `mapstructure:"to"`               // 收件人邮箱列表
+	AuthCode        string   `mapstructure:"auth_code"`        // 邮箱授权码
+	SMTPServer      string   `mapstructure:"smtp_server"`     // SMTP 服务器地址
+	SMTPPort        int      `mapstructure:"smtp_port"`        // SMTP 端口
+	ErrorSubject    string   `mapstructure:"error_subject"`    // 异常报告邮件标题模板（支持 {{device}} 和 {{time}} 占位符）
 }
 
 // CleanupConfig 表示自动清理相关的配置

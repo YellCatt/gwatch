@@ -891,7 +891,7 @@ func SaveReports(allReport, errorReport string, timestamp ...string) (string, st
 		ts = timestamp[0]
 	}
 
-	reportDir := config.AppConfig.Test.ReportDir
+	reportDir := config.AppConfig.App.ReportDir
 
 	// 创建报告目录
 	if err := os.MkdirAll(reportDir, 0755); err != nil {

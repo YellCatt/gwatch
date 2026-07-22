@@ -1,7 +1,13 @@
 # 接口监控示例
-# 监控模式需要设置 monitor_enabled=1，并可配置监控周期、超时阈值、SLA阈值等
-id|desc|method|url|headers|expected_status|monitor_enabled|monitor_interval|timeout_threshold|sla_threshold|alert_on_failure|alert_on_timeout|alert_on_sla|tags
-monitor_01|监控-用户服务健康检查|GET|{{base_url}}/health|{"Authorization":"Bearer {{token}}"}|200|1|30|5000|2000|1|1|1|monitor,health
-monitor_02|监控-获取用户列表|GET|{{base_url}}/api/users|{"Authorization":"Bearer {{token}}"}|200|1|60|10000|3000|1|1|1|monitor,api
-monitor_03|监控-订单服务|GET|{{base_url}}/api/orders|{"Authorization":"Bearer {{token}}"}|200|1|120|8000|2500|1|1|1|monitor,api
-monitor_04|监控-支付服务|POST|{{base_url}}/api/payment/check|{"Authorization":"Bearer {{token}}","Content-Type":"application/json"}|200|1|60|15000|5000|1|1|1|monitor,payment
+# 监控默认配置由 config.yaml 的 monitor 部分控制
+# PSV 文件中可以覆盖全局配置
+# monitor_enabled: 是否启用监控（覆盖全局配置）
+# monitor_interval: 监控周期（秒），覆盖全局 default_interval
+# response_threshold: 响应时间阈值（毫秒），超过此值触发告警
+# alert_on_failure: 失败时告警（覆盖全局配置）
+# alert_on_slow: 响应慢时告警（覆盖全局配置）
+id|desc|method|url|headers|expected_status|monitor_interval|response_threshold|tags
+monitor_01|监控-用户服务健康检查|GET|{{base_url}}/health|{"Authorization":"Bearer {{token}}"}|200|30|2000|monitor,health
+monitor_02|监控-获取用户列表|GET|{{base_url}}/api/users|{"Authorization":"Bearer {{token}}"}|200|60|3000|monitor,api
+monitor_03|监控-订单服务|GET|{{base_url}}/api/orders|{"Authorization":"Bearer {{token}}"}|200|120|2500|monitor,api
+monitor_04|监控-支付服务|POST|{{base_url}}/api/payment/check|{"Authorization":"Bearer {{token}}","Content-Type":"application/json"}|200|60|5000|monitor,payment
