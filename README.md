@@ -1,6 +1,6 @@
-# pipet
+# gwatch
 
-一个功能强大的企业级 API 测试工具，使用 Go 语言编写。
+一个功能强大的企业级 API 测试和监控工具，使用 Go 语言编写。
 
 ## 功能特性
 
@@ -17,6 +17,9 @@
 - CSV 历史执行时间存储和平均值计算
 - 测试用例延迟控制（执行前/后延迟）
 - 邮件测试报告通知
+- **API 监控模式**（持续监控 API 端点）
+- **自动清理机制**（定期清理日志和报告文件）
+- **全局前置/后置条件**（所有测试执行前后运行）
 
 ## 环境要求
 
@@ -28,36 +31,23 @@
 
 ```bash
 go mod download
-go build -ldflags="-s -w" -o pipet.exe
+go build -ldflags="-s -w" -o gwatch.exe
 ```
-
-### 预编译二进制
-
-通过 GitHub Actions 自动构建，支持以下平台：
-
-| 平台 | 架构 | 下载链接 |
-|------|------|----------|
-| Linux | amd64 | [pipet_linux_amd64](https://github.com/YellCatt/pipetGo/releases/download/dev-latest/pipet_linux_amd64) |
-| Linux | arm64 | [pipet_linux_arm64](https://github.com/YellCatt/pipetGo/releases/download/dev-latest/pipet_linux_arm64) |
-| Linux | mipsle | [pipet_linux_mipsle](https://github.com/YellCatt/pipetGo/releases/download/dev-latest/pipet_linux_mipsle) |
-| Windows | amd64 | [pipet_windows_amd64.exe](https://github.com/YellCatt/pipetGo/releases/download/dev-latest/pipet_windows_amd64.exe) |
-
-**嵌入式设备支持**：mipsle 版本采用静态编译（`CGO_ENABLED=0`），零系统依赖，可直接运行在极路由2等嵌入式设备上。
 
 ## 运行时文件结构
 
-编译后的 `pipet.exe` 运行时需要以下文件结构：
+编译后的 `gwatch.exe` 运行时需要以下文件结构：
 
 ```
-pipet.exe           # 可执行文件
+gwatch.exe           # 可执行文件
 config/             # 配置目录
   └── config.yaml   # 配置文件
 testcases/          # 测试用例目录（可选）
   └── *.psv         # PSV/CSV 测试用例文件
 reports/            # 报告输出目录（自动创建）
 sql/                # CSV 数据目录（自动创建）
+logs/               # 日志目录（自动创建）
 ```
-
 
 ## 配置
 
@@ -67,83 +57,137 @@ sql/                # CSV 数据目录（自动创建）
 target:
   base_url: "https://httpbin.org"
   timeout: 30
+  authorization: ""
+  user_id: ""
 
 log:
   level: "info"
   encoding: "json"
-  output: "stdout"
+  output: "./logs/gwatch.log"
 
-test:
+app:
   report_dir: "./reports"
-  test_case_dir: "./testcases"
+  case_dir: "./testcases"
   data_dir: "./sql"
+  severe_status:
+    - 500
+  global_pre: []
+  global_post: []
+  host_name: ""
+
+http:
+  insecure_skip_verify: false
+
+vars:
+  # 自定义变量，可在测试用例中使用 {{var_name}} 引用
+  # api_key: "your_key"
 
 email:
+  enabled: false
   from: "sender@example.com"
-  to: "recipient@example.com"
+  to:
+    - "recipient@example.com"
   auth_code: "your_auth_code"
   smtp_server: "smtp.example.com"
   smtp_port: 465
+  error_subject: "gwatch 异常报告 - {{device}} - {{time}}"
+
+cleaner:
+  enabled: true
+  retention_days: 30
+  log_dir: "./logs"
+  report_dir: "./reports"
+  data_dir: "./sql"
+  include_patterns:
+    - "*.log"
+    - "*.json"
+    - "*.csv"
+    - "*.txt"
+  exclude_patterns: []
+  interval_hours: 24
+
+monitor:
+  enabled: false
+  default_interval: 60
+  alert_on_failure: true
+  alert_on_slow: false
 ```
 
 ### 必需文件
 
 | 文件/目录 | 说明 | 是否必需 |
 |-----------|------|----------|
-| `pipet.exe` | 主程序可执行文件 | **是** |
+| `gwatch.exe` | 主程序可执行文件 | **是** |
 | `config/config.yaml` | 配置文件 | **是** |
 | `testcases/` | 测试用例目录 | 否（运行时指定路径则不需要） |
 | `reports/` | 报告输出目录 | 否（自动创建） |
 | `sql/` | CSV 数据目录 | 否（自动创建） |
-
+| `logs/` | 日志目录 | 否（自动创建） |
 
 ### 配置说明
 
-- **base_url**: API 目标地址，测试用例中可用 `{{base_url}}` 引用
-- **timeout**: 请求超时时间（秒）
+- **target.base_url**: API 目标地址，测试用例中可用 `{{base_url}}` 引用
+- **target.timeout**: 请求超时时间（秒）
+- **target.authorization**: API 授权令牌
 - **log.level**: 日志级别（debug, info, warn, error）
 - **log.encoding**: 日志格式（json, console）
 - **log.output**: 日志输出（stdout 或文件路径）
-- **test.report_dir**: 测试报告输出目录
-- **test.test_case_dir**: 默认测试用例目录
-- **test.data_dir**: CSV 数据存储目录
-
+- **app.report_dir**: 测试报告输出目录
+- **app.case_dir**: 默认测试用例目录
+- **app.data_dir**: CSV 数据存储目录
+- **app.severe_status**: 严重错误状态码列表
+- **app.global_pre**: 全局前置条件测试用例 ID 列表
+- **app.global_post**: 全局后置条件测试用例 ID 列表
+- **http.insecure_skip_verify**: 是否跳过 TLS 证书验证
+- **vars**: 用户自定义变量（用于替换测试用例中的 `{{var}}`）
 - **email**: 邮件通知配置（测试开始和结束时发送）
+- **cleaner**: 自动清理配置（定期清理旧文件）
+- **monitor**: 监控模式配置
 
 ## 使用方法
 
 ### 运行默认目录下的所有测试
 
 ```bash
-./pipet.exe
+./gwatch.exe
 ```
 
 ### 运行特定的 PSV 文件
 
 ```bash
-./pipet.exe tests/test_data.psv tests/test_data2.psv
+./gwatch.exe tests/test_data.psv tests/test_data2.psv
 ```
 
 ### 运行目录下的所有测试
 
 ```bash
-./pipet.exe tests
+./gwatch.exe tests
 ```
 
 ### 标签过滤
 
 ```bash
 # 只运行 smoke 测试
-./pipet.exe --tags=smoke
+./gwatch.exe --tags=smoke
 
 # 运行 smoke 和 api 测试
-./pipet.exe --tags=smoke,api
+./gwatch.exe --tags=smoke,api
+```
+
+### 监控模式
+
+```bash
+# 启动监控模式
+./gwatch.exe --monitor
+
+# 监控模式 + 标签过滤
+./gwatch.exe --monitor --tags=health
 ```
 
 ## PSV 测试用例格式
 
 ```psv
-id|skip|desc|method|url|headers|params|form|json|body|expected_status|expected_body|tags|extract|stream_mode|stream_assert|match_mode|body_regex|pre|post
+id|skip|desc|method|url|headers|params|form|json|body|expected_status|expected_body|tags|extract|stream_mode|stream_assert|match_mode|body_regex|pre|post|fail_mode|keep_vars|delay_ms|delay_after_ms
 ```
 
 ### 列说明
@@ -160,7 +204,6 @@ id|skip|desc|method|url|headers|params|form|json|body|expected_status|expected_b
 | `form` | 表单数据 |
 | `json` | JSON 请求体 |
 | `body` | 原始请求体 |
-| `payload` | 兼容性字段，用于原始请求体 |
 | `expected_status` | 期望的 HTTP 状态码 |
 | `expected_body` | 期望的 JSON 响应 |
 | `tags` | 用于过滤的标签（逗号分隔） |
@@ -171,10 +214,10 @@ id|skip|desc|method|url|headers|params|form|json|body|expected_status|expected_b
 | `body_regex` | 响应体的正则表达式模式 |
 | `pre` | 前置条件测试 ID（分号分隔） |
 | `post` | 后置条件测试 ID（分号分隔） |
-| `fail_mode` | 失败模式：`stop`（默认，前置条件失败则停止）或 `continue`（前置条件失败仍继续） |
+| `fail_mode` | 失败模式：`stop`（默认，前置条件失败则停止）或 `continue` |
 | `keep_vars` | 是否保留提取的变量（0/1，默认 0，执行后自动清理） |
-| `delay_ms` | 执行前延迟时间（毫秒），用于控制测试用例执行前的等待时间 |
-| `delay_after_ms` | 执行后延迟时间（毫秒），用于控制当前用例执行完后到下一个用例开始的间隔 |
+| `delay_ms` | 执行前延迟时间（毫秒） |
+| `delay_after_ms` | 执行后延迟时间（毫秒） |
 
 ### 示例
 
@@ -317,6 +360,32 @@ stream_01|0|SSE流式断言|POST|{{base_url}}/chat/completions|{"Content-Type":"
 | `max_wait_ms` | 最大等待时间（预留） |
 | `min_chunks` | 所需的最小块数 |
 
+## 监控模式
+
+监控模式会持续检查 API 端点的可用性，支持：
+
+- 定期执行测试用例
+- 失败时发送邮件告警
+- 响应时间监控
+
+### 启用监控模式
+
+```bash
+./gwatch.exe --monitor
+```
+
+### 监控配置
+
+在 `config.yaml` 中配置监控参数：
+
+```yaml
+monitor:
+  enabled: true
+  default_interval: 60  # 默认监控周期（秒）
+  alert_on_failure: true  # 失败时告警
+  alert_on_slow: false    # 响应慢时告警
+```
+
 ## 报告生成
 
 每次运行后，报告会保存到 `reports/` 目录：
@@ -341,16 +410,23 @@ CSV 文件存储在 `sql/` 目录，包含以下文件：
 - `test_execution_times.csv` - 每次执行的详细记录
 - `test_average_times.csv` - 各测试用例的平均执行时间
 
+## 自动清理
+
+系统会定期清理旧的日志和报告文件：
+
+- 默认保留 30 天
+- 每天自动清理一次
+- 支持配置要清理的文件模式
 
 ## 依赖项
 
 - `github.com/go-resty/resty/v2` - HTTP 客户端
 - `github.com/spf13/viper` - 配置管理
+- `github.com/spf13/cobra` - 命令行框架
 - `github.com/tidwall/gjson` - JSON 解析
 - `go.uber.org/zap` - 日志
 - `github.com/bmatcuk/doublestar/v4` - 文件匹配
 - `encoding/csv` - 标准库 CSV 读写
-
 
 ## 许可证
 
