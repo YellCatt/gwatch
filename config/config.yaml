@@ -1,0 +1,53 @@
+target:
+  base_url: "https://localhost:8080"
+  timeout: 30
+
+log:
+  level: "info"
+  encoding: "json"
+  output: "./logs/gwatch.log"
+
+app:
+  report_dir: "./reports"
+  case_dir: "./demo"
+  data_dir: "./sql"
+  severe_status:
+    - 500
+  global_pre: []
+  global_post: []
+  host_name: ""
+
+http:
+  insecure_skip_verify: false
+
+vars: {}
+
+monitor:
+  enabled: true
+  default_interval: 60
+  alert_on_failure: true
+  alert_on_slow: true
+  max_workers: 1
+  alert_interval: 21600  # 同一接口异常后再次发送邮件的最小间隔（秒），默认 6 小时
+
+email:
+  enabled: false
+  from: ""
+  to: []
+  auth_code: ""
+  smtp_server: "smtp.example.com"
+  smtp_port: 465
+
+cleaner:
+  enabled: true
+  retention_days: 30
+  log_dir: "./logs"
+  report_dir: "./reports"
+  data_dir: "./sql"
+  include_patterns:
+    - "*.log"
+    - "*.json"
+    - "*.csv"
+    - "*.txt"
+  exclude_patterns: []
+  interval_hours: 24
