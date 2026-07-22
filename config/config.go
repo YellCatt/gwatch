@@ -111,7 +111,7 @@ func InitConfig() {
 	}
 
 	// 将配置解析到结构体（vars 字段会被 viper 转换为小写，后续会修复）
-	if err := viper.Unmarshal(&AppConfig); err != nil {
+	if err := viper.Unmarshal(&GlobalConfig); err != nil {
 		log.Fatalf("Unable to decode config into struct: %v", err)
 	}
 
@@ -119,7 +119,7 @@ func InitConfig() {
 	setCleanerDefaults()
 
 	// 单独读取 vars 配置，保留原始键名（避免 viper 自动转换小写）
-	AppConfig.Vars = loadRawVars()
+	GlobalConfig.Vars = loadRawVars()
 }
 
 // setCleanerDefaults 设置 cleaner 配置的默认值
@@ -131,34 +131,34 @@ func setCleanerDefaults() {
 
 	// 如果用户完全没有配置 cleaner，启用默认配置（包括 enabled: true）
 	if !hasCleanerConfig {
-		AppConfig.Cleaner.Enabled = true
-		AppConfig.Cleaner.RetentionDays = 30
-		AppConfig.Cleaner.LogDir = "./logs"
-		AppConfig.Cleaner.ReportDir = "./reports"
-		AppConfig.Cleaner.DataDir = "./sql"
-		AppConfig.Cleaner.IncludePatterns = []string{"*.log", "*.json", "*.csv", "*.txt"}
-		AppConfig.Cleaner.IntervalHours = 24
+		GlobalConfig.Cleaner.Enabled = true
+		GlobalConfig.Cleaner.RetentionDays = 30
+		GlobalConfig.Cleaner.LogDir = "./logs"
+		GlobalConfig.Cleaner.ReportDir = "./reports"
+		GlobalConfig.Cleaner.DataDir = "./sql"
+		GlobalConfig.Cleaner.IncludePatterns = []string{"*.log", "*.json", "*.csv", "*.txt"}
+		GlobalConfig.Cleaner.IntervalHours = 24
 		return
 	}
 
 	// 如果用户配置了 cleaner，但某些字段为空，则只为空字段设置默认值
-	if AppConfig.Cleaner.RetentionDays <= 0 {
-		AppConfig.Cleaner.RetentionDays = 30
+	if GlobalConfig.Cleaner.RetentionDays <= 0 {
+		GlobalConfig.Cleaner.RetentionDays = 30
 	}
-	if AppConfig.Cleaner.LogDir == "" {
-		AppConfig.Cleaner.LogDir = "./logs"
+	if GlobalConfig.Cleaner.LogDir == "" {
+		GlobalConfig.Cleaner.LogDir = "./logs"
 	}
-	if AppConfig.Cleaner.ReportDir == "" {
-		AppConfig.Cleaner.ReportDir = "./reports"
+	if GlobalConfig.Cleaner.ReportDir == "" {
+		GlobalConfig.Cleaner.ReportDir = "./reports"
 	}
-	if AppConfig.Cleaner.DataDir == "" {
-		AppConfig.Cleaner.DataDir = "./sql"
+	if GlobalConfig.Cleaner.DataDir == "" {
+		GlobalConfig.Cleaner.DataDir = "./sql"
 	}
-	if len(AppConfig.Cleaner.IncludePatterns) == 0 {
-		AppConfig.Cleaner.IncludePatterns = []string{"*.log", "*.json", "*.csv", "*.txt"}
+	if len(GlobalConfig.Cleaner.IncludePatterns) == 0 {
+		GlobalConfig.Cleaner.IncludePatterns = []string{"*.log", "*.json", "*.csv", "*.txt"}
 	}
-	if AppConfig.Cleaner.IntervalHours <= 0 {
-		AppConfig.Cleaner.IntervalHours = 24
+	if GlobalConfig.Cleaner.IntervalHours <= 0 {
+		GlobalConfig.Cleaner.IntervalHours = 24
 	}
 }
 
