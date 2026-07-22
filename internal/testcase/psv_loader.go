@@ -6,9 +6,9 @@ import (
 	"github.com/go-resty/resty/v2"
 	"go.uber.org/zap"
 
-	"pipetGo/internal/httpclient"
-	"pipetGo/internal/logger"
-	"pipetGo/internal/psv"
+	"gwatch/internal/httpclient"
+	"gwatch/internal/logger"
+	"gwatch/internal/psv"
 )
 
 func LoadFromPSV(filePath string) error {

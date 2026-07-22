@@ -9,7 +9,7 @@ import (
 	"github.com/tidwall/gjson"
 	"go.uber.org/zap"
 
-	"pipetGo/internal/logger"
+	"gwatch/internal/logger"
 )
 
 

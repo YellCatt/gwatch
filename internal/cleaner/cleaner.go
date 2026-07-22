@@ -9,7 +9,7 @@ import (
 
 	"go.uber.org/zap"
 
-	"pipetGo/internal/logger"
+	"gwatch/internal/logger"
 )
 
 // Config 清理配置（与 config.go 中的 CleanupConfig 保持一致）

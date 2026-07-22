@@ -11,7 +11,7 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 
-	"pipetGo/internal/timeutil"
+	"gwatch/internal/timeutil"
 )
 
 // log 是全局日志实例

@@ -22,6 +22,7 @@ type Config struct {
 	HTTP    HTTPConfig        `mapstructure:"http"`    // HTTP 客户端配置
 	Email   EmailConfig       `mapstructure:"email"`   // 邮件配置
 	Cleaner CleanupConfig     `mapstructure:"cleaner"` // 自动清理配置
+	Monitor MonitorConfig     `mapstructure:"monitor"` // 监控配置
 	Vars    map[string]string `mapstructure:"vars"`    // 用户自定义变量（用于替换测试用例中的 {{var}}）
 }
 
@@ -77,6 +78,14 @@ type CleanupConfig struct {
 	IncludePatterns []string `mapstructure:"include_patterns"` // 要清理的文件模式列表（如 *.log, *.json）
 	ExcludePatterns []string `mapstructure:"exclude_patterns"` // 排除的文件模式列表
 	IntervalHours   int      `mapstructure:"interval_hours"`   // 定时清理间隔（小时）
+}
+
+// MonitorConfig 表示监控相关的配置
+type MonitorConfig struct {
+	Enabled         bool `mapstructure:"enabled"`          // 是否启用监控模式（全局开关）
+	DefaultInterval int  `mapstructure:"default_interval"` // 默认监控周期（秒）
+	AlertOnFailure  bool `mapstructure:"alert_on_failure"` // 默认失败时告警
+	AlertOnSlow     bool `mapstructure:"alert_on_slow"`    // 默认响应慢时告警
 }
 
 // AppConfig 存储全局配置实例

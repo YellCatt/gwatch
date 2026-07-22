@@ -8,7 +8,7 @@ import (
 
 	"github.com/go-resty/resty/v2"
 
-	"pipetGo/config"
+	"gwatch/config"
 )
 
 // Client 是全局 HTTP 客户端实例

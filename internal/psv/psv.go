@@ -16,7 +16,8 @@ import (
 	"github.com/bmatcuk/doublestar/v4"
 	"go.uber.org/zap"
 
-	"pipetGo/internal/logger"
+	"gwatch/config"
+	"gwatch/internal/logger"
 )
 
 // StreamAssert 表示流式断言配置
@@ -29,36 +30,42 @@ type StreamAssert struct {
 
 // TestCase 表示测试用例
 type TestCase struct {
-	ID             string            `mapstructure:"id"`              // 测试用例唯一标识
-	Name           string            `mapstructure:"name"`            // 测试用例名称
-	FileName       string            `mapstructure:"file_name"`       // 所属文件名（用于数据库记录）
-	Skip           bool              `mapstructure:"skip"`            // 是否跳过
-	SkipReason     string            `mapstructure:"skip_reason"`     // 跳过原因
-	Desc           string            `mapstructure:"desc"`            // 测试用例描述
-	Method         string            `mapstructure:"method"`          // HTTP方法: GET/POST/PUT/DELETE/PATCH/HEAD
-	URL            string            `mapstructure:"url"`             // 请求URL
-	Endpoint       string            `mapstructure:"endpoint"`        // API端点
-	Headers        map[string]string `mapstructure:"headers"`         // 请求头
-	Params         map[string]string `mapstructure:"params"`          // URL参数
-	Form           map[string]string `mapstructure:"form"`            // 表单数据
-	JSON           string            `mapstructure:"json"`            // JSON请求体
-	Body           string            `mapstructure:"body"`            // 原始请求体
-	Payload        string            `mapstructure:"payload"`         // 兼容性字段
-	ExpectedStatus int               `mapstructure:"expected_status"` // 期望状态码
-	ExpectedCode   int               `mapstructure:"expected_code"`   // 期望状态码（兼容字段）
-	ExpectedBody   string            `mapstructure:"expected_body"`   // 期望响应体
-	Tags           []string          `mapstructure:"tags"`            // 标签列表
-	Extract        string            `mapstructure:"extract"`         // 变量提取规则
-	StreamMode     bool              `mapstructure:"stream_mode"`     // 是否流式模式
-	StreamAssert   []StreamAssert    `mapstructure:"stream_assert"`   // 流式断言规则
-	MatchMode      string            `mapstructure:"match_mode"`      // 匹配模式: exact/subset
-	BodyRegex      string            `mapstructure:"body_regex"`      // 响应体正则表达式
-	Pre            []string          `mapstructure:"pre"`             // 前置条件
-	Post           []string          `mapstructure:"post"`            // 后置条件
-	FailMode       string            `mapstructure:"fail_mode"`       // 失败模式: stop(默认)/continue
-	KeepVars       bool              `mapstructure:"keep_vars"`       // 是否保留提取的变量（默认false，即自动清理）
-	DelayMs        int               `mapstructure:"delay_ms"`        // 执行前延迟时间（毫秒）
-	DelayAfterMs   int               `mapstructure:"delay_after_ms"`  // 执行后延迟时间（毫秒）
+	ID                 string            `mapstructure:"id"`                 // 测试用例唯一标识
+	Name               string            `mapstructure:"name"`               // 测试用例名称
+	FileName           string            `mapstructure:"file_name"`          // 所属文件名（用于数据库记录）
+	Skip               bool              `mapstructure:"skip"`               // 是否跳过
+	SkipReason         string            `mapstructure:"skip_reason"`        // 跳过原因
+	Desc               string            `mapstructure:"desc"`               // 测试用例描述
+	Method             string            `mapstructure:"method"`             // HTTP方法: GET/POST/PUT/DELETE/PATCH/HEAD
+	URL                string            `mapstructure:"url"`                // 请求URL
+	Endpoint           string            `mapstructure:"endpoint"`           // API端点
+	Headers            map[string]string `mapstructure:"headers"`            // 请求头
+	Params             map[string]string `mapstructure:"params"`             // URL参数
+	Form               map[string]string `mapstructure:"form"`               // 表单数据
+	JSON               string            `mapstructure:"json"`               // JSON请求体
+	Body               string            `mapstructure:"body"`               // 原始请求体
+	Payload            string            `mapstructure:"payload"`            // 兼容性字段
+	ExpectedStatus     int               `mapstructure:"expected_status"`    // 期望状态码
+	ExpectedCode       int               `mapstructure:"expected_code"`      // 期望状态码（兼容字段）
+	ExpectedBody       string            `mapstructure:"expected_body"`      // 期望响应体
+	Tags               []string          `mapstructure:"tags"`               // 标签列表
+	Extract            string            `mapstructure:"extract"`            // 变量提取规则
+	StreamMode         bool              `mapstructure:"stream_mode"`        // 是否流式模式
+	StreamAssert       []StreamAssert    `mapstructure:"stream_assert"`      // 流式断言规则
+	MatchMode          string            `mapstructure:"match_mode"`         // 匹配模式: exact/subset
+	BodyRegex          string            `mapstructure:"body_regex"`         // 响应体正则表达式
+	Pre                []string          `mapstructure:"pre"`                // 前置条件
+	Post               []string          `mapstructure:"post"`               // 后置条件
+	FailMode           string            `mapstructure:"fail_mode"`          // 失败模式: stop(默认)/continue
+	KeepVars           bool              `mapstructure:"keep_vars"`          // 是否保留提取的变量（默认false，即自动清理）
+	DelayMs            int               `mapstructure:"delay_ms"`           // 执行前延迟时间（毫秒）
+	DelayAfterMs       int               `mapstructure:"delay_after_ms"`     // 执行后延迟时间（毫秒）
+	// 监控相关字段
+	MonitorEnabled     bool              `mapstructure:"monitor_enabled"`    // 是否启用监控
+	MonitorInterval    int               `mapstructure:"monitor_interval"`   // 监控周期（秒），默认60秒
+	ResponseThreshold  int               `mapstructure:"response_threshold"` // 响应时间阈值（毫秒），超过此值告警
+	AlertOnFailure     bool              `mapstructure:"alert_on_failure"`   // 失败时是否告警
+	AlertOnSlow        bool              `mapstructure:"alert_on_slow"`      // 响应慢时是否告警
 }
 
 // ParseFile 解析单个PSV文件
@@ -208,11 +215,18 @@ func parseLine(line string) []string {
 // fields: 字段数组
 // 返回: 测试用例和错误信息
 func parseTestCase(header []string, fields []string) (TestCase, error) {
+	// 从配置文件获取监控默认值
+	monitorCfg := config.AppConfig.Monitor
+	
 	tc := TestCase{
-		Headers:   make(map[string]string),
-		Params:    make(map[string]string),
-		Form:      make(map[string]string),
-		MatchMode: "exact",
+		Headers:          make(map[string]string),
+		Params:           make(map[string]string),
+		Form:             make(map[string]string),
+		MatchMode:        "exact",
+		MonitorEnabled:   monitorCfg.Enabled,          // 从配置读取是否启用监控
+		MonitorInterval:  monitorCfg.DefaultInterval,  // 从配置读取默认监控周期
+		AlertOnFailure:   monitorCfg.AlertOnFailure,   // 从配置读取失败告警设置
+		AlertOnSlow:      monitorCfg.AlertOnSlow,      // 从配置读取响应慢告警设置
 	}
 
 	// 遍历表头和字段，映射到测试用例结构
@@ -276,6 +290,25 @@ func parseTestCase(header []string, fields []string) (TestCase, error) {
 			tc.DelayMs = parseInt(value)
 		case "delay_after_ms":
 			tc.DelayAfterMs = parseInt(value)
+		// 监控相关字段
+		case "monitor_enabled":
+			tc.MonitorEnabled = value == "1" || strings.EqualFold(value, "true")
+		case "monitor_interval":
+			tc.MonitorInterval = parseInt(value)
+		case "response_threshold":
+			tc.ResponseThreshold = parseInt(value)
+		case "sla_threshold":      // 兼容旧字段名
+			tc.ResponseThreshold = parseInt(value)
+		case "timeout_threshold":  // 兼容旧字段名
+			tc.ResponseThreshold = parseInt(value)
+		case "alert_on_failure":
+			tc.AlertOnFailure = value == "1" || strings.EqualFold(value, "true")
+		case "alert_on_slow":
+			tc.AlertOnSlow = value == "1" || strings.EqualFold(value, "true")
+		case "alert_on_timeout":   // 兼容旧字段名
+			tc.AlertOnSlow = value == "1" || strings.EqualFold(value, "true")
+		case "alert_on_sla":       // 兼容旧字段名
+			tc.AlertOnSlow = value == "1" || strings.EqualFold(value, "true")
 		}
 	}
 

@@ -15,7 +15,7 @@ import (
 
 	"go.uber.org/zap"
 
-	"pipetGo/internal/logger"
+	"gwatch/internal/logger"
 )
 
 var (

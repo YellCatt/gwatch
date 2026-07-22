@@ -15,6 +15,7 @@ import (
 	"gwatch/internal/email"
 	"gwatch/internal/httpclient"
 	"gwatch/internal/logger"
+	"gwatch/internal/monitor"
 	"gwatch/internal/psv"
 	"gwatch/internal/storage"
 	"gwatch/internal/testcase"
@@ -26,16 +27,22 @@ var (
 	// rootCmd 是命令行应用的根命令
 	rootCmd = &cobra.Command{
 		Use:   "gwatch [paths...]",
-		Short: "gwatch - API Testing Tool",
-		Long:  `A powerful enterprise-grade API testing tool written in Go.`,
+		Short: "gwatch - API Testing and Monitoring Tool",
+		Long:  `A powerful enterprise-grade API testing and monitoring tool written in Go.`,
 		Args:  cobra.ArbitraryArgs,
 		Run: func(cmd *cobra.Command, args []string) {
-			runTests(args)
+			if monitorFlag {
+				startMonitor(args)
+			} else {
+				runTests(args)
+			}
 		},
 	}
 
 	// tagsFlag 存储命令行指定的标签过滤参数
 	tagsFlag string
+	// monitorFlag 是否启用监控模式
+	monitorFlag bool
 )
 
 // Execute 启动命令行应用
@@ -59,6 +66,7 @@ func init() {
 	cobra.OnInitialize(initConfig)
 	rootCmd.Flags().StringVar(&config.CfgFile, "config", "", "config file (default is ./config/config.yaml)")
 	rootCmd.Flags().StringVarP(&tagsFlag, "tags", "t", "", "filter tests by tags (comma-separated)")
+	rootCmd.Flags().BoolVarP(&monitorFlag, "monitor", "m", false, "enable monitor mode for API endpoints (requires monitor_enabled=true in test cases)")
 }
 
 // initConfig 初始化应用配置
@@ -217,13 +225,6 @@ func runTests(paths []string) {
 	fmt.Printf("║ 预估执行时间: %-41s║\n", estimatedDurationStr)
 	fmt.Printf("╚════════════════════════════════════════════════════════╝\n\n")
 
-	// 发送测试开始通知邮件
-	go func() {
-		if err := email.SendTestStartEmail(executedCount, executedChainCount, executedIndependentCount, estimatedDurationStr); err != nil {
-			logger.Warn("Failed to send test start email", zap.Error(err))
-		}
-	}()
-
 
 	// 生成报告时间戳（测试开始时生成，后续更新报告时使用同一个时间戳）
 	reportTimestamp := timeutil.FormatCompact(timeutil.Now())
@@ -333,11 +334,6 @@ func runTests(paths []string) {
 		if !r.Passed && !r.TestCase.Skip {
 			failedCount++
 		}
-	}
-
-	// 测试结束后发送邮件报告
-	if err := email.SendTestReportEmail(results); err != nil {
-		logger.Warn("Failed to send email report", zap.Error(err))
 	}
 
 	if failedCount > 0 {
@@ -494,4 +490,42 @@ cleaner:
 	} else {
 		fmt.Printf("已创建默认配置文件: %s\n", configPath)
 	}
+}
+
+// startMonitor 启动监控模式
+func startMonitor(paths []string) {
+	// 初始化 HTTP 客户端
+	httpclient.InitClient()
+
+	// 如果未指定路径，使用默认测试用例目录
+	if len(paths) == 0 {
+		paths = []string{config.AppConfig.Test.TestCaseDir}
+	}
+
+	// 解析 PSV/CSV 测试用例文件
+	testCases, err := psv.ParseFiles(paths)
+	if err != nil {
+		logger.Error("Failed to parse PSV files", zap.Error(err))
+		errorMsg := fmt.Sprintf("解析测试用例文件失败: %v", err)
+		if err := email.SendErrorReportEmail(errorMsg); err != nil {
+			logger.Warn("Failed to send error report email", zap.Error(err))
+		}
+		os.Exit(1)
+	}
+
+	// 设置所有测试用例（用于链式测试查找前置条件）
+	testcase.SetAllTestCases(testCases)
+
+	// 根据标签过滤测试用例
+	var tags []string
+	if tagsFlag != "" {
+		tags = strings.Split(tagsFlag, ",")
+		for i, tag := range tags {
+			tags[i] = strings.TrimSpace(tag)
+		}
+		testCases = testcase.FilterByTags(testCases, tags)
+	}
+
+	// 启动监控
+	monitor.StartMonitor(testCases)
 }

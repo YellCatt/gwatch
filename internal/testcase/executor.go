@@ -16,14 +16,14 @@ import (
 	"github.com/go-resty/resty/v2"
 	"go.uber.org/zap"
 
-	"pipetGo/config"
-	"pipetGo/internal/assert"
-	"pipetGo/internal/httpclient"
-	"pipetGo/internal/logger"
-	"pipetGo/internal/psv"
-	"pipetGo/internal/storage"
-	"pipetGo/internal/timeutil"
-	"pipetGo/internal/vars"
+	"gwatch/config"
+	"gwatch/internal/assert"
+	"gwatch/internal/httpclient"
+	"gwatch/internal/logger"
+	"gwatch/internal/psv"
+	"gwatch/internal/storage"
+	"gwatch/internal/timeutil"
+	"gwatch/internal/vars"
 )
 
 // TestResult 表示测试用例执行结果
@@ -955,7 +955,7 @@ func PrintSummary(results []TestResult) {
 	// 打印汇总信息
 	fmt.Println()
 	fmt.Println("╔══════════════════════════════════════════════════════╗")
-	fmt.Println("║              pipet 接口测试                          ║")
+	fmt.Println("║              gwatch 接口测试                        ║")
 	fmt.Println("╚══════════════════════════════════════════════════════╝")
 	fmt.Println()
 	fmt.Printf("测试用例: %d 通过, %d 失败, %d 跳过\n", passed, failed, skipped)
