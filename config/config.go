@@ -48,25 +48,25 @@ type LogConfig struct {
 
 // AppConfig 表示应用相关的配置
 type AppConfig struct {
-	ReportDir     string   `mapstructure:"report_dir"`     // 报告输出目录（包括告警记录）
-	CaseDir       string   `mapstructure:"case_dir"`       // 默认测试用例/监控配置目录
-	DataDir       string   `mapstructure:"data_dir"`       // 数据存储目录（用于 CSV 文件）
+	ReportDir string `mapstructure:"report_dir"` // 报告输出目录（包括告警记录）
+	CaseDir   string `mapstructure:"case_dir"`   // 默认测试用例/监控配置目录
+	DataDir   string `mapstructure:"data_dir"`   // 数据存储目录（用于 CSV 文件）
 
-	SevereStatus  []int    `mapstructure:"severe_status"`  // 严重错误状态码列表，这些状态码的测试用例失败时优先于其他失败用例
-	GlobalPre     []string `mapstructure:"global_pre"`     // 全局前置条件测试用例ID列表（所有测试执行前运行）
-	GlobalPost    []string `mapstructure:"global_post"`    // 全局后置条件测试用例ID列表（所有测试执行后运行）
-	HostName      string   `mapstructure:"host_name"`      // 主机名称（未配置时自动使用主机名）
+	SevereStatus []int    `mapstructure:"severe_status"` // 严重错误状态码列表，这些状态码的测试用例失败时优先于其他失败用例
+	GlobalPre    []string `mapstructure:"global_pre"`    // 全局前置条件测试用例ID列表（所有测试执行前运行）
+	GlobalPost   []string `mapstructure:"global_post"`   // 全局后置条件测试用例ID列表（所有测试执行后运行）
+	HostName     string   `mapstructure:"host_name"`     // 主机名称（未配置时自动使用主机名）
 }
 
 // EmailConfig 表示邮件发送相关的配置
 type EmailConfig struct {
-	Enabled         bool     `mapstructure:"enabled"`          // 是否启用邮件发送
-	From            string   `mapstructure:"from"`             // 发件人邮箱
-	To              []string `mapstructure:"to"`               // 收件人邮箱列表
-	AuthCode        string   `mapstructure:"auth_code"`        // 邮箱授权码
-	SMTPServer      string   `mapstructure:"smtp_server"`     // SMTP 服务器地址
-	SMTPPort        int      `mapstructure:"smtp_port"`        // SMTP 端口
-	ErrorSubject    string   `mapstructure:"error_subject"`    // 异常报告邮件标题模板（支持 {{device}} 和 {{time}} 占位符）
+	Enabled      bool     `mapstructure:"enabled"`       // 是否启用邮件发送
+	From         string   `mapstructure:"from"`          // 发件人邮箱
+	To           []string `mapstructure:"to"`            // 收件人邮箱列表
+	AuthCode     string   `mapstructure:"auth_code"`     // 邮箱授权码
+	SMTPServer   string   `mapstructure:"smtp_server"`   // SMTP 服务器地址
+	SMTPPort     int      `mapstructure:"smtp_port"`     // SMTP 端口
+	ErrorSubject string   `mapstructure:"error_subject"` // 异常报告邮件标题模板（支持 {{device}} 和 {{time}} 占位符）
 }
 
 // CleanupConfig 表示自动清理相关的配置
@@ -87,6 +87,7 @@ type MonitorConfig struct {
 	DefaultInterval int  `mapstructure:"default_interval"` // 默认监控周期（秒）
 	AlertOnFailure  bool `mapstructure:"alert_on_failure"` // 默认失败时告警
 	AlertOnSlow     bool `mapstructure:"alert_on_slow"`    // 默认响应慢时告警
+	MaxWorkers      int  `mapstructure:"max_workers"`      // 最大并发goroutine数，0表示不限制，默认1适合资源受限设备
 }
 
 // GlobalConfig 存储全局配置实例

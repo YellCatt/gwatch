@@ -29,18 +29,20 @@ type MonitorTask struct {
 
 // MonitorResult 表示监控结果
 type MonitorResult struct {
-	TestCase    psv.TestCase
-	Result      testcase.TestResult
-	Timestamp   time.Time
-	AlertType   string // "failure", "timeout", "sla", ""
-	AlertMsg    string
+	TestCase  psv.TestCase
+	Result    testcase.TestResult
+	Timestamp time.Time
+	AlertType string // "failure", "timeout", "sla", ""
+	AlertMsg  string
 }
 
 var (
-	tasks      = make(map[string]*MonitorTask)
-	tasksMu    sync.Mutex
-	results    = make([]MonitorResult, 0, 1000)
-	resultsMu  sync.Mutex
+	tasks     = make(map[string]*MonitorTask)
+	tasksMu   sync.Mutex
+	results   = make([]MonitorResult, 0, 1000)
+	resultsMu sync.Mutex
+	taskChan  chan psv.TestCase
+	stopChan  chan struct{}
 )
 
 // StartMonitor 启动监控模式
@@ -54,11 +56,30 @@ func StartMonitor(testCases []psv.TestCase) {
 		return
 	}
 
+	// 获取最大并发数配置
+	maxWorkers := config.GlobalConfig.Monitor.MaxWorkers
+	if maxWorkers <= 0 {
+		maxWorkers = len(monitorCases) // 不限制，每个任务一个goroutine
+	} else if maxWorkers > len(monitorCases) {
+		maxWorkers = len(monitorCases) // 不能超过任务数
+	}
+
 	fmt.Printf("\n════════════════════════════════════════════════════════╗\n")
 	fmt.Printf("║              gwatch 接口监控模式                        ║\n")
 	fmt.Printf("╚════════════════════════════════════════════════════════╝\n")
 	fmt.Printf("监控任务数: %d\n", len(monitorCases))
+	fmt.Printf("最大并发数: %d\n", maxWorkers)
 
+	// 初始化任务通道和停止通道
+	taskChan = make(chan psv.TestCase, len(monitorCases))
+	stopChan = make(chan struct{})
+
+	// 启动 worker pool
+	for i := 0; i < maxWorkers; i++ {
+		go worker(i)
+	}
+
+	// 注册所有任务
 	for _, tc := range monitorCases {
 		startTask(tc)
 	}
@@ -75,6 +96,50 @@ func StartMonitor(testCases []psv.TestCase) {
 	fmt.Println("\n收到退出信号，正在停止监控任务...")
 	StopAllTasks()
 	fmt.Println("监控任务已全部停止")
+}
+
+// worker 执行任务的工作协程
+func worker(id int) {
+	logger.Info("Worker started", zap.Int("id", id))
+	for {
+		select {
+		case tc := <-taskChan:
+			executeAndMonitorTask(tc)
+		case <-stopChan:
+			logger.Info("Worker stopped", zap.Int("id", id))
+			return
+		}
+	}
+}
+
+// executeAndMonitorTask 执行单个监控任务
+func executeAndMonitorTask(tc psv.TestCase) {
+	logger.Info("Executing monitor task", zap.String("id", tc.ID))
+
+	result := testcase.ExecuteTestCase(tc)
+
+	// 记录监控结果
+	monitorResult := MonitorResult{
+		TestCase:  tc,
+		Result:    result,
+		Timestamp: timeutil.Now(),
+	}
+
+	// 检查是否需要告警
+	checkAlerts(&monitorResult)
+
+	// 保存结果
+	resultsMu.Lock()
+	results = append(results, monitorResult)
+	if len(results) > 1000 {
+		results = results[len(results)-1000:]
+	}
+	resultsMu.Unlock()
+
+	// 如果有告警，发送邮件
+	if monitorResult.AlertType != "" && (tc.AlertOnFailure || tc.AlertOnSlow) {
+		sendAlertEmail(monitorResult)
+	}
 }
 
 // filterMonitorCases 过滤出启用监控的测试用例
@@ -106,20 +171,21 @@ func startTask(tc psv.TestCase) {
 	}
 	tasks[tc.ID] = task
 
-	go runTask(task)
+	// 启动任务调度协程（仅负责定时，不执行实际任务）
+	go scheduleTask(task)
 
 	fmt.Printf("启动监控任务: [%s] %s (周期: %ds)\n", tc.ID, tc.Desc, tc.MonitorInterval)
 }
 
-// runTask 运行监控任务
-func runTask(task *MonitorTask) {
+// scheduleTask 任务调度协程（负责定时触发）
+func scheduleTask(task *MonitorTask) {
 	// 立即执行第一次
-	executeAndMonitor(task)
+	taskChan <- task.TestCase
 
 	for {
 		select {
 		case <-task.Ticker.C:
-			executeAndMonitor(task)
+			taskChan <- task.TestCase
 		case <-task.StopChan:
 			task.Running = false
 			return
@@ -187,7 +253,7 @@ func sendAlertEmail(result MonitorResult) {
 	}
 
 	tc := result.TestCase
-	
+
 	// 根据告警类型确定优先级和图标
 	alertLevel := "WARNING"
 	alertIcon := "⚠️"
@@ -268,7 +334,7 @@ func saveAlertRecord(content, testCaseID string) {
 	if reportDir == "" {
 		reportDir = "./reports"
 	}
-	
+
 	// 创建告警子目录
 	alertDir := filepath.Join(reportDir, "alerts", timeutil.Now().Format("20060102"))
 	if err := os.MkdirAll(alertDir, 0755); err != nil {
@@ -300,9 +366,8 @@ func getDeviceName() string {
 
 // StopAllTasks 停止所有监控任务
 func StopAllTasks() {
+	// 先停止所有调度协程
 	tasksMu.Lock()
-	defer tasksMu.Unlock()
-
 	for id, task := range tasks {
 		task.Ticker.Stop()
 		close(task.StopChan)
@@ -310,6 +375,16 @@ func StopAllTasks() {
 		delete(tasks, id)
 		logger.Info("Stopped monitor task", zap.String("id", id))
 	}
+	tasksMu.Unlock()
+
+	// 通知所有 worker 停止
+	if stopChan != nil {
+		close(stopChan)
+	}
+
+	// 重置通道
+	taskChan = nil
+	stopChan = nil
 }
 
 // GetResults 获取监控结果

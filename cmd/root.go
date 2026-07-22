@@ -31,18 +31,18 @@ var (
 		Long:  `A powerful enterprise-grade API testing and monitoring tool written in Go.`,
 		Args:  cobra.ArbitraryArgs,
 		Run: func(cmd *cobra.Command, args []string) {
-			if monitorFlag {
-				startMonitor(args)
-			} else {
+			if testFlag {
 				runTests(args)
+			} else {
+				startMonitor(args)
 			}
 		},
 	}
 
 	// tagsFlag 存储命令行指定的标签过滤参数
 	tagsFlag string
-	// monitorFlag 是否启用监控模式
-	monitorFlag bool
+	// testFlag 是否执行单次测试（默认是监控模式）
+	testFlag bool
 )
 
 // Execute 启动命令行应用
@@ -65,8 +65,8 @@ func Execute() {
 func init() {
 	cobra.OnInitialize(initConfig)
 	rootCmd.Flags().StringVar(&config.CfgFile, "config", "", "config file (default is ./config/config.yaml)")
-	rootCmd.Flags().StringVarP(&tagsFlag, "tags", "t", "", "filter tests by tags (comma-separated)")
-	rootCmd.Flags().BoolVarP(&monitorFlag, "monitor", "m", false, "enable monitor mode for API endpoints (requires monitor_enabled=true in test cases)")
+	rootCmd.Flags().StringVarP(&tagsFlag, "tags", "T", "", "filter tests by tags (comma-separated)")
+	rootCmd.Flags().BoolVarP(&testFlag, "test", "t", false, "run tests once (default is monitor mode)")
 }
 
 // initConfig 初始化应用配置
@@ -74,9 +74,9 @@ func init() {
 func initConfig() {
 	// 自动创建必要的目录和默认配置文件
 	initDirectories()
-	
+
 	config.InitConfig()
-	
+
 	logger.InitLogger(logger.LogConfig{
 		Level:    config.GlobalConfig.Log.Level,
 		Encoding: config.GlobalConfig.Log.Encoding,
@@ -146,7 +146,6 @@ func runTests(paths []string) {
 		}
 	}
 
-
 	// 如果未指定路径，使用默认测试用例目录
 	if len(paths) == 0 {
 		paths = []string{config.GlobalConfig.App.CaseDir}
@@ -180,7 +179,6 @@ func runTests(paths []string) {
 
 	// 根据标签过滤测试用例
 	testCases = testcase.FilterByTags(testCases, tags)
-
 
 	// 如果没有测试用例，直接返回
 	if len(testCases) == 0 {
@@ -225,7 +223,6 @@ func runTests(paths []string) {
 	fmt.Printf("╠════════════════════════════════════════════════════════╣\n")
 	fmt.Printf("║ 预估执行时间: %-41s║\n", estimatedDurationStr)
 	fmt.Printf("╚════════════════════════════════════════════════════════╝\n\n")
-
 
 	// 生成报告时间戳（测试开始时生成，后续更新报告时使用同一个时间戳）
 	reportTimestamp := timeutil.FormatCompact(timeutil.Now())
@@ -278,7 +275,6 @@ func runTests(paths []string) {
 		}
 		fmt.Printf("第 %d/%d 个%s完成，正在更新报告...\n", i+1, len(testCases), stepLabel)
 		fmt.Printf("────────────────────────────────────────────────────────────\n")
-
 
 		// 生成并保存测试报告（使用同一个时间戳，覆盖之前的报告）
 		allReport, errorReport := testcase.GenerateReport(results)
@@ -407,11 +403,11 @@ func formatDuration(d time.Duration) string {
 func initDirectories() {
 	// 需要创建的目录列表（使用默认值，因为此时配置还未加载）
 	directories := []string{
-		"./config",     // 配置文件目录
-		"./logs",       // 日志目录
-		"./reports",    // 测试报告目录
-		"./sql",        // 数据存储目录（CSV文件）
-		"./testcases",  // 测试用例目录
+		"./config",    // 配置文件目录
+		"./logs",      // 日志目录
+		"./reports",   // 测试报告目录
+		"./sql",       // 数据存储目录（CSV文件）
+		"./testcases", // 测试用例目录
 	}
 
 	for _, dir := range directories {
@@ -431,7 +427,7 @@ func initDirectories() {
 // createDefaultConfigFile 如果 config.yaml 不存在，创建默认配置文件
 func createDefaultConfigFile() {
 	configPath := "./config/config.yaml"
-	
+
 	// 检查文件是否存在
 	if _, err := os.Stat(configPath); err == nil {
 		// 文件已存在，跳过创建
@@ -448,20 +444,27 @@ log:
   encoding: "json"
   output: "./logs/gwatch.log"
 
-test:
+app:
   report_dir: "./reports"
-  test_case_dir: "./testcases"
+  case_dir: "./demo"
   data_dir: "./sql"
   severe_status:
     - 500
   global_pre: []
   global_post: []
-  device_name: ""
+  host_name: ""
 
 http:
   insecure_skip_verify: false
 
 vars: {}
+
+monitor:
+  enabled: true
+  default_interval: 60
+  alert_on_failure: true
+  alert_on_slow: true
+  max_workers: 1
 
 email:
   enabled: false
