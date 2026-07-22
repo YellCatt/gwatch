@@ -8,7 +8,6 @@ import (
 	"net/smtp"
 	"os"
 	"strings"
-	"time"
 
 	"gwatch/internal/timeutil"
 )
