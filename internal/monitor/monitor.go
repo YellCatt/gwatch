@@ -19,6 +19,11 @@ import (
 	"gwatch/internal/timeutil"
 )
 
+// 热加载配置
+const (
+	hotReloadInterval = 30 * time.Second // 热加载扫描间隔
+)
+
 // MonitorTask 表示一个监控任务
 type MonitorTask struct {
 	TestCase psv.TestCase
@@ -37,12 +42,14 @@ type MonitorResult struct {
 }
 
 var (
-	tasks     = make(map[string]*MonitorTask)
-	tasksMu   sync.Mutex
-	results   = make([]MonitorResult, 0, 1000)
-	resultsMu sync.Mutex
-	taskChan  chan psv.TestCase
-	stopChan  chan struct{}
+	tasks         = make(map[string]*MonitorTask)
+	tasksMu       sync.Mutex
+	results       = make([]MonitorResult, 0, 1000)
+	resultsMu     sync.Mutex
+	taskChan      chan psv.TestCase
+	stopChan      chan struct{}
+	lastAlertTime = make(map[string]time.Time) // 存储每个测试用例上次告警时间
+	lastAlertMu   sync.Mutex                   // 保护 lastAlertTime 的互斥锁
 )
 
 // StartMonitor 启动监控模式
@@ -71,7 +78,7 @@ func StartMonitor(testCases []psv.TestCase) {
 	fmt.Printf("最大并发数: %d\n", maxWorkers)
 
 	// 初始化任务通道和停止通道
-	taskChan = make(chan psv.TestCase, len(monitorCases))
+	taskChan = make(chan psv.TestCase, len(monitorCases)*2) // 预留空间
 	stopChan = make(chan struct{})
 
 	// 启动 worker pool
@@ -84,11 +91,15 @@ func StartMonitor(testCases []psv.TestCase) {
 		startTask(tc)
 	}
 
+	// 启动热加载协程
+	go startHotReload()
+
 	// 设置信号处理，优雅退出
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 
 	fmt.Println("\n监控任务已启动，按 Ctrl+C 停止...")
+	fmt.Printf("热加载已启用，每 %ds 扫描一次新测试用例\n", int(hotReloadInterval.Seconds()))
 
 	// 阻塞等待信号
 	<-sigChan
@@ -254,6 +265,25 @@ func sendAlertEmail(result MonitorResult) {
 
 	tc := result.TestCase
 
+	// 根据配置计算告警间隔（默认 6 小时）
+	alertInterval := time.Duration(config.GlobalConfig.Monitor.AlertInterval) * time.Second
+	if alertInterval <= 0 {
+		alertInterval = 6 * time.Hour
+	}
+
+	// 检查同一接口是否在告警间隔内已发送过邮件
+	lastAlertMu.Lock()
+	if last, ok := lastAlertTime[tc.ID]; ok && timeutil.Now().Sub(last) < alertInterval {
+		lastAlertMu.Unlock()
+		logger.Info("Alert email suppressed due to alert interval",
+			zap.String("id", tc.ID),
+			zap.Duration("since_last", timeutil.Now().Sub(last)),
+			zap.Duration("interval", alertInterval))
+		return
+	}
+	lastAlertTime[tc.ID] = timeutil.Now()
+	lastAlertMu.Unlock()
+
 	// 根据告警类型确定优先级和图标
 	alertLevel := "WARNING"
 	alertIcon := "⚠️"
@@ -399,4 +429,108 @@ func GetTaskCount() int {
 	tasksMu.Lock()
 	defer tasksMu.Unlock()
 	return len(tasks)
+}
+
+// startHotReload 启动热加载协程
+func startHotReload() {
+	ticker := time.NewTicker(hotReloadInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			hotReload()
+		case <-stopChan:
+			logger.Info("Hot reload stopped")
+			return
+		}
+	}
+}
+
+// hotReload 执行热加载逻辑
+func hotReload() {
+	logger.Debug("Checking for new test cases")
+
+	// 获取当前测试用例目录
+	caseDir := config.GlobalConfig.App.CaseDir
+	if caseDir == "" {
+		caseDir = "./demo"
+	}
+
+	// 重新解析所有测试用例
+	newCases, err := psv.ParseFiles([]string{caseDir})
+	if err != nil {
+		logger.Warn("Failed to parse files during hot reload", zap.Error(err))
+		return
+	}
+
+	// 过滤出启用监控的测试用例
+	newMonitorCases := filterMonitorCases(newCases)
+
+	// 获取当前已注册的任务ID
+	tasksMu.Lock()
+	currentTaskIDs := make(map[string]bool)
+	for id := range tasks {
+		currentTaskIDs[id] = true
+	}
+	tasksMu.Unlock()
+
+	// 添加新的测试用例
+	newCount := 0
+	for _, tc := range newMonitorCases {
+		tasksMu.Lock()
+		_, exists := tasks[tc.ID]
+		tasksMu.Unlock()
+
+		if !exists {
+			startTask(tc)
+			newCount++
+		}
+	}
+
+	// 移除已删除的测试用例（可选功能，默认不启用）
+	// removeDeletedTestCases(newMonitorCases)
+
+	if newCount > 0 {
+		logger.Info("Hot reload completed", zap.Int("new_tasks", newCount))
+		fmt.Printf("\n[热加载] 发现 %d 个新测试用例，已自动添加到监控\n", newCount)
+	}
+}
+
+// removeDeletedTestCases 移除已删除的测试用例
+func removeDeletedTestCases(activeCases []psv.TestCase) {
+	activeIDs := make(map[string]bool)
+	for _, tc := range activeCases {
+		activeIDs[tc.ID] = true
+	}
+
+	tasksMu.Lock()
+	var toRemove []string
+	for id := range tasks {
+		if !activeIDs[id] {
+			toRemove = append(toRemove, id)
+		}
+	}
+	tasksMu.Unlock()
+
+	for _, id := range toRemove {
+		removeTask(id)
+		fmt.Printf("[热加载] 测试用例 %s 已移除\n", id)
+	}
+}
+
+// removeTask 移除单个任务
+func removeTask(id string) {
+	tasksMu.Lock()
+	task, exists := tasks[id]
+	if exists {
+		task.Ticker.Stop()
+		close(task.StopChan)
+		delete(tasks, id)
+	}
+	tasksMu.Unlock()
+
+	if exists {
+		logger.Info("Removed monitor task", zap.String("id", id))
+	}
 }

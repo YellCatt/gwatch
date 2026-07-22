@@ -88,6 +88,7 @@ type MonitorConfig struct {
 	AlertOnFailure  bool `mapstructure:"alert_on_failure"` // 默认失败时告警
 	AlertOnSlow     bool `mapstructure:"alert_on_slow"`    // 默认响应慢时告警
 	MaxWorkers      int  `mapstructure:"max_workers"`      // 最大并发goroutine数，0表示不限制，默认1适合资源受限设备
+	AlertInterval   int  `mapstructure:"alert_interval"`   // 告警间隔（秒），相同接口异常后需要等待此时间才能再次告警，默认6小时
 }
 
 // GlobalConfig 存储全局配置实例
@@ -118,6 +119,9 @@ func InitConfig() {
 
 	// 设置 cleaner 的默认配置
 	setCleanerDefaults()
+
+	// 设置 monitor 的默认配置
+	setMonitorDefaults()
 
 	// 单独读取 vars 配置，保留原始键名（避免 viper 自动转换小写）
 	GlobalConfig.Vars = loadRawVars()
@@ -198,4 +202,12 @@ func loadRawVars() map[string]string {
 		result[k] = v
 	}
 	return result
+}
+
+// setMonitorDefaults 设置 monitor 配置的默认值
+// 如果未配置告警间隔，则默认为 6 小时（21600 秒）
+func setMonitorDefaults() {
+	if GlobalConfig.Monitor.AlertInterval <= 0 {
+		GlobalConfig.Monitor.AlertInterval = 6 * 60 * 60 // 6 小时（秒）
+	}
 }
