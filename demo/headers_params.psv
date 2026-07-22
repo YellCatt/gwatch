@@ -1,0 +1,12 @@
+# 请求头和URL参数测试示例
+id|skip|desc|method|url|headers|params|expected_status|tags
+header_01|0|Bearer认证|GET|{{base_url}}/api/protected|{"Authorization":"Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9"}||200|header,auth
+header_02|0|自定义请求头|GET|{{base_url}}/api/custom|{"X-App-ID":"myapp","X-Request-ID":"req-12345","X-Version":"v1"}||200|header,api
+header_03|0|Content-Type多种格式|POST|{{base_url}}/api/data|{"Content-Type":"application/xml"}||200|header,api
+header_04|0|Accept头|GET|{{base_url}}/api/data|{"Accept":"application/json"}||200|header,api
+header_05|0|语言和编码|GET|{{base_url}}/api/i18n|{"Accept-Language":"zh-CN,zh;q=0.9,en;q=0.8","Accept-Encoding":"gzip, deflate"}||200|header,api
+param_01|0|简单URL参数|GET|{{base_url}}/api/search||q=keyword&page=1&size=10|200|param,api
+param_02|0|多值参数|GET|{{base_url}}/api/filter||tags=python&tags=go&tags=java|200|param,api
+param_03|0|范围参数|GET|{{base_url}}/api/items||min_price=100&max_price=1000|200|param,api
+param_04|0|日期参数|GET|{{base_url}}/api/orders||start_date=2024-01-01&end_date=2024-01-31|200|param,api
+param_05|0|布尔参数|GET|{{base_url}}/api/users||active=true&verified=false|200|param,api

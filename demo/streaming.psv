@@ -1,0 +1,7 @@
+# 流式接口测试示例
+id|skip|desc|method|url|headers|json|stream_mode|stream_assert|expected_body|tags
+stream_01|0|SSE流式响应|POST|{{base_url}}/api/stream/sse|{"Content-Type":"application/json","Accept":"text/event-stream"}|{"prompt":"Hello"}|1|[{"kind":"contains","pattern":"Hello","max_wait_ms":5000,"min_chunks":1}]||stream,sse
+stream_02|0|OpenAI风格流式|POST|{{base_url}}/api/chat/completions|{"Content-Type":"application/json"}|{"model":"gpt-3.5-turbo","messages":[{"role":"user","content":"Hello"}]}|1|[{"kind":"contains","pattern":"Hello","max_wait_ms":10000,"min_chunks":2}]||stream,openai
+stream_03|0|流式响应正则断言|POST|{{base_url}}/api/stream/test|{"Content-Type":"application/json"}|{"query":"test"}|1|[{"kind":"regex","pattern":"success|completed","max_wait_ms":5000,"min_chunks":1}]||stream,regex
+stream_04|0|多断言条件|POST|{{base_url}}/api/stream/multi|{"Content-Type":"application/json"}|{"task":"process"}|1|[{"kind":"contains","pattern":"started","max_wait_ms":3000,"min_chunks":1},{"kind":"contains","pattern":"completed","max_wait_ms":10000,"min_chunks":3}]||stream,multi
+stream_05|0|流式响应体验证|POST|{{base_url}}/api/stream/validate|{"Content-Type":"application/json"}|{"input":"test"}|1||{"code":200}|stream,assert

@@ -1,0 +1,8 @@
+# 文件上传测试示例
+id|skip|desc|method|url|headers|form|expected_status|tags
+file_01|0|单文件上传-@前缀|POST|{{base_url}}/api/upload|{}|file=@./data/test.txt|200|upload,api
+file_02|0|单文件上传-file://前缀|POST|{{base_url}}/api/upload|{}|file=file://./data/test.txt|200|upload,api
+file_03|0|多文件上传|POST|{{base_url}}/api/upload/multiple|{}|file1=@./data/test1.txt&file2=@./data/test2.txt|200|upload,api
+file_04|0|文件+表单字段|POST|{{base_url}}/api/upload/withdata|{}|file=@./data/test.txt&name=testfile&description=这是一个测试文件|200|upload,api
+file_05|0|图片上传|POST|{{base_url}}/api/upload/image|{}|image=@./data/test.png|200|upload,api
+file_06|0|大文件上传|POST|{{base_url}}/api/upload/large|{}|file=@./data/large_file.zip|200|upload,api

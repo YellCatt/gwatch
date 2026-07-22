@@ -1,0 +1,8 @@
+# HTTP方法测试示例
+id|skip|desc|method|url|headers|params|expected_status|tags
+get_01|0|GET请求-获取用户列表|GET|{{base_url}}/api/users|{"Authorization":"Bearer {{token}}"}|page=1&limit=10|200|api,smoke
+get_02|0|GET请求-获取单个用户|GET|{{base_url}}/api/users/{{user_id}}|{"Authorization":"Bearer {{token}}"}||200|api,smoke
+post_01|0|POST请求-创建用户|POST|{{base_url}}/api/users|{"Authorization":"Bearer {{token}}","Content-Type":"application/json"}||201|api,smoke
+put_01|0|PUT请求-更新用户|PUT|{{base_url}}/api/users/{{user_id}}|{"Authorization":"Bearer {{token}}","Content-Type":"application/json"}||200|api,smoke
+patch_01|0|PATCH请求-部分更新用户|PATCH|{{base_url}}/api/users/{{user_id}}|{"Authorization":"Bearer {{token}}","Content-Type":"application/json"}||200|api,smoke
+delete_01|0|DELETE请求-删除用户|DELETE|{{base_url}}/api/users/{{user_id}}|{"Authorization":"Bearer {{token}}"}||204|api,smoke

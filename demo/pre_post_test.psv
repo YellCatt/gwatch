@@ -1,0 +1,25 @@
+# 前置后置条件测试示例
+# pre: 前置条件，测试执行前需要满足的条件（分号分隔）
+# post: 后置条件，测试执行后需要满足的条件（分号分隔）
+# 前置后置条件可以是: ① 其他测试用例ID ② SQL语句 ③ 自定义脚本
+
+id|skip|desc|method|url|headers|json|expected_status|expected_body|pre|post|extract|tags
+prepost_01|0|【前置】创建测试用户|POST|{{base_url}}/api/users|{"Content-Type":"application/json"}|{"username":"test_prepost","email":"test@example.com","password":"123456"}|201|{"code":200}|cleanup_user=test_prepost|test_user_id=$.data.id|prepost,setup
+prepost_02|0|【测试】验证新用户登录|POST|{{base_url}}/api/auth/login|{"Content-Type":"application/json"}|{"username":"test_prepost","password":"123456"}|200|{"code":200}|prepost_01|prepost_03|token=$.data.token|prepost,test
+prepost_03|0|【后置】清理测试用户|DELETE|{{base_url}}/api/users/{{test_user_id}}|{"Authorization":"Bearer {{token}}"}||204|||prepost,cleanup
+
+# 数据库操作示例（模拟）
+db_01|0|【前置】插入测试数据|POST|{{base_url}}/api/test/setup|{"Content-Type":"application/json"}|{"sql":"INSERT INTO test_table (name) VALUES ('test_data')"}|200|{"affected":1}||db_02|inserted_id=$.data.id|prepost,db
+db_02|0|【测试】验证数据存在|GET|{{base_url}}/api/test/data/{{inserted_id}}|{}||200|{"name":"test_data"}|db_01|DELETE FROM test_table WHERE id={{inserted_id}}|count=$.data.count|prepost,db,test
+db_03|0|【测试】更新数据|PUT|{{base_url}}/api/test/data/{{inserted_id}}|{"Content-Type":"application/json"}|{"name":"updated_data"}|200|{"updated":true}|db_01|db_04||prepost,db,test
+db_04|0|【后置】清理数据库|POST|{{base_url}}/api/test/cleanup|{"Content-Type":"application/json"}|{"sql":"DELETE FROM test_table WHERE name LIKE 'test_%'"}|200|{"affected":1}|||prepost,db,cleanup
+
+# 多前置条件示例
+multi_01|0|【前置】创建产品分类|POST|{{base_url}}/api/categories|{"Content-Type":"application/json"}|{"name":"Test Category"}|201|{"code":200}||multi_04|category_id=$.data.id|prepost,multi
+multi_02|0|【前置】创建产品标签|POST|{{base_url}}/api/tags|{"Content-Type":"application/json"}|{"name":"Test Tag"}|201|{"code":200}||multi_04|tag_id=$.data.id|prepost,multi
+multi_03|0|【测试】创建带分类和标签的产品|POST|{{base_url}}/api/products|{"Content-Type":"application/json"}|{"name":"Test Product","category_id":"{{category_id}}","tags":["{{tag_id}}"]}|201|{"code":200}|multi_01;multi_02|multi_04|product_id=$.data.id|prepost,multi,test
+multi_04|0|【后置】清理所有测试数据|DELETE|{{base_url}}/api/test/cleanall|{}||204|||prepost,multi,cleanup
+
+# API状态检查前置条件
+health_01|0|【前置】检查服务健康|GET|{{base_url}}/health|{}||200|{"status":"healthy"}|||service_ok=$.status|prepost,health
+health_02|0|【测试】服务正常时执行测试|GET|{{base_url}}/api/important|{"Authorization":"Bearer {{token}}"}||200||health_01|||prepost,health,test

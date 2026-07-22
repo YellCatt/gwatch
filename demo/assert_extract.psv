@@ -1,0 +1,10 @@
+# 响应体断言和变量提取测试示例
+id|skip|desc|method|url|headers|json|expected_status|expected_body|extract|tags
+assert_01|0|状态码断言|POST|{{base_url}}/api/users|{"Content-Type":"application/json"}|{"name":"Test"}|201|||assert,api
+assert_02|0|JSON响应体断言|GET|{{base_url}}/api/users/1|{}||200|{"id":1,"name":"张三"}|user_id=$.id|assert,extract
+assert_03|0|部分匹配断言|GET|{{base_url}}/api/users|{}||200|{"code":200}|user_id=$.data[0].id|assert,extract
+assert_04|0|正则表达式断言|GET|{{base_url}}/api/users/1|{}||200||body_regex:"name":"[^"]+"|assert,regex
+assert_05|0|提取多个变量|POST|{{base_url}}/api/login|{"Content-Type":"application/json"}|{"username":"admin","password":"123456"}|200|{"code":200}|token=$.data.token&user_id=$.data.user.id|extract,auth
+assert_06|0|链式测试-使用提取的token|GET|{{base_url}}/api/profile|{"Authorization":"Bearer {{token}}"}||200|{"id":"{{user_id}}"}||assert,chain
+assert_07|0|提取数组元素|GET|{{base_url}}/api/users|{}||200||first_user=$.data[0]|extract,api
+assert_08|0|提取嵌套字段|GET|{{base_url}}/api/orders/1|{}||200||order_no=$.data.order.info.orderNo|extract,api

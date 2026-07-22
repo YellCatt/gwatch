@@ -1,0 +1,12 @@
+# 组合测试示例 - 多种入参方式组合使用
+id|skip|desc|method|url|headers|params|json|form|expected_status|expected_body|extract|tags
+combo_01|0|Header+Query+JSON|POST|{{base_url}}/api/combo/test1|{"Authorization":"Bearer {{token}}","Content-Type":"application/json"}|source=api&version=1.0|{"name":"Test","value":123}|{"expected_status":"200"}|200|||combo,api
+combo_02|0|Header+Query+Form|POST|{{base_url}}/api/combo/test2|{"X-Request-ID":"req-001"}|debug=true&trace=on||name=form+data&value=test|200|||combo,form
+combo_03|0|完整CRUD流程|POST|{{base_url}}/api/products|{"Authorization":"Bearer {{token}}","Content-Type":"application/json"}||{"name":"Product A","price":99.99,"stock":100}||201|{"code":200}|product_id=$.data.id|combo,crud
+combo_04|0|CRUD-查询|GET|{{base_url}}/api/products/{{product_id}}|{"Authorization":"Bearer {{token}}"}|||{"expected_status":"200"}|200|{"id":"{{product_id}}"}||combo,crud
+combo_05|0|CRUD-更新|PUT|{{base_url}}/api/products/{{product_id}}|{"Authorization":"Bearer {{token}}","Content-Type":"application/json"}||{"name":"Product A Updated","price":129.99}||200|||combo,crud
+combo_06|0|CRUD-删除|DELETE|{{base_url}}/api/products/{{product_id}}|{"Authorization":"Bearer {{token}}"}|||{"expected_status":"204"}|204|||combo,crud
+combo_07|0|分页查询|GET|{{base_url}}/api/items|{"Accept":"application/json"}|page=2&limit=20&sort=desc&status=active|||200||total=$.pagination.total|combo,pagination
+combo_08|0|文件上传+表单|POST|{{base_url}}/api/upload/form|{}||file=@./data/test.txt&title=Test+File&category=document|200|{"success":true}||combo,upload
+combo_09|0|批量操作|POST|{{base_url}}/api/batch|{"Authorization":"Bearer {{token}}","Content-Type":"application/json"}|dry_run=true|[{"id":1},{"id":2},{"id":3}]||200|{"success":3}||combo,batch
+combo_10|0|复杂筛选查询|GET|{{base_url}}/api/search|{"Authorization":"Bearer {{token}}"}|q=keyword&filters=status:active&filters=category:books&sort_by=date&sort_dir=desc|||200||result_count=$.data.count|combo,search

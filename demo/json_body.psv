@@ -1,0 +1,8 @@
+# JSON请求体测试示例
+id|skip|desc|method|url|headers|json|expected_status|tags
+json_01|0|简单JSON对象|POST|{{base_url}}/api/users|{"Content-Type":"application/json"}|{"name":"张三","email":"zhangsan@example.com","age":28}|201|json,api
+json_02|0|嵌套JSON对象|POST|{{base_url}}/api/orders|{"Content-Type":"application/json"}|{"orderNo":"ORD202401001","customer":{"name":"李四","phone":"13800138000"},"items":[{"productId":"P001","quantity":2},{"productId":"P002","quantity":1}]}|201|json,api
+json_03|0|数组类型JSON|POST|{{base_url}}/api/batch/users|{"Content-Type":"application/json"}|[{"name":"用户A"},{"name":"用户B"},{"name":"用户C"}]|200|json,api
+json_04|0|包含特殊字符|POST|{{base_url}}/api/messages|{"Content-Type":"application/json"}|{"content":"Hello World! @#$%^&*()","timestamp":"2024-01-15T10:30:00Z"}|200|json,api
+json_05|0|空JSON对象|POST|{{base_url}}/api/test/empty|{"Content-Type":"application/json"}|{}|200|json,api
+json_06|0|变量替换JSON|POST|{{base_url}}/api/users|{"Content-Type":"application/json"}|{"name":"{{user_name}}","email":"{{user_email}}"}|201|json,api

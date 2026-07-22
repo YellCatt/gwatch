@@ -1,0 +1,19 @@
+# 链式接口测试示例 - 测试用例之间有依赖关系
+# 注意：必须串行执行才能保证变量正确传递
+# 执行顺序：chain_01 -> chain_02 -> chain_03 -> chain_04 -> chain_05 -> chain_06
+
+id|skip|desc|method|url|headers|json|form|expected_status|expected_body|extract|tags
+chain_01|0|【步骤1】用户登录获取token|POST|{{base_url}}/api/auth/login|{"Content-Type":"application/json"}|{"username":"admin","password":"123456"}||200|{"code":200}|token=$.data.token&user_id=$.data.user.id&user_name=$.data.user.name|chain,auth,smoke
+chain_02|0|【步骤2】使用token访问用户信息|GET|{{base_url}}/api/users/{{user_id}}|{"Authorization":"Bearer {{token}}"}|||200|{"id":"{{user_id}}","name":"{{user_name}}"}||chain,user,smoke
+chain_03|0|【步骤3】创建订单|POST|{{base_url}}/api/orders|{"Authorization":"Bearer {{token}}","Content-Type":"application/json"}|{"customer_id":"{{user_id}}","items":[{"product_id":"P001","quantity":2},{"product_id":"P002","quantity":1}],"total_amount":299.99}||201|{"code":200}|order_id=$.data.id&order_no=$.data.order_no|chain,order,smoke
+chain_04|0|【步骤4】查询订单详情|GET|{{base_url}}/api/orders/{{order_id}}|{"Authorization":"Bearer {{token}}"}|||200|{"order_no":"{{order_no}}"}||chain,order,smoke
+chain_05|0|【步骤5】更新订单状态|PUT|{{base_url}}/api/orders/{{order_id}}|{"Authorization":"Bearer {{token}}","Content-Type":"application/json"}|{"status":"paid"}||200|{"status":"paid"}||chain,order,smoke
+chain_06|0|【步骤6】获取用户所有订单列表|GET|{{base_url}}/api/users/{{user_id}}/orders|{"Authorization":"Bearer {{token}}"}|||200||order_count=$.pagination.total|chain,order,smoke
+chain_07|0|【步骤7】创建商品|POST|{{base_url}}/api/products|{"Authorization":"Bearer {{token}}","Content-Type":"application/json"}|{"name":"测试商品","price":99.99,"stock":100,"category":"电子产品"}||201|{"code":200}|product_id=$.data.id|chain,product,smoke
+chain_08|0|【步骤8】更新商品库存|PATCH|{{base_url}}/api/products/{{product_id}}/stock|{"Authorization":"Bearer {{token}}","Content-Type":"application/json"}|{"change":-10}||200|{"stock":90}||chain,product,smoke
+chain_09|0|【步骤9】删除订单|DELETE|{{base_url}}/api/orders/{{order_id}}|{"Authorization":"Bearer {{token}}"}|||204|||chain,order,smoke
+chain_10|0|【步骤10】验证订单已删除|GET|{{base_url}}/api/orders/{{order_id}}|{"Authorization":"Bearer {{token}}"}|||404|||chain,order,smoke
+
+# 以下是并行安全的测试用例（无依赖）
+chain_11|0|【独立】获取系统配置|GET|{{base_url}}/api/config|{"Authorization":"Bearer {{token}}"}|||200|||chain,config
+chain_12|0|【独立】获取版本信息|GET|{{base_url}}/api/version|||200|||chain,version

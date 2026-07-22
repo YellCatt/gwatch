@@ -1,0 +1,8 @@
+# 表单数据测试示例
+id|skip|desc|method|url|headers|form|expected_status|tags
+form_01|0|简单表单|POST|{{base_url}}/api/form/simple||username=testuser&password=123456&remember=1|200|form,api
+form_02|0|URL编码格式表单|POST|{{base_url}}/api/form/urlencoded||name=John+Doe&email=john%40example.com&age=30|200|form,api
+form_03|0|中文表单数据|POST|{{base_url}}/api/form/chinese||name=张三&city=北京&address=朝阳区|200|form,api
+form_04|0|多值表单字段|POST|{{base_url}}/api/form/multivalue||colors=red&colors=green&colors=blue|200|form,api
+form_05|0|空值字段|POST|{{base_url}}/api/form/empty||name=&email=test@example.com|200|form,api
+form_06|0|特殊字符表单|POST|{{base_url}}/api/form/special||text=Hello%20World%21%20%40%23%24|200|form,api
