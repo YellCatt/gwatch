@@ -18,14 +18,14 @@ var Client *resty.Client
 // 配置基础URL、超时时间和重试策略
 func InitClient() {
 	client := resty.New().
-		SetBaseURL(config.AppConfig.Target.BaseURL).                              // 设置 API 基础地址
-		SetTimeout(time.Duration(config.AppConfig.Target.Timeout) * time.Second). // 设置请求超时
+		SetBaseURL(config.GlobalConfig.Target.BaseURL).                              // 设置 API 基础地址
+		SetTimeout(time.Duration(config.GlobalConfig.Target.Timeout) * time.Second). // 设置请求超时
 		SetRetryCount(3).                                                         // 设置重试次数
 		SetRetryWaitTime(1 * time.Second).                                        // 设置重试等待时间
 		SetRetryMaxWaitTime(5 * time.Second)                                      // 设置最大重试等待时间
 
 	// 如果配置了跳过 TLS 验证
-	if config.AppConfig.HTTP.InsecureSkipVerify {
+	if config.GlobalConfig.HTTP.InsecureSkipVerify {
 		client.SetTLSClientConfig(&tls.Config{InsecureSkipVerify: true})
 	}
 

@@ -216,7 +216,7 @@ func parseLine(line string) []string {
 // 返回: 测试用例和错误信息
 func parseTestCase(header []string, fields []string) (TestCase, error) {
 	// 从配置文件获取监控默认值
-	monitorCfg := config.AppConfig.Monitor
+	monitorCfg := config.GlobalConfig.Monitor
 	
 	tc := TestCase{
 		Headers:          make(map[string]string),

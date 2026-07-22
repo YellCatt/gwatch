@@ -78,32 +78,32 @@ func initConfig() {
 	config.InitConfig()
 	
 	logger.InitLogger(logger.LogConfig{
-		Level:    config.AppConfig.Log.Level,
-		Encoding: config.AppConfig.Log.Encoding,
-		Output:   config.AppConfig.Log.Output,
+		Level:    config.GlobalConfig.Log.Level,
+		Encoding: config.GlobalConfig.Log.Encoding,
+		Output:   config.GlobalConfig.Log.Output,
 	})
 
 	// 初始化内置变量
-	vars.Set("base_url", config.AppConfig.Target.BaseURL)
+	vars.Set("base_url", config.GlobalConfig.Target.BaseURL)
 
 	// 加载用户自定义变量（支持任意变量名）
-	if len(config.AppConfig.Vars) > 0 {
-		vars.InitFromConfig(config.AppConfig.Vars)
-		logger.Info("用户自定义变量加载完成", zap.Int("count", len(config.AppConfig.Vars)), zap.Any("vars", maskVars(config.AppConfig.Vars)))
+	if len(config.GlobalConfig.Vars) > 0 {
+		vars.InitFromConfig(config.GlobalConfig.Vars)
+		logger.Info("用户自定义变量加载完成", zap.Int("count", len(config.GlobalConfig.Vars)), zap.Any("vars", maskVars(config.GlobalConfig.Vars)))
 	} else {
 		logger.Info("未配置用户自定义变量")
 	}
 	logger.Info("当前可用变量", zap.Any("vars", vars.GetAll()))
 
 	email.InitEmail(email.EmailConfig{
-		Enabled:      config.AppConfig.Email.Enabled,
-		FromEmail:    config.AppConfig.Email.From,
-		ToEmail:      config.AppConfig.Email.To,
-		AuthCode:     config.AppConfig.Email.AuthCode,
-		SMTPServer:   config.AppConfig.Email.SMTPServer,
-		SMTPPort:     config.AppConfig.Email.SMTPPort,
-		DeviceName:   config.AppConfig.App.HostName,
-		ErrorSubject: config.AppConfig.Email.ErrorSubject,
+		Enabled:      config.GlobalConfig.Email.Enabled,
+		FromEmail:    config.GlobalConfig.Email.From,
+		ToEmail:      config.GlobalConfig.Email.To,
+		AuthCode:     config.GlobalConfig.Email.AuthCode,
+		SMTPServer:   config.GlobalConfig.Email.SMTPServer,
+		SMTPPort:     config.GlobalConfig.Email.SMTPPort,
+		DeviceName:   config.GlobalConfig.App.HostName,
+		ErrorSubject: config.GlobalConfig.Email.ErrorSubject,
 	})
 }
 
@@ -131,8 +131,8 @@ func runTests(paths []string) {
 	httpclient.InitClient()
 
 	// 初始化 CSV 存储
-	logger.Info("准备初始化 CSV 存储", zap.String("DataDir", config.AppConfig.App.DataDir))
-	if err := storage.InitDB(config.AppConfig.App.DataDir); err != nil {
+	logger.Info("准备初始化 CSV 存储", zap.String("DataDir", config.GlobalConfig.App.DataDir))
+	if err := storage.InitDB(config.GlobalConfig.App.DataDir); err != nil {
 		logger.Warn("CSV 存储初始化失败", zap.Error(err))
 	} else {
 		logger.Info("CSV 存储初始化成功")
@@ -202,24 +202,24 @@ func runTests(paths []string) {
 		estimatedDurationStr = "无历史数据"
 	}
 
-	// 打印本次执行的测试用例统计信息
+	// 打印本次执行的任务统计信息
 	executedCount, executedChainCount, executedIndependentCount := testcase.CountTestSummary(testCases)
 
 	fmt.Printf("\n════════════════════════════════════════════════════════╗\n")
-	fmt.Printf("║ 测试用例统计信息                                       ║\n")
+	fmt.Printf("║ 任务统计信息                                           ║\n")
 	fmt.Printf("╠════════════════════════════════════════════════════════╣\n")
-	fmt.Printf("║ 解析出的测试用例总数: %-35d║\n", totalTestCaseCount)
-	fmt.Printf("║   链式测试: %-43d║\n", totalChainCount)
-	fmt.Printf("║   独立测试: %-43d║\n", totalIndependentCount)
+	fmt.Printf("║ 解析出的任务总数: %-37d║\n", totalTestCaseCount)
+	fmt.Printf("║   链式任务: %-43d║\n", totalChainCount)
+	fmt.Printf("║   独立任务: %-43d║\n", totalIndependentCount)
 	if len(tags) > 0 {
 		fmt.Printf("║ 应用标签过滤: %-40s║\n", strings.Join(tags, ", "))
 		fmt.Printf("║ 过滤后实际执行数: %-36d║\n", executedCount)
-		fmt.Printf("║   链式测试: %-43d║\n", executedChainCount)
-		fmt.Printf("║   独立测试: %-43d║\n", executedIndependentCount)
+		fmt.Printf("║   链式任务: %-43d║\n", executedChainCount)
+		fmt.Printf("║   独立任务: %-43d║\n", executedIndependentCount)
 	} else {
 		fmt.Printf("║ 未应用标签过滤，本次共执行 %-27d║\n", executedCount)
-		fmt.Printf("║   链式测试: %-43d║\n", executedChainCount)
-		fmt.Printf("║   独立测试: %-43d║\n", executedIndependentCount)
+		fmt.Printf("║   链式任务: %-43d║\n", executedChainCount)
+		fmt.Printf("║   独立任务: %-43d║\n", executedIndependentCount)
 	}
 
 	fmt.Printf("╠════════════════════════════════════════════════════════╣\n")
@@ -230,13 +230,13 @@ func runTests(paths []string) {
 	// 生成报告时间戳（测试开始时生成，后续更新报告时使用同一个时间戳）
 	reportTimestamp := timeutil.FormatCompact(timeutil.Now())
 
-	// 执行全局前置条件（所有测试用例执行前运行）
-	if len(config.AppConfig.Test.GlobalPre) > 0 {
+	// 执行全局前置条件（所有任务执行前运行）
+	if len(config.GlobalConfig.App.GlobalPre) > 0 {
 		fmt.Printf("\n════════════════════════════════════════════════════════╗\n")
 		fmt.Printf("║ 执行全局前置条件                                       ║\n")
 		fmt.Printf("╚════════════════════════════════════════════════════════╝\n\n")
 
-		for _, preID := range config.AppConfig.Test.GlobalPre {
+		for _, preID := range config.GlobalConfig.App.GlobalPre {
 			found := false
 			for _, tc := range testCases {
 				if tc.ID == preID {
@@ -301,13 +301,13 @@ func runTests(paths []string) {
 		logger.Info("Successfully calculated and stored average durations")
 	}
 
-	// 执行全局后置条件（所有测试用例执行后运行）
-	if len(config.AppConfig.Test.GlobalPost) > 0 {
+	// 执行全局后置条件（所有任务执行后运行）
+	if len(config.GlobalConfig.App.GlobalPost) > 0 {
 		fmt.Printf("\n════════════════════════════════════════════════════════╗\n")
 		fmt.Printf("║ 执行全局后置条件                                       ║\n")
 		fmt.Printf("╚════════════════════════════════════════════════════════╝\n\n")
 
-		for _, postID := range config.AppConfig.Test.GlobalPost {
+		for _, postID := range config.GlobalConfig.App.GlobalPost {
 			found := false
 			for _, tc := range testCases {
 				if tc.ID == postID {
