@@ -89,11 +89,11 @@ type MonitorConfig struct {
 	AlertOnSlow     bool `mapstructure:"alert_on_slow"`    // 默认响应慢时告警
 }
 
-// AppConfig 存储全局配置实例
-var AppConfig Config
+// GlobalConfig 存储全局配置实例
+var GlobalConfig Config
 
 // InitConfig 初始化配置
-// 从配置文件读取配置并解析到 AppConfig 中
+// 从配置文件读取配置并解析到 GlobalConfig 中
 func InitConfig() {
 	// 如果指定了配置文件路径，使用指定的文件
 	if CfgFile != "" {
