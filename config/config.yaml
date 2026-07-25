@@ -29,6 +29,8 @@ monitor:
   alert_on_slow: true
   max_workers: 1
   alert_interval: 21600  # 同一接口异常后再次发送邮件的最小间隔（秒），默认 6 小时
+  daily_report: true     # 是否启用每日报告
+  report_time: "00:00"   # 每日报告生成时间（HH:MM）
 
 email:
   enabled: false

@@ -83,12 +83,14 @@ type CleanupConfig struct {
 
 // MonitorConfig 表示监控相关的配置
 type MonitorConfig struct {
-	Enabled         bool `mapstructure:"enabled"`          // 是否启用监控模式（全局开关）
-	DefaultInterval int  `mapstructure:"default_interval"` // 默认监控周期（秒）
-	AlertOnFailure  bool `mapstructure:"alert_on_failure"` // 默认失败时告警
-	AlertOnSlow     bool `mapstructure:"alert_on_slow"`    // 默认响应慢时告警
-	MaxWorkers      int  `mapstructure:"max_workers"`      // 最大并发goroutine数，0表示不限制，默认1适合资源受限设备
-	AlertInterval   int  `mapstructure:"alert_interval"`   // 告警间隔（秒），相同接口异常后需要等待此时间才能再次告警，默认6小时
+	Enabled         bool   `mapstructure:"enabled"`          // 是否启用监控模式（全局开关）
+	DefaultInterval int    `mapstructure:"default_interval"` // 默认监控周期（秒）
+	AlertOnFailure  bool   `mapstructure:"alert_on_failure"` // 默认失败时告警
+	AlertOnSlow     bool   `mapstructure:"alert_on_slow"`    // 默认响应慢时告警
+	MaxWorkers      int    `mapstructure:"max_workers"`      // 最大并发goroutine数，0表示不限制，默认1适合资源受限设备
+	AlertInterval   int    `mapstructure:"alert_interval"`   // 告警间隔（秒），相同接口异常后需要等待此时间才能再次告警，默认6小时
+	DailyReport     bool   `mapstructure:"daily_report"`     // 是否启用每日报告
+	ReportTime      string `mapstructure:"report_time"`      // 每日报告生成时间（HH:MM）
 }
 
 // GlobalConfig 存储全局配置实例

@@ -15,6 +15,7 @@ import (
 	"gwatch/internal/email"
 	"gwatch/internal/logger"
 	"gwatch/internal/psv"
+	"gwatch/internal/report"
 	"gwatch/internal/testcase"
 	"gwatch/internal/timeutil"
 )
@@ -89,6 +90,11 @@ func StartMonitor(testCases []psv.TestCase) {
 	// 注册所有任务
 	for _, tc := range monitorCases {
 		startTask(tc)
+	}
+
+	// 启动每日报告调度（如果启用）
+	if config.GlobalConfig.Monitor.DailyReport {
+		report.ScheduleDailyReport()
 	}
 
 	// 启动热加载协程
