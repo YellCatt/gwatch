@@ -105,29 +105,7 @@ scraper:
           threshold: 5            # 低于5Mbps告警
           alert: true
 
-    - name: "服务健康检查"
-      url: "http://localhost:8080/health"
-      method: GET
-      timeout: 3s
-      interval: 5
-      enabled: true
-      metrics:
-        - name: status
-          path: "$.status"
-          alias: "服务状态"
-        - name: uptime
-          path: "$.uptime"
-          alias: "运行时长"
-          unit: "秒"
-        # 可选指标：新版本接口才有的字段
-        - name: version
-          path: "$.version"
-          alias: "版本号"
-          optional: true
-        - name: build_time
-          path: "$.build_time"
-          alias: "构建时间"
-          optional: true
+    
 
 email:
   enabled: true
