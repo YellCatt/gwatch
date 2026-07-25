@@ -4,13 +4,12 @@ package scraper
 
 import (
 	"crypto/tls"
-	"encoding/json"
 	"fmt"
 	"strconv"
 	"time"
 
-	"github.com/PaesslerAG/jsonpath"
 	"github.com/go-resty/resty/v2"
+	"github.com/tidwall/gjson"
 	"go.uber.org/zap"
 
 	"gwatch/internal/logger"
@@ -143,16 +142,8 @@ func Scrape(target TargetConfig) (ScrapeResult, error) {
 		return result, fmt.Errorf(result.Error)
 	}
 
-	// 解析 JSON
-	var jsonData interface{}
-	if err := json.Unmarshal(resp.Body(), &jsonData); err != nil {
-		result.Error = fmt.Sprintf("JSON 解析失败: %v", err)
-		logger.Error(result.Error, zap.String("target", target.Name))
-		return result, fmt.Errorf(result.Error)
-	}
-
-	// 使用 JSONPath 提取指标
-	result.Metrics = extractMetrics(jsonData, target.Metrics)
+	// 使用 gjson 提取指标（直接使用字符串，无需先解析为 interface{}）
+	result.Metrics = extractMetrics(string(resp.Body()), target.Metrics)
 	result.Success = true
 
 	logger.Info("采集完成",
@@ -163,8 +154,8 @@ func Scrape(target TargetConfig) (ScrapeResult, error) {
 	return result, nil
 }
 
-// extractMetrics 使用 JSONPath 提取指标
-func extractMetrics(jsonData interface{}, metrics []MetricConfig) []MetricResult {
+// extractMetrics 使用 gjson 提取指标
+func extractMetrics(jsonStr string, metrics []MetricConfig) []MetricResult {
 	var results []MetricResult
 
 	for _, metric := range metrics {
@@ -178,9 +169,9 @@ func extractMetrics(jsonData interface{}, metrics []MetricConfig) []MetricResult
 			Success:   false,
 		}
 
-		// 使用 JSONPath 提取值
-		val, err := jsonpath.Eval(jsonData, metric.Path)
-		if err != nil {
+		// 使用 gjson 提取值
+		gjsonResult := gjson.Get(jsonStr, metric.Path)
+		if !gjsonResult.Exists() {
 			// 如果是可选指标，跳过不记录
 			if metric.Optional {
 				logger.Debug("可选指标不存在，跳过",
@@ -188,7 +179,7 @@ func extractMetrics(jsonData interface{}, metrics []MetricConfig) []MetricResult
 					zap.String("path", metric.Path))
 				continue
 			}
-			result.Error = fmt.Sprintf("JSONPath 提取失败: %v", err)
+			result.Error = fmt.Sprintf("路径不存在: %s", metric.Path)
 			logger.Warn("指标提取失败",
 				zap.String("metric", metric.Name),
 				zap.String("path", metric.Path),
@@ -196,6 +187,9 @@ func extractMetrics(jsonData interface{}, metrics []MetricConfig) []MetricResult
 			results = append(results, result)
 			continue
 		}
+
+		// 获取值
+		val := gjsonResult.Value()
 
 		// 转换为 float64
 		floatVal, err := toFloat(val)
