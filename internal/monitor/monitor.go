@@ -94,7 +94,7 @@ func StartMonitor(testCases []psv.TestCase) {
 
 	// 启动每日报告调度（如果启用）
 	if config.GlobalConfig.Monitor.DailyReport {
-		report.ScheduleDailyReport()
+		go scheduleDailyReport()
 	}
 
 	// 启动热加载协程
@@ -538,5 +538,66 @@ func removeTask(id string) {
 
 	if exists {
 		logger.Info("Removed monitor task", zap.String("id", id))
+	}
+}
+
+// scheduleDailyReport 调度每日报告生成
+func scheduleDailyReport() {
+	for {
+		now := timeutil.Now()
+		reportTimeStr := config.GlobalConfig.Monitor.ReportTime
+		if reportTimeStr == "" {
+			reportTimeStr = "00:00"
+		}
+
+		var reportHour, reportMinute int
+		fmt.Sscanf(reportTimeStr, "%d:%d", &reportHour, &reportMinute)
+
+		reportTime := time.Date(now.Year(), now.Month(), now.Day(), reportHour, reportMinute, 0, 0, now.Location())
+		if now.After(reportTime) {
+			reportTime = reportTime.Add(24 * time.Hour)
+		}
+
+		duration := reportTime.Sub(now)
+		logger.Info("Scheduling daily report", zap.Time("next_run", reportTime))
+
+		time.Sleep(duration)
+
+		yesterday := timeutil.Now().Add(-24 * time.Hour)
+		logger.Info("Generating daily report for", zap.String("date", yesterday.Format("2006-01-02")))
+		generateAndSendDailyReport(yesterday)
+	}
+}
+
+// generateAndSendDailyReport 生成并发送每日报告
+func generateAndSendDailyReport(date time.Time) {
+	monitorResults := GetResults()
+
+	// 转换为 report.MonitorResult 类型
+	reportResults := make([]report.MonitorResult, len(monitorResults))
+	for i, mr := range monitorResults {
+		reportResults[i] = report.MonitorResult{
+			TestCase:  mr.TestCase,
+			Result:    mr.Result,
+			Timestamp: mr.Timestamp,
+		}
+	}
+
+	// 生成报告
+	r := report.GenerateDailyReport(reportResults, date)
+
+	// 保存报告
+	_, err := r.SaveReport()
+	if err != nil {
+		logger.Error("Failed to save daily report", zap.Error(err))
+		return
+	}
+
+	// 发送邮件
+	if r.FailedTasks > 0 || config.GlobalConfig.Monitor.AlertOnFailure {
+		err = r.SendReportEmail()
+		if err != nil {
+			logger.Error("Failed to send daily report email", zap.Error(err))
+		}
 	}
 }

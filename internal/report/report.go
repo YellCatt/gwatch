@@ -12,9 +12,17 @@ import (
 	"gwatch/config"
 	"gwatch/internal/email"
 	"gwatch/internal/logger"
-	"gwatch/internal/monitor"
+	"gwatch/internal/psv"
+	"gwatch/internal/testcase"
 	"gwatch/internal/timeutil"
 )
+
+// MonitorResult 表示监控结果（与 monitor 包中的结构相同，避免导入）
+type MonitorResult struct {
+	TestCase  psv.TestCase
+	Result    testcase.TestResult
+	Timestamp time.Time
+}
 
 // DailyReport 每日运维报告
 type DailyReport struct {
@@ -42,19 +50,18 @@ type ErrorDetail struct {
 }
 
 // GenerateDailyReport 生成每日运维报告
-func GenerateDailyReport(date time.Time) (*DailyReport, error) {
+// results: 监控结果列表
+// date: 报告日期
+func GenerateDailyReport(results []MonitorResult, date time.Time) *DailyReport {
 	report := &DailyReport{
 		Date:        date.Format("2006-01-02"),
 		GeneratedAt: timeutil.Now(),
 	}
 
-	// 获取今天的监控结果
-	results := monitor.GetResults()
 	todayStart := time.Date(date.Year(), date.Month(), date.Day(), 0, 0, 0, 0, date.Location())
 	todayEnd := todayStart.Add(24 * time.Hour)
 
 	for _, result := range results {
-		// 过滤今天的结果
 		if result.Timestamp.After(todayStart) && result.Timestamp.Before(todayEnd) {
 			if !result.Result.Passed {
 				report.FailedTasks++
@@ -78,7 +85,7 @@ func GenerateDailyReport(date time.Time) (*DailyReport, error) {
 		}
 	}
 
-	return report, nil
+	return report
 }
 
 // GenerateReportContent 生成报告内容（文本格式）
@@ -161,17 +168,14 @@ func (r *DailyReport) SaveReport() (string, error) {
 		reportDir = "./reports"
 	}
 
-	// 创建报告目录
 	if err := os.MkdirAll(reportDir, 0755); err != nil {
 		logger.Error("Failed to create report directory", zap.Error(err))
 		return "", err
 	}
 
-	// 生成文件名
 	filename := fmt.Sprintf("daily_report_%s.txt", r.Date)
 	filePath := filepath.Join(reportDir, filename)
 
-	// 写入报告内容
 	content := r.GenerateReportContent()
 	if err := os.WriteFile(filePath, []byte(content), 0644); err != nil {
 		logger.Error("Failed to save daily report", zap.String("file", filePath), zap.Error(err))
@@ -194,77 +198,4 @@ func (r *DailyReport) SendReportEmail() error {
 
 	logger.Info("Sending daily report email")
 	return email.SendCustomEmail(subject, body)
-}
-
-// GenerateAndSendDailyReport 生成并发送每日报告
-func GenerateAndSendDailyReport(date time.Time) error {
-	report, err := GenerateDailyReport(date)
-	if err != nil {
-		logger.Error("Failed to generate daily report", zap.Error(err))
-		return err
-	}
-
-	// 保存报告文件
-	_, err = report.SaveReport()
-	if err != nil {
-		logger.Error("Failed to save daily report", zap.Error(err))
-		return err
-	}
-
-	// 发送邮件（如果有错误或配置了始终发送）
-	if report.FailedTasks > 0 || config.GlobalConfig.Monitor.AlertOnFailure {
-		err = report.SendReportEmail()
-		if err != nil {
-			logger.Error("Failed to send daily report email", zap.Error(err))
-			return err
-		}
-	}
-
-	return nil
-}
-
-// getDeviceName 获取设备名称
-func getDeviceName() string {
-	name, err := os.Hostname()
-	if err != nil {
-		return "Unknown"
-	}
-	return name
-}
-
-// ScheduleDailyReport 调度每日报告生成
-func ScheduleDailyReport() {
-	go func() {
-		for {
-			now := timeutil.Now()
-			// 获取配置的报告时间，默认为00:00
-			reportTimeStr := config.GlobalConfig.Monitor.ReportTime
-			if reportTimeStr == "" {
-				reportTimeStr = "00:00"
-			}
-
-			// 解析报告时间
-			var reportHour, reportMinute int
-			fmt.Sscanf(reportTimeStr, "%d:%d", &reportHour, &reportMinute)
-
-			// 计算今天报告时间
-			reportTime := time.Date(now.Year(), now.Month(), now.Day(), reportHour, reportMinute, 0, 0, now.Location())
-
-			// 如果今天的报告时间已经过了，计算明天的报告时间
-			if now.After(reportTime) {
-				reportTime = reportTime.Add(24 * time.Hour)
-			}
-
-			duration := reportTime.Sub(now)
-
-			logger.Info("Scheduling daily report", zap.Time("next_run", reportTime))
-
-			time.Sleep(duration)
-
-			// 生成前一天的报告
-			yesterday := timeutil.Now().Add(-24 * time.Hour)
-			logger.Info("Generating daily report for", zap.String("date", yesterday.Format("2006-01-02")))
-			GenerateAndSendDailyReport(yesterday)
-		}
-	}()
 }
