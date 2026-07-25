@@ -9,7 +9,7 @@ log:
 
 app:
   report_dir: "./reports"
-  case_dir: "./demo"
+  case_dir: "./cases"
   data_dir: "./sql"
   severe_status:
     - 500
@@ -32,13 +32,89 @@ monitor:
   daily_report: true     # 是否启用每日报告
   report_time: "00:00"   # 每日报告生成时间（HH:MM）
 
+scraper:
+  enabled: true
+  targets:
+    - name: "同事主机监控"
+      url: "http://192.168.1.100/api/status"
+      method: GET
+      timeout: 5s
+      interval: 10
+      enabled: true
+      insecure_skip_verify: false
+      headers:
+        Authorization: "Bearer {{token}}"
+      metrics:
+        - name: cpu_usage
+          path: "$.info.cpu.use_percent"
+          alias: "CPU使用率"
+          unit: "%"
+          threshold: 80
+          alert: true
+          # 自动处理百分比：接口返回0.45会自动转为45%，返回45保持45%
+        - name: mem_used
+          path: "$.info.memory.used"
+          alias: "已用内存"
+          unit: "MB"
+        - name: mem_total
+          path: "$.info.memory.total"
+          alias: "总内存"
+          unit: "MB"
+        - name: disk_usage
+          path: "$.info.disk.root.usage"
+          alias: "磁盘使用率"
+          unit: "%"
+          threshold: 90
+          alert: true
+        # 可选指标：某些接口可能不返回这些字段，不会报错
+        - name: gpu_usage
+          path: "$.info.gpu.use_percent"
+          alias: "GPU使用率"
+          unit: "%"
+          optional: true
+        - name: network_down
+          path: "$.info.network.down_speed"
+          alias: "网络下行速度"
+          unit: "Mbps"
+          optional: true
+        - name: network_up
+          path: "$.info.network.up_speed"
+          alias: "网络上行速度"
+          unit: "Mbps"
+          optional: true
+
+    - name: "服务健康检查"
+      url: "http://localhost:8080/health"
+      method: GET
+      timeout: 3s
+      interval: 5
+      enabled: true
+      metrics:
+        - name: status
+          path: "$.status"
+          alias: "服务状态"
+        - name: uptime
+          path: "$.uptime"
+          alias: "运行时长"
+          unit: "秒"
+        # 可选指标：新版本接口才有的字段
+        - name: version
+          path: "$.version"
+          alias: "版本号"
+          optional: true
+        - name: build_time
+          path: "$.build_time"
+          alias: "构建时间"
+          optional: true
+
 email:
-  enabled: false
-  from: ""
-  to: []
-  auth_code: ""
-  smtp_server: "smtp.example.com"
+  enabled: true
+  from: "768305875@qq.com"
+  to: "768305875@qq.com"
+  auth_code: "gpfruabgjebubdad"
+  smtp_server: "smtp.qq.com"
   smtp_port: 465
+
 
 cleaner:
   enabled: true

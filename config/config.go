@@ -23,6 +23,7 @@ type Config struct {
 	Email   EmailConfig       `mapstructure:"email"`   // 邮件配置
 	Cleaner CleanupConfig     `mapstructure:"cleaner"` // 自动清理配置
 	Monitor MonitorConfig     `mapstructure:"monitor"` // 监控配置
+	Scraper ScraperConfig     `mapstructure:"scraper"` // 通用采集器配置
 	Vars    map[string]string `mapstructure:"vars"`    // 用户自定义变量（用于替换测试用例中的 {{var}}）
 }
 
@@ -37,6 +38,40 @@ type TargetConfig struct {
 	Timeout       int    `mapstructure:"timeout"`       // 请求超时时间（秒）
 	Authorization string `mapstructure:"authorization"` // API 授权令牌
 	UserId        string `mapstructure:"user_id"`       // 用户 ID
+}
+
+// ScraperMetricConfig 表示单个指标配置
+type ScraperMetricConfig struct {
+	Name        string  `mapstructure:"name"`         // 指标名称
+	Path        string  `mapstructure:"path"`         // JSONPath 路径
+	Alias       string  `mapstructure:"alias"`        // 指标别名（可选）
+	Unit        string  `mapstructure:"unit"`         // 单位（可选）
+	Threshold   float64 `mapstructure:"threshold"`    // 阈值（可选）
+	Alert       bool    `mapstructure:"alert"`        // 超过阈值是否告警
+	Optional    bool    `mapstructure:"optional"`     // 是否为可选指标，不存在时不报错
+	Scale       float64 `mapstructure:"scale"`        // 缩放因子（如 100 表示乘以100）
+	AutoPercent bool    `mapstructure:"auto_percent"` // 自动处理百分比（值<1时乘以100）
+}
+
+// ScraperTargetConfig 表示监控目标配置
+type ScraperTargetConfig struct {
+	Name               string                `mapstructure:"name"`                 // 目标名称
+	URL                string                `mapstructure:"url"`                  // 请求URL
+	Method             string                `mapstructure:"method"`               // HTTP方法（GET/POST等）
+	Timeout            string                `mapstructure:"timeout"`              // 超时时间（如 5s）
+	Interval           int                   `mapstructure:"interval"`             // 采集间隔（秒），默认10秒
+	Enabled            bool                  `mapstructure:"enabled"`              // 是否启用
+	Headers            map[string]string     `mapstructure:"headers"`              // 请求头
+	Body               string                `mapstructure:"body"`                 // 请求体（POST时使用）
+	InsecureSkipVerify bool                  `mapstructure:"insecure_skip_verify"` // 是否跳过TLS验证
+	Proxy              string                `mapstructure:"proxy"`                // 代理地址
+	Metrics            []ScraperMetricConfig `mapstructure:"metrics"`              // 指标配置列表
+}
+
+// ScraperConfig 表示通用采集器配置
+type ScraperConfig struct {
+	Enabled bool                  `mapstructure:"enabled"` // 是否启用通用采集器
+	Targets []ScraperTargetConfig `mapstructure:"targets"` // 监控目标列表
 }
 
 // LogConfig 表示日志系统的配置

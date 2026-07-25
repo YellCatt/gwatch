@@ -5,6 +5,7 @@ go 1.25.0
 require (
 	github.com/bmatcuk/doublestar/v4 v4.6.1
 	github.com/go-resty/resty/v2 v2.12.0
+	github.com/oliveagle/jsonpath v0.0.0-20180606082908-2e6daa4de067
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/viper v1.19.0
 	github.com/tidwall/gjson v1.14.4
