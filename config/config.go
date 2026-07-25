@@ -295,8 +295,22 @@ func loadRawVars() map[string]string {
 
 // setMonitorDefaults 设置 monitor 配置的默认值
 // 如果未配置告警间隔，则默认为 6 小时（21600 秒）
+// 如果未配置每日报告相关选项，默认启用并设置时间为早上七点
 func setMonitorDefaults() {
 	if GlobalConfig.Monitor.AlertInterval <= 0 {
 		GlobalConfig.Monitor.AlertInterval = 6 * 60 * 60 // 6 小时（秒）
+	}
+
+	// 检查配置文件中是否存在 daily_report 配置
+	hasDailyReportConfig := viper.IsSet("monitor.daily_report")
+
+	// 如果用户完全没有配置 daily_report，默认启用
+	if !hasDailyReportConfig {
+		GlobalConfig.Monitor.DailyReport = true
+	}
+
+	// 如果用户配置了 daily_report 为 true，但未配置 report_time，默认设置为早上七点
+	if GlobalConfig.Monitor.DailyReport && GlobalConfig.Monitor.ReportTime == "" {
+		GlobalConfig.Monitor.ReportTime = "07:00"
 	}
 }
