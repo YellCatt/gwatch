@@ -325,6 +325,10 @@ func runTests(paths []string) {
 		fmt.Println()
 	}
 
+	// 清理全局前置脚本提取的变量
+	vars.CleanupGlobalPreVariables()
+	logger.Info("Cleaned up global pre variables")
+
 	// 如果有失败的测试用例，退出码设为 1
 	failedCount := 0
 	for _, r := range results {

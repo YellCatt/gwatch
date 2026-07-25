@@ -224,7 +224,6 @@ func ExecuteTestCase(tc psv.TestCase) TestResult {
 		zap.String("processedJSON", processedJSON))
 	logger.Info("当前全局变量", zap.Any("vars", vars.GetAll()))
 
-
 	// 构建请求体（用于报告记录）
 	var requestBody string
 	if tc.JSON != "" {
@@ -363,6 +362,10 @@ func ExecuteTestCase(tc psv.TestCase) TestResult {
 			for k, v := range extractedVars {
 				globalVars[k] = v
 				vars.Set(k, v)
+				// 如果是全局前置条件，标记变量为全局前置变量
+				if IsGlobalPreCondition(tc) {
+					vars.MarkAsGlobalPre(k)
+				}
 			}
 			globalVarsMu.Unlock()
 			// 记录提取的变量到结果中

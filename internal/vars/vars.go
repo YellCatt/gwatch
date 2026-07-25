@@ -12,11 +12,12 @@ import (
 	"gwatch/internal/logger"
 )
 
-
 // vars 存储全局变量，使用 map 实现
 var (
-	vars   = make(map[string]string)
-	varsMu sync.Mutex
+	vars                 = make(map[string]string)
+	varsMu               sync.Mutex
+	globalPreVariables   = make(map[string]bool) // 记录全局前置脚本提取的变量
+	globalPreVariablesMu sync.Mutex
 )
 
 // Set 设置全局变量
@@ -99,4 +100,28 @@ func InitFromConfig(config map[string]string) {
 	for k, v := range config {
 		vars[k] = v
 	}
+}
+
+// MarkAsGlobalPre 标记变量为全局前置脚本提取的变量
+func MarkAsGlobalPre(key string) {
+	globalPreVariablesMu.Lock()
+	defer globalPreVariablesMu.Unlock()
+	globalPreVariables[key] = true
+}
+
+// CleanupGlobalPreVariables 清理所有全局前置脚本提取的变量
+func CleanupGlobalPreVariables() {
+	globalPreVariablesMu.Lock()
+	defer globalPreVariablesMu.Unlock()
+
+	varsMu.Lock()
+	defer varsMu.Unlock()
+
+	for key := range globalPreVariables {
+		delete(vars, key)
+		logger.Debug("Cleaned up global pre variable", zap.String("name", key))
+	}
+
+	// 清空记录
+	globalPreVariables = make(map[string]bool)
 }
