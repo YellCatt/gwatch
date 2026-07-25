@@ -3,9 +3,9 @@ module gwatch
 go 1.25.0
 
 require (
+	github.com/PaesslerAG/jsonpath v0.1.1
 	github.com/bmatcuk/doublestar/v4 v4.6.1
 	github.com/go-resty/resty/v2 v2.12.0
-	github.com/oliveagle/jsonpath v0.0.0-20180606082908-2e6daa4de067
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/viper v1.19.0
 	github.com/tidwall/gjson v1.14.4
@@ -14,6 +14,7 @@ require (
 )
 
 require (
+	github.com/PaesslerAG/gval v1.0.0 // indirect
 	github.com/fsnotify/fsnotify v1.7.0 // indirect
 	github.com/hashicorp/hcl v1.0.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect

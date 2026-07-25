@@ -9,8 +9,8 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/PaesslerAG/jsonpath"
 	"github.com/go-resty/resty/v2"
-	"github.com/oliveagle/jsonpath"
 	"go.uber.org/zap"
 
 	"gwatch/internal/logger"
@@ -179,7 +179,7 @@ func extractMetrics(jsonData interface{}, metrics []MetricConfig) []MetricResult
 		}
 
 		// 使用 JSONPath 提取值
-		val, err := jsonpath.JsonPathLookup(jsonData, metric.Path)
+		val, err := jsonpath.Eval(jsonData, metric.Path)
 		if err != nil {
 			// 如果是可选指标，跳过不记录
 			if metric.Optional {
