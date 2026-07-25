@@ -199,3 +199,12 @@ func (r *DailyReport) SendReportEmail() error {
 	logger.Info("Sending daily report email")
 	return email.SendCustomEmail(subject, body)
 }
+
+// getDeviceName 获取设备名称
+func getDeviceName() string {
+	name, err := os.Hostname()
+	if err != nil {
+		return "Unknown"
+	}
+	return name
+}
