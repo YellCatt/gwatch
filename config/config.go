@@ -42,15 +42,19 @@ type TargetConfig struct {
 
 // ScraperMetricConfig 表示单个指标配置
 type ScraperMetricConfig struct {
-	Name        string  `mapstructure:"name"`         // 指标名称
-	Path        string  `mapstructure:"path"`         // JSONPath 路径
-	Alias       string  `mapstructure:"alias"`        // 指标别名（可选）
-	Unit        string  `mapstructure:"unit"`         // 单位（可选）
-	Threshold   float64 `mapstructure:"threshold"`    // 阈值（可选）
-	Alert       bool    `mapstructure:"alert"`        // 超过阈值是否告警
-	Optional    bool    `mapstructure:"optional"`     // 是否为可选指标，不存在时不报错
-	Scale       float64 `mapstructure:"scale"`        // 缩放因子（如 100 表示乘以100）
-	AutoPercent bool    `mapstructure:"auto_percent"` // 自动处理百分比（值<1时乘以100）
+	Name             string  `mapstructure:"name"`              // 指标名称
+	Path             string  `mapstructure:"path"`              // JSONPath 路径
+	Alias            string  `mapstructure:"alias"`             // 指标别名（可选）
+	Unit             string  `mapstructure:"unit"`              // 单位（可选）
+	Threshold        float64 `mapstructure:"threshold"`         // 严重阈值（超过此值触发严重告警）
+	Alert            bool    `mapstructure:"alert"`             // 是否启用告警
+	Optional         bool    `mapstructure:"optional"`          // 是否为可选指标，不存在时不报错
+	Scale            float64 `mapstructure:"scale"`             // 缩放因子（如 100 表示乘以100）
+	AutoPercent      bool    `mapstructure:"auto_percent"`      // 自动处理百分比（值<1时乘以100）
+	CompareOp        string  `mapstructure:"compare_op"`        // 比较操作符：gt(大于), lt(小于), eq(等于), ge(大于等于), le(小于等于)
+	AlertLevel       string  `mapstructure:"alert_level"`       // 告警级别：info, warn, error
+	Consecutive      int     `mapstructure:"consecutive"`       // 连续超过阈值多少次才告警
+	WarningThreshold float64 `mapstructure:"warning_threshold"` // 警告阈值（超过此值触发警告告警）
 }
 
 // ScraperTargetConfig 表示监控目标配置
@@ -160,6 +164,9 @@ func InitConfig() {
 	// 设置 monitor 的默认配置
 	setMonitorDefaults()
 
+	// 设置 scraper 的默认配置
+	setScraperDefaults()
+
 	// 单独读取 vars 配置，保留原始键名（避免 viper 自动转换小写）
 	GlobalConfig.Vars = loadRawVars()
 }
@@ -201,6 +208,51 @@ func setCleanerDefaults() {
 	}
 	if GlobalConfig.Cleaner.IntervalHours <= 0 {
 		GlobalConfig.Cleaner.IntervalHours = 24
+	}
+}
+
+// setScraperDefaults 设置 scraper 配置的默认值
+// 如果用户完全没有配置 scraper，则禁用（enabled: false）
+// 如果用户配置了 scraper，但未明确设置 enabled: true，则默认禁用（安全原则）
+func setScraperDefaults() {
+	// 检查配置文件中是否存在 scraper 配置
+	hasScraperConfig := viper.IsSet("scraper")
+
+	// 如果用户完全没有配置 scraper，禁用
+	if !hasScraperConfig {
+		GlobalConfig.Scraper.Enabled = false
+		return
+	}
+
+	// 如果用户配置了 scraper，但未明确设置 enabled，默认禁用（安全原则：必须明确开启）
+	// 只有明确设置 enabled: true 才会启用
+	if !viper.IsSet("scraper.enabled") {
+		GlobalConfig.Scraper.Enabled = false
+	}
+
+	// 为每个目标设置默认值
+	for i := range GlobalConfig.Scraper.Targets {
+		target := &GlobalConfig.Scraper.Targets[i]
+
+		// 默认方法为 GET
+		if target.Method == "" {
+			target.Method = "GET"
+		}
+
+		// 默认超时时间为 5s
+		if target.Timeout == "" {
+			target.Timeout = "5s"
+		}
+
+		// 默认采集间隔为 10 秒
+		if target.Interval <= 0 {
+			target.Interval = 10
+		}
+
+		// 如果未设置 enabled，默认启用（目标级别，与全局不同）
+		if !viper.IsSet(fmt.Sprintf("scraper.targets.%d.enabled", i)) {
+			target.Enabled = true
+		}
 	}
 }
 

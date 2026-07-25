@@ -129,8 +129,6 @@ func SendEmail(subject, body string) error {
 	return nil
 }
 
-
-
 // buildErrorSubject 构建异常报告邮件标题
 func buildErrorSubject() string {
 	if Config.ErrorSubject != "" {
@@ -180,4 +178,60 @@ func SendCustomEmail(subject, body string) error {
 
 	log.Println("发送自定义邮件...")
 	return SendEmail(subject, body)
+}
+
+// AlertInfo 告警信息
+type AlertInfo struct {
+	TargetName       string
+	MetricName       string
+	MetricAlias      string
+	Value            float64
+	Unit             string
+	Threshold        float64
+	WarningThreshold float64
+	AlertLevel       string
+}
+
+// SendAlertEmail 发送告警邮件
+func SendAlertEmail(alerts []AlertInfo) error {
+	if !Config.Enabled {
+		log.Println("邮件发送功能已禁用，跳过告警邮件发送")
+		return nil
+	}
+	if Config.FromEmail == "" || len(Config.ToEmail) == 0 || Config.AuthCode == "" {
+		log.Println("邮件配置未设置，跳过告警邮件发送")
+		return nil
+	}
+	if len(alerts) == 0 {
+		return nil
+	}
+
+	subject := fmt.Sprintf("【监控告警】gwatch - %s - %s", getDeviceName(), timeutil.FormatDateTime(timeutil.Now()))
+
+	var body strings.Builder
+	body.WriteString("===== 监控告警报告 =====\n\n")
+	body.WriteString(fmt.Sprintf("告警时间: %s\n", timeutil.FormatDateTime(timeutil.Now())))
+	body.WriteString(fmt.Sprintf("监控设备: %s\n", getDeviceName()))
+	body.WriteString(fmt.Sprintf("\n告警列表:\n"))
+
+	for _, alert := range alerts {
+		body.WriteString(fmt.Sprintf("┌─────────────────────────────────────\n"))
+		body.WriteString(fmt.Sprintf("│ 监控目标: %s\n", alert.TargetName))
+		body.WriteString(fmt.Sprintf("│ 指标名称: %s (%s)\n", alert.MetricAlias, alert.MetricName))
+		body.WriteString(fmt.Sprintf("│ 当前值:   %.2f %s\n", alert.Value, alert.Unit))
+		if alert.WarningThreshold > 0 {
+			body.WriteString(fmt.Sprintf("│ 警告阈值: %.2f %s\n", alert.WarningThreshold, alert.Unit))
+		}
+		if alert.Threshold > 0 {
+			body.WriteString(fmt.Sprintf("│ 严重阈值: %.2f %s\n", alert.Threshold, alert.Unit))
+		}
+		body.WriteString(fmt.Sprintf("│ 告警级别: %s\n", alert.AlertLevel))
+		body.WriteString(fmt.Sprintf("└─────────────────────────────────────\n"))
+	}
+
+	body.WriteString("\n===== 报告结束 =====\n")
+	body.WriteString("来自 gwatch 监控系统")
+
+	log.Println("发送告警邮件...")
+	return SendEmail(subject, body.String())
 }

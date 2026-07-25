@@ -19,15 +19,19 @@ import (
 
 // MetricConfig 表示单个指标配置
 type MetricConfig struct {
-	Name        string  `mapstructure:"name"`         // 指标名称
-	Path        string  `mapstructure:"path"`         // JSONPath 路径
-	Alias       string  `mapstructure:"alias"`        // 指标别名（可选）
-	Unit        string  `mapstructure:"unit"`         // 单位（可选）
-	Threshold   float64 `mapstructure:"threshold"`    // 阈值（可选）
-	Alert       bool    `mapstructure:"alert"`        // 超过阈值是否告警
-	Optional    bool    `mapstructure:"optional"`     // 是否为可选指标，不存在时不报错
-	Scale       float64 `mapstructure:"scale"`        // 缩放因子（如 100 表示乘以100）
-	AutoPercent bool    `mapstructure:"auto_percent"` // 自动处理百分比（值<1时乘以100）
+	Name             string  `mapstructure:"name"`              // 指标名称
+	Path             string  `mapstructure:"path"`              // JSONPath 路径
+	Alias            string  `mapstructure:"alias"`             // 指标别名（可选）
+	Unit             string  `mapstructure:"unit"`              // 单位（可选）
+	Threshold        float64 `mapstructure:"threshold"`         // 阈值（可选）
+	Alert            bool    `mapstructure:"alert"`             // 是否启用告警（兼容旧配置）
+	Optional         bool    `mapstructure:"optional"`          // 是否为可选指标，不存在时不报错
+	Scale            float64 `mapstructure:"scale"`             // 缩放因子（如 100 表示乘以100）
+	AutoPercent      bool    `mapstructure:"auto_percent"`      // 自动处理百分比（值<1时乘以100）
+	CompareOp        string  `mapstructure:"compare_op"`        // 比较操作符：gt(大于), lt(小于), eq(等于), ge(大于等于), le(小于等于)
+	AlertLevel       string  `mapstructure:"alert_level"`       // 告警级别：info, warn, error
+	Consecutive      int     `mapstructure:"consecutive"`       // 连续超过阈值多少次才告警
+	WarningThreshold float64 `mapstructure:"warning_threshold"` // 警告阈值（次要告警）
 }
 
 // TargetConfig 表示监控目标配置
@@ -47,16 +51,19 @@ type TargetConfig struct {
 
 // MetricResult 表示指标采集结果
 type MetricResult struct {
-	Name          string  `json:"name"`
-	Alias         string  `json:"alias"`
-	Value         float64 `json:"value"`
-	Unit          string  `json:"unit"`
-	Path          string  `json:"path"`
-	Success       bool    `json:"success"`
-	Error         string  `json:"error,omitempty"`
-	Threshold     float64 `json:"threshold,omitempty"`
-	Alert         bool    `json:"alert"`
-	OverThreshold bool    `json:"over_threshold"`
+	Name             string  `json:"name"`
+	Alias            string  `json:"alias"`
+	Value            float64 `json:"value"`
+	Unit             string  `json:"unit"`
+	Path             string  `json:"path"`
+	Success          bool    `json:"success"`
+	Error            string  `json:"error,omitempty"`
+	Threshold        float64 `json:"threshold,omitempty"`
+	WarningThreshold float64 `json:"warning_threshold,omitempty"`
+	Alert            bool    `json:"alert"`
+	AlertLevel       string  `json:"alert_level,omitempty"`
+	OverThreshold    bool    `json:"over_threshold"`
+	IsWarning        bool    `json:"is_warning"`
 }
 
 // ScrapeResult 表示一次采集结果
@@ -221,22 +228,107 @@ func extractMetrics(jsonData interface{}, metrics []MetricConfig) []MetricResult
 
 		result.Value = floatVal
 		result.Success = true
+		result.Threshold = metric.Threshold
+		result.WarningThreshold = metric.WarningThreshold
 
-		// 检查是否超过阈值
-		if metric.Threshold > 0 && metric.Alert {
-			result.OverThreshold = floatVal > metric.Threshold
-			if result.OverThreshold {
-				logger.Warn("指标超过阈值",
-					zap.String("metric", metric.Name),
-					zap.Float64("value", floatVal),
-					zap.Float64("threshold", metric.Threshold))
-			}
-		}
+		// 检查告警条件
+		checkAlertConditions(metric, floatVal, &result)
 
 		results = append(results, result)
 	}
 
 	return results
+}
+
+// checkAlertConditions 检查告警条件
+func checkAlertConditions(metric MetricConfig, value float64, result *MetricResult) {
+	// 如果没有配置阈值或未启用告警，直接返回
+	if (metric.Threshold <= 0 && metric.WarningThreshold <= 0) || !metric.Alert {
+		return
+	}
+
+	// 默认比较操作符为大于
+	compareOp := metric.CompareOp
+	if compareOp == "" {
+		compareOp = "gt"
+	}
+
+	// 默认告警级别为 warn
+	alertLevel := metric.AlertLevel
+	if alertLevel == "" {
+		alertLevel = "warn"
+	}
+
+	result.Alert = true
+	result.AlertLevel = alertLevel
+
+	// 检查主阈值（严重告警）
+	if metric.Threshold > 0 {
+		if compare(compareOp, value, metric.Threshold) {
+			result.OverThreshold = true
+			logAlert("error", metric, value, metric.Threshold, "严重")
+			return
+		}
+	}
+
+	// 检查警告阈值
+	if metric.WarningThreshold > 0 {
+		if compare(compareOp, value, metric.WarningThreshold) {
+			result.IsWarning = true
+			logAlert("warn", metric, value, metric.WarningThreshold, "警告")
+		}
+	}
+}
+
+// compare 执行比较操作
+func compare(op string, value float64, threshold float64) bool {
+	switch op {
+	case "gt": // 大于
+		return value > threshold
+	case "lt": // 小于
+		return value < threshold
+	case "eq": // 等于
+		return value == threshold
+	case "ge": // 大于等于
+		return value >= threshold
+	case "le": // 小于等于
+		return value <= threshold
+	default:
+		return value > threshold // 默认大于
+	}
+}
+
+// logAlert 记录告警日志
+func logAlert(level string, metric MetricConfig, value float64, threshold float64, levelDesc string) {
+	msg := fmt.Sprintf("[%s] %s (%s): %.2f %s %s 阈值 %.2f",
+		levelDesc, metric.Name, metric.Alias, value, metric.Unit, getOpDesc(metric.CompareOp), threshold)
+
+	switch level {
+	case "error":
+		logger.Error(msg)
+	case "warn":
+		logger.Warn(msg)
+	case "info":
+		logger.Info(msg)
+	}
+}
+
+// getOpDesc 获取比较操作符描述
+func getOpDesc(op string) string {
+	switch op {
+	case "gt":
+		return ">"
+	case "lt":
+		return "<"
+	case "eq":
+		return "=="
+	case "ge":
+		return ">="
+	case "le":
+		return "<="
+	default:
+		return ">"
+	}
 }
 
 // toFloat 将任意类型转换为 float64

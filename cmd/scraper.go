@@ -14,6 +14,7 @@ import (
 	"go.uber.org/zap"
 
 	"gwatch/config"
+	"gwatch/internal/email"
 	"gwatch/internal/logger"
 	"gwatch/internal/scraper"
 )
@@ -59,6 +60,9 @@ func runScraper() {
 
 	// 循环采集
 	for {
+		// 收集本次采集的所有告警
+		var alerts []email.AlertInfo
+
 		for _, target := range cfg.Targets {
 			if !target.Enabled {
 				continue
@@ -80,15 +84,19 @@ func runScraper() {
 
 			for _, metric := range target.Metrics {
 				scraperTarget.Metrics = append(scraperTarget.Metrics, scraper.MetricConfig{
-					Name:        metric.Name,
-					Path:        metric.Path,
-					Alias:       metric.Alias,
-					Unit:        metric.Unit,
-					Threshold:   metric.Threshold,
-					Alert:       metric.Alert,
-					Optional:    metric.Optional,
-					Scale:       metric.Scale,
-					AutoPercent: metric.AutoPercent,
+					Name:             metric.Name,
+					Path:             metric.Path,
+					Alias:            metric.Alias,
+					Unit:             metric.Unit,
+					Threshold:        metric.Threshold,
+					Alert:            metric.Alert,
+					Optional:         metric.Optional,
+					Scale:            metric.Scale,
+					AutoPercent:      metric.AutoPercent,
+					CompareOp:        metric.CompareOp,
+					AlertLevel:       metric.AlertLevel,
+					Consecutive:      metric.Consecutive,
+					WarningThreshold: metric.WarningThreshold,
 				})
 			}
 
@@ -107,10 +115,15 @@ func runScraper() {
 
 			for _, metric := range result.Metrics {
 				status := "✅"
+				alertLevel := ""
 				if !metric.Success {
 					status = "❌"
 				} else if metric.OverThreshold {
-					status = "⚠️"
+					status = "🔴"
+					alertLevel = "严重"
+				} else if metric.IsWarning {
+					status = "🟡"
+					alertLevel = "警告"
 				}
 
 				name := metric.Name
@@ -120,16 +133,43 @@ func runScraper() {
 
 				if metric.Success {
 					fmt.Printf("  %s %s: %.2f %s", status, name, metric.Value, metric.Unit)
+					if metric.WarningThreshold > 0 {
+						fmt.Printf(" (警告阈值: %.2f)", metric.WarningThreshold)
+					}
 					if metric.Threshold > 0 {
-						fmt.Printf(" (阈值: %.2f)", metric.Threshold)
+						fmt.Printf(" (严重阈值: %.2f)", metric.Threshold)
 					}
 					if metric.OverThreshold {
-						fmt.Printf(" ⚠️ 超过阈值")
+						fmt.Printf(" 🔴 严重告警")
+					} else if metric.IsWarning {
+						fmt.Printf(" 🟡 警告")
 					}
 					fmt.Println()
+
+					// 收集告警信息
+					if alertLevel != "" {
+						alerts = append(alerts, email.AlertInfo{
+							TargetName:       target.Name,
+							MetricName:       metric.Name,
+							MetricAlias:      metric.Alias,
+							Value:            metric.Value,
+							Unit:             metric.Unit,
+							Threshold:        metric.Threshold,
+							WarningThreshold: metric.WarningThreshold,
+							AlertLevel:       alertLevel,
+						})
+					}
 				} else {
 					fmt.Printf("  %s %s: 提取失败 - %s\n", status, name, metric.Error)
 				}
+			}
+		}
+
+		// 如果有告警，发送邮件通知
+		if len(alerts) > 0 {
+			logger.Warn("检测到告警", zap.Int("count", len(alerts)))
+			if err := email.SendAlertEmail(alerts); err != nil {
+				logger.Error("发送告警邮件失败", zap.Error(err))
 			}
 		}
 

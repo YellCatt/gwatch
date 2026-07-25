@@ -49,8 +49,10 @@ scraper:
           path: "$.info.cpu.use_percent"
           alias: "CPU使用率"
           unit: "%"
-          threshold: 80
-          alert: true
+          compare_op: "gt"           # 比较操作符：gt(大于), lt(小于), eq(等于), ge(大于等于), le(小于等于)
+          warning_threshold: 70      # 警告阈值：超过70%警告
+          threshold: 85              # 严重阈值：超过85%告警
+          alert: true                # 启用告警
           # 自动处理百分比：接口返回0.45会自动转为45%，返回45保持45%
         - name: mem_used
           path: "$.info.memory.used"
@@ -60,11 +62,21 @@ scraper:
           path: "$.info.memory.total"
           alias: "总内存"
           unit: "MB"
+        - name: mem_usage
+          path: "$.info.memory.use_percent"
+          alias: "内存使用率"
+          unit: "%"
+          compare_op: "gt"
+          warning_threshold: 75
+          threshold: 90
+          alert: true
         - name: disk_usage
           path: "$.info.disk.root.usage"
           alias: "磁盘使用率"
           unit: "%"
-          threshold: 90
+          compare_op: "gt"
+          warning_threshold: 80      # 80%警告
+          threshold: 90              # 90%告警
           alert: true
         # 可选指标：某些接口可能不返回这些字段，不会报错
         - name: gpu_usage
@@ -72,16 +84,26 @@ scraper:
           alias: "GPU使用率"
           unit: "%"
           optional: true
+          compare_op: "gt"
+          warning_threshold: 80
+          threshold: 95
+          alert: true
         - name: network_down
           path: "$.info.network.down_speed"
           alias: "网络下行速度"
           unit: "Mbps"
           optional: true
+          compare_op: "lt"        # 网速过低告警（小于阈值）
+          threshold: 10           # 低于10Mbps告警
+          alert: true
         - name: network_up
           path: "$.info.network.up_speed"
           alias: "网络上行速度"
           unit: "Mbps"
           optional: true
+          compare_op: "lt"        # 网速过低告警（小于阈值）
+          threshold: 5            # 低于5Mbps告警
+          alert: true
 
     - name: "服务健康检查"
       url: "http://localhost:8080/health"
