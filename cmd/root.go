@@ -403,11 +403,11 @@ func formatDuration(d time.Duration) string {
 func initDirectories() {
 	// 需要创建的目录列表（使用默认值，因为此时配置还未加载）
 	directories := []string{
-		"./config",    // 配置文件目录
-		"./logs",      // 日志目录
-		"./reports",   // 测试报告目录
-		"./sql",       // 数据存储目录（CSV文件）
-		"./testcases", // 测试用例目录
+		"./config",  // 配置文件目录
+		"./logs",    // 日志目录
+		"./reports", // 测试报告目录
+		"./sql",     // 数据存储目录（CSV文件）
+		"./cases",   // 测试用例目录
 	}
 
 	for _, dir := range directories {

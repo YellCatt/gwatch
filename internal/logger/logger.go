@@ -58,7 +58,6 @@ func InitLogger(cfg LogConfig) {
 		enc.AppendString(timeutil.FormatDateTimeMs(t))
 	}
 
-
 	// 构建日志实例
 	var err error
 	log, err = zapConfig.Build()
