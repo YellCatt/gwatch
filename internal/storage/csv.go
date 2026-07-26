@@ -44,6 +44,21 @@ var (
 		"execution_count",
 		"last_updated",
 	}
+
+	monitorHeader = []string{
+		"test_case_id",
+		"test_case_desc",
+		"url",
+		"method",
+		"expected_status",
+		"actual_status",
+		"expected_body",
+		"actual_body",
+		"error_msg",
+		"duration_ms",
+		"success",
+		"timestamp",
+	}
 )
 
 // InitDB 初始化 CSV 数据目录（单例模式，保持与原 SQLite 接口一致）
@@ -85,10 +100,15 @@ func initCSVInternal(dir string) error {
 		logger.Error("初始化平均时间 CSV 失败", zap.Error(err))
 		return err
 	}
+	if err := ensureCSV(monitorCSVPath(), monitorHeader); err != nil {
+		logger.Error("初始化监控记录 CSV 失败", zap.Error(err))
+		return err
+	}
 
 	logger.Info("CSV 存储初始化成功",
 		zap.String("executionCSV", executionCSVPath()),
-		zap.String("averageCSV", averageCSVPath()))
+		zap.String("averageCSV", averageCSVPath()),
+		zap.String("monitorCSV", monitorCSVPath()))
 	return nil
 }
 
@@ -98,6 +118,10 @@ func executionCSVPath() string {
 
 func averageCSVPath() string {
 	return filepath.Join(dataDir, "test_average_times.csv")
+}
+
+func monitorCSVPath() string {
+	return filepath.Join(dataDir, "monitor_results.csv")
 }
 
 // ensureCSV 如果 CSV 文件不存在或为空，则创建并写入表头
@@ -490,4 +514,113 @@ func GetAllStoredAverages() ([]map[string]interface{}, error) {
 	}
 
 	return averages, nil
+}
+
+// MonitorResult 表示监控结果记录
+type MonitorResultRecord struct {
+	TestCaseID     string
+	TestCaseDesc   string
+	URL            string
+	Method         string
+	ExpectedStatus int
+	ActualStatus   int
+	ExpectedBody   string
+	ActualBody     string
+	ErrorMsg       string
+	DurationMS     int64
+	Success        bool
+	Timestamp      time.Time
+}
+
+// RecordMonitorResult 记录监控结果到CSV
+func RecordMonitorResult(record MonitorResultRecord) error {
+	mu.Lock()
+	defer mu.Unlock()
+
+	if dataDir == "" {
+		return fmt.Errorf("storage not initialized")
+	}
+
+	rec := []string{
+		record.TestCaseID,
+		record.TestCaseDesc,
+		record.URL,
+		record.Method,
+		strconv.FormatInt(int64(record.ExpectedStatus), 10),
+		strconv.FormatInt(int64(record.ActualStatus), 10),
+		record.ExpectedBody,
+		record.ActualBody,
+		record.ErrorMsg,
+		strconv.FormatInt(record.DurationMS, 10),
+		strconv.FormatBool(record.Success),
+		record.Timestamp.Format("2006-01-02 15:04:05"),
+	}
+
+	if err := appendRecord(monitorCSVPath(), rec); err != nil {
+		logger.Error("Failed to record monitor result", zap.Error(err))
+		return err
+	}
+	return nil
+}
+
+// GetMonitorResultsByDate 获取指定日期的监控结果
+func GetMonitorResultsByDate(date time.Time) ([]MonitorResultRecord, error) {
+	mu.RLock()
+	defer mu.RUnlock()
+
+	if dataDir == "" {
+		return nil, fmt.Errorf("storage not initialized")
+	}
+
+	header, records, err := readRecords(monitorCSVPath())
+	if err != nil {
+		return nil, err
+	}
+
+	if len(header) == 0 {
+		return nil, nil
+	}
+
+	colIndex := make(map[string]int)
+	for i, h := range header {
+		colIndex[strings.TrimSpace(h)] = i
+	}
+
+	get := func(rec []string, name string) string {
+		if idx, ok := colIndex[name]; ok && idx < len(rec) {
+			return rec[idx]
+		}
+		return ""
+	}
+
+	dateStart := time.Date(date.Year(), date.Month(), date.Day(), 0, 0, 0, 0, date.Location())
+	dateEnd := dateStart.Add(24 * time.Hour)
+
+	var results []MonitorResultRecord
+	for _, rec := range records {
+		timestampStr := get(rec, "timestamp")
+		timestamp, err := time.Parse("2006-01-02 15:04:05", timestampStr)
+		if err != nil {
+			continue
+		}
+
+		if timestamp.After(dateStart) && timestamp.Before(dateEnd) {
+			results = append(results, MonitorResultRecord{
+				TestCaseID:     get(rec, "test_case_id"),
+				TestCaseDesc:   get(rec, "test_case_desc"),
+				URL:            get(rec, "url"),
+				Method:         get(rec, "method"),
+				ExpectedStatus: int(parseInt64(get(rec, "expected_status"))),
+				ActualStatus:   int(parseInt64(get(rec, "actual_status"))),
+				ExpectedBody:   get(rec, "expected_body"),
+				ActualBody:     get(rec, "actual_body"),
+				ErrorMsg:       get(rec, "error_msg"),
+				DurationMS:     parseInt64(get(rec, "duration_ms")),
+				Success:        parseSuccess(get(rec, "success")),
+				Timestamp:      timestamp,
+			})
+		}
+	}
+
+	return results, nil
 }

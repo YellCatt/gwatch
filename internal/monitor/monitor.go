@@ -16,6 +16,7 @@ import (
 	"gwatch/internal/logger"
 	"gwatch/internal/psv"
 	"gwatch/internal/report"
+	"gwatch/internal/storage"
 	"gwatch/internal/testcase"
 	"gwatch/internal/timeutil"
 )
@@ -145,13 +146,34 @@ func executeAndMonitorTask(tc psv.TestCase) {
 	// 检查是否需要告警
 	checkAlerts(&monitorResult)
 
-	// 保存结果
+	// 保存结果到内存
 	resultsMu.Lock()
 	results = append(results, monitorResult)
 	if len(results) > 1000 {
 		results = results[len(results)-1000:]
 	}
 	resultsMu.Unlock()
+
+	// 保存结果到CSV文件（持久化）
+	go func() {
+		err := storage.RecordMonitorResult(storage.MonitorResultRecord{
+			TestCaseID:     tc.ID,
+			TestCaseDesc:   tc.Desc,
+			URL:            tc.URL,
+			Method:         tc.Method,
+			ExpectedStatus: tc.ExpectedStatus,
+			ActualStatus:   result.ActualStatus,
+			ExpectedBody:   tc.ExpectedBody,
+			ActualBody:     result.ResponseBody,
+			ErrorMsg:       result.Error,
+			DurationMS:     int64(result.Duration / time.Millisecond),
+			Success:        result.Passed,
+			Timestamp:      timeutil.Now(),
+		})
+		if err != nil {
+			logger.Error("Failed to record monitor result to CSV", zap.Error(err))
+		}
+	}()
 
 	// 如果有告警，发送邮件
 	if monitorResult.AlertType != "" && (tc.AlertOnFailure || tc.AlertOnSlow) {
@@ -571,15 +593,33 @@ func scheduleDailyReport() {
 
 // generateAndSendDailyReport 生成并发送每日报告
 func generateAndSendDailyReport(date time.Time) {
-	monitorResults := GetResults()
+	// 从CSV文件中读取指定日期的监控结果
+	csvResults, err := storage.GetMonitorResultsByDate(date)
+	if err != nil {
+		logger.Error("Failed to get monitor results from CSV", zap.Error(err))
+		return
+	}
 
 	// 转换为 report.MonitorResult 类型
-	reportResults := make([]report.MonitorResult, len(monitorResults))
-	for i, mr := range monitorResults {
+	reportResults := make([]report.MonitorResult, len(csvResults))
+	for i, r := range csvResults {
 		reportResults[i] = report.MonitorResult{
-			TestCase:  mr.TestCase,
-			Result:    mr.Result,
-			Timestamp: mr.Timestamp,
+			TestCase: psv.TestCase{
+				ID:             r.TestCaseID,
+				Desc:           r.TestCaseDesc,
+				URL:            r.URL,
+				Method:         r.Method,
+				ExpectedStatus: r.ExpectedStatus,
+				ExpectedBody:   r.ExpectedBody,
+			},
+			Result: testcase.TestResult{
+				ActualStatus: r.ActualStatus,
+				ResponseBody: r.ActualBody,
+				Error:        r.ErrorMsg,
+				Duration:     time.Duration(r.DurationMS) * time.Millisecond,
+				Passed:       r.Success,
+			},
+			Timestamp: r.Timestamp,
 		}
 	}
 
@@ -587,7 +627,7 @@ func generateAndSendDailyReport(date time.Time) {
 	r := report.GenerateDailyReport(reportResults, date)
 
 	// 保存报告
-	_, err := r.SaveReport()
+	_, err = r.SaveReport()
 	if err != nil {
 		logger.Error("Failed to save daily report", zap.Error(err))
 		return
