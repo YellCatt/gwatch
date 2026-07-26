@@ -522,26 +522,102 @@ func hotReload() {
 	}
 	tasksMu.Unlock()
 
-	// 添加新的测试用例
+	// 添加新的测试用例和检测修改的测试用例
 	newCount := 0
+	modifiedCount := 0
 	for _, tc := range newMonitorCases {
 		tasksMu.Lock()
-		_, exists := tasks[tc.ID]
+		task, exists := tasks[tc.ID]
 		tasksMu.Unlock()
 
 		if !exists {
 			startTask(tc)
 			newCount++
+		} else {
+			// 检测测试用例是否被修改（比较关键字段）
+			if isTestCaseModified(task.TestCase, tc) {
+				removeTask(tc.ID)
+				startTask(tc)
+				modifiedCount++
+				fmt.Printf("[热加载] 测试用例 %s 已修改并重启\n", tc.ID)
+			}
 		}
 	}
 
-	// 移除已删除的测试用例（可选功能，默认不启用）
-	// removeDeletedTestCases(newMonitorCases)
+	// 移除已删除的测试用例
+	removeDeletedTestCases(newMonitorCases)
 
 	if newCount > 0 {
 		logger.Info("Hot reload completed", zap.Int("new_tasks", newCount))
 		fmt.Printf("\n[热加载] 发现 %d 个新测试用例，已自动添加到监控\n", newCount)
 	}
+}
+
+// isTestCaseModified 检测测试用例是否被修改
+// 比较关键字段：URL, Method, Headers, Params, JSON, Body, ExpectedStatus,
+// ExpectedBody, MonitorInterval, ResponseThreshold, AlertOnFailure, AlertOnSlow
+func isTestCaseModified(old, new psv.TestCase) bool {
+	if old.URL != new.URL {
+		return true
+	}
+	if old.Method != new.Method {
+		return true
+	}
+	if old.MonitorInterval != new.MonitorInterval {
+		return true
+	}
+	if old.ResponseThreshold != new.ResponseThreshold {
+		return true
+	}
+	if old.AlertOnFailure != new.AlertOnFailure {
+		return true
+	}
+	if old.AlertOnSlow != new.AlertOnSlow {
+		return true
+	}
+	if old.ExpectedStatus != new.ExpectedStatus {
+		return true
+	}
+	if old.ExpectedBody != new.ExpectedBody {
+		return true
+	}
+	if old.JSON != new.JSON {
+		return true
+	}
+	if old.Body != new.Body {
+		return true
+	}
+	if old.Form != nil || new.Form != nil {
+		if len(old.Form) != len(new.Form) {
+			return true
+		}
+		for k, v := range old.Form {
+			if new.Form[k] != v {
+				return true
+			}
+		}
+	}
+	if old.Params != nil || new.Params != nil {
+		if len(old.Params) != len(new.Params) {
+			return true
+		}
+		for k, v := range old.Params {
+			if new.Params[k] != v {
+				return true
+			}
+		}
+	}
+	if old.Headers != nil || new.Headers != nil {
+		if len(old.Headers) != len(new.Headers) {
+			return true
+		}
+		for k, v := range old.Headers {
+			if new.Headers[k] != v {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // removeDeletedTestCases 移除已删除的测试用例
