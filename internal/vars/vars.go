@@ -64,22 +64,29 @@ func Delete(key string) {
 // 注意：变量名必须完全匹配（大小写敏感）
 func Replace(text string) string {
 	if text == "" {
+		logger.Debug("Replace: 输入为空字符串")
 		return text
 	}
+
+	logger.Debug("Replace: 输入文本", zap.String("text", text))
+	logger.Debug("Replace: 当前变量池", zap.Any("vars", GetAll()))
 
 	re := regexp.MustCompile(`\{\{([a-zA-Z][a-zA-Z0-9_]*)\}\}`)
 	result := re.ReplaceAllStringFunc(text, func(match string) string {
 		key := strings.TrimSuffix(strings.TrimPrefix(match, "{{"), "}}")
+		logger.Debug("Replace: 发现变量引用", zap.String("match", match), zap.String("key", key))
 		if value, ok := vars[key]; ok {
-			logger.Debug("变量替换命中", zap.String("key", key), zap.String("value", maskValue(value)))
+			logger.Info("变量替换成功", zap.String("key", key), zap.String("value", maskValue(value)))
 			return value
 		}
-		logger.Debug("变量未找到，保留原样", zap.String("key", key), zap.String("text", text))
+		logger.Warn("变量替换失败：变量未找到", zap.String("key", key), zap.String("match", match))
 		return match
 	})
 
 	if result != text {
-		logger.Debug("Replace 完成", zap.String("before", text), zap.String("after", maskValue(result)))
+		logger.Info("Replace 完成", zap.String("before", text), zap.String("after", maskValue(result)))
+	} else {
+		logger.Debug("Replace: 无变量被替换", zap.String("text", text))
 	}
 	return result
 }

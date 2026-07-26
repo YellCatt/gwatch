@@ -302,29 +302,47 @@ func loadRawVars() map[string]string {
 		configFile = "./config/config.yaml"
 	}
 
+	logger.Info("loadRawVars 开始", zap.String("configFile", configFile))
+
 	// 直接从文件读取原始 YAML，保留 vars 键名大小写
 	data, err := os.ReadFile(configFile)
-	if err == nil {
+	if err != nil {
+		logger.Warn("loadRawVars: 直接读取配置文件失败，将回退到 viper", zap.String("configFile", configFile), zap.Error(err))
+	} else {
+		logger.Debug("loadRawVars: 成功读取配置文件", zap.Int("fileSize", len(data)))
 		var raw map[string]any
-		if err := yaml.Unmarshal(data, &raw); err == nil {
+		if err := yaml.Unmarshal(data, &raw); err != nil {
+			logger.Warn("loadRawVars: YAML 解析失败，将回退到 viper", zap.Error(err))
+		} else {
+			logger.Debug("loadRawVars: YAML 解析成功")
 			if varsMap, ok := raw["vars"].(map[string]any); ok {
+				logger.Debug("loadRawVars: 找到 vars 配置", zap.Int("count", len(varsMap)))
 				for k, v := range varsMap {
 					switch val := v.(type) {
 					case string:
 						result[k] = val
+						logger.Debug("loadRawVars: 加载变量", zap.String("key", k), zap.String("value", val))
 					default:
 						result[k] = fmt.Sprintf("%v", val)
+						logger.Debug("loadRawVars: 加载变量（非字符串类型）", zap.String("key", k), zap.Any("value", v))
 					}
 				}
+				logger.Info("loadRawVars 完成（直接读取）", zap.Int("varCount", len(result)))
 				return result
+			} else {
+				logger.Warn("loadRawVars: vars 配置不存在或格式不正确，将回退到 viper")
 			}
 		}
 	}
 
 	// 回退：使用 viper 读取（键名会被转小写）
-	for k, v := range viper.GetStringMapString("vars") {
+	logger.Warn("loadRawVars: 使用 viper 回退模式（键名会转为小写）")
+	viperVars := viper.GetStringMapString("vars")
+	for k, v := range viperVars {
 		result[k] = v
+		logger.Debug("loadRawVars: viper 模式加载变量", zap.String("key", k), zap.String("value", v))
 	}
+	logger.Info("loadRawVars 完成（viper 回退）", zap.Int("varCount", len(result)))
 	return result
 }
 
