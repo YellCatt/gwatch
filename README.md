@@ -1,25 +1,25 @@
 # gwatch
 
-一个功能强大的企业级 API 测试和监控工具，使用 Go 语言编写。
+一个功能强大的企业级 API 监控工具，使用 Go 语言编写，支持 RESTful API 监控和测试。
 
 ## 功能特性
 
-- RESTful API 测试
-- PSV（管道分隔值）测试用例管理
+- RESTful API 监控
+- PSV（管道分隔值）监控任务管理
 - YAML 配置管理
 - Zap 结构化日志
-- 串行测试执行（确保依赖顺序）
-- 测试报告生成
-- 基于标签的测试过滤
+- 串行执行（确保依赖顺序）
+- 监控报告生成
+- 基于标签的任务过滤
 - 变量提取和替换
 - 流式（SSE）断言支持
 - 正则表达式断言支持（支持匹配数字、布尔等非字符串类型）
 - CSV 历史执行时间存储和平均值计算
-- 测试用例延迟控制（执行前/后延迟）
-- 邮件测试报告通知
+- 任务延迟控制（执行前/后延迟）
+- 邮件告警通知
 - **API 监控模式**（持续监控 API 端点）
 - **自动清理机制**（定期清理日志和报告文件）
-- **全局前置/后置条件**（所有测试执行前后运行）
+- **全局前置/后置条件**（所有任务执行前后运行）
 
 ## 环境要求
 
@@ -42,8 +42,8 @@ go build -ldflags="-s -w" -o gwatch.exe
 gwatch.exe           # 可执行文件
 config/             # 配置目录
   └── config.yaml   # 配置文件
-testcases/          # 测试用例目录（可选）
-  └── *.psv         # PSV/CSV 测试用例文件
+tasks/              # 监控任务目录（可选）
+  └── *.psv         # PSV/CSV 监控任务文件
 reports/            # 报告输出目录（自动创建）
 sql/                # CSV 数据目录（自动创建）
 logs/               # 日志目录（自动创建）
@@ -119,7 +119,7 @@ monitor:
 |-----------|------|----------|
 | `gwatch.exe` | 主程序可执行文件 | **是** |
 | `config/config.yaml` | 配置文件 | **是** |
-| `testcases/` | 测试用例目录 | 否（运行时指定路径则不需要） |
+| `tasks/` | 监控任务目录 | 否（运行时指定路径则不需要） |
 | `reports/` | 报告输出目录 | 否（自动创建） |
 | `sql/` | CSV 数据目录 | 否（自动创建） |
 | `logs/` | 日志目录 | 否（自动创建） |
@@ -132,21 +132,21 @@ monitor:
 - **log.level**: 日志级别（debug, info, warn, error）
 - **log.encoding**: 日志格式（json, console）
 - **log.output**: 日志输出（stdout 或文件路径）
-- **app.report_dir**: 测试报告输出目录
-- **app.case_dir**: 默认测试用例目录
+- **app.report_dir**: 监控报告输出目录
+- **app.case_dir**: 默认监控任务目录
 - **app.data_dir**: CSV 数据存储目录
 - **app.severe_status**: 严重错误状态码列表
-- **app.global_pre**: 全局前置条件测试用例 ID 列表
-- **app.global_post**: 全局后置条件测试用例 ID 列表
+- **app.global_pre**: 全局前置条件监控任务 ID 列表
+- **app.global_post**: 全局后置条件监控任务 ID 列表
 - **http.insecure_skip_verify**: 是否跳过 TLS 证书验证
 - **vars**: 用户自定义变量（用于替换测试用例中的 `{{var}}`）
-- **email**: 邮件通知配置（测试开始和结束时发送）
+- **email**: 邮件告警配置（监控任务开始和结束时发送，失败时告警）
 - **cleaner**: 自动清理配置（定期清理旧文件）
 - **monitor**: 监控模式配置
 
 ## 使用方法
 
-### 运行默认目录下的所有测试
+### 运行默认目录下的所有监控任务
 
 ```bash
 ./gwatch.exe
@@ -155,23 +155,23 @@ monitor:
 ### 运行特定的 PSV 文件
 
 ```bash
-./gwatch.exe tests/test_data.psv tests/test_data2.psv
+./gwatch.exe tasks/task_data.psv tasks/task_data2.psv
 ```
 
-### 运行目录下的所有测试
+### 运行目录下的所有监控任务
 
 ```bash
-./gwatch.exe tests
+./gwatch.exe tasks
 ```
 
 ### 标签过滤
 
 ```bash
-# 只运行 smoke 测试
-./gwatch.exe --tags=smoke
+# 只运行 health 监控
+./gwatch.exe --tags=health
 
-# 运行 smoke 和 api 测试
-./gwatch.exe --tags=smoke,api
+# 运行 health 和 api 监控
+./gwatch.exe --tags=health,api
 ```
 
 ### 监控模式
@@ -184,7 +184,7 @@ monitor:
 ./gwatch.exe --monitor --tags=health
 ```
 
-## PSV 测试用例格式
+## PSV 监控任务格式
 
 ```psv
 id|skip|desc|method|url|headers|params|form|json|body|expected_status|expected_body|tags|extract|stream_mode|stream_assert|match_mode|body_regex|pre|post|fail_mode|keep_vars|delay_ms|delay_after_ms
@@ -194,9 +194,9 @@ id|skip|desc|method|url|headers|params|form|json|body|expected_status|expected_b
 
 | 列名 | 描述 |
 |------|------|
-| `id` | 测试用例唯一标识 |
-| `skip` | 是否跳过测试（0/1 或 true/false） |
-| `desc` | 测试用例描述 |
+| `id` | 监控任务唯一标识 |
+| `skip` | 是否跳过任务（0/1 或 true/false） |
+| `desc` | 监控任务描述 |
 | `method` | HTTP 方法（GET, POST, PUT, DELETE, PATCH, HEAD） |
 | `url` | API 端点 URL |
 | `headers` | 请求头（JSON 对象） |
@@ -390,8 +390,8 @@ monitor:
 
 每次运行后，报告会保存到 `reports/` 目录：
 
-- `report_YYYYMMDD_HHMMSS.csv` - 完整测试结果（管道符分隔）
-- `report_YYYYMMDD_HHMMSS_error.csv` - 仅包含失败的测试用例（管道符分隔）
+- `report_YYYYMMDD_HHMMSS.csv` - 完整监控结果（管道符分隔）
+- `report_YYYYMMDD_HHMMSS_error.csv` - 仅包含失败的监控任务（管道符分隔）
 
 报告格式（PSV）：
 ```
@@ -400,15 +400,15 @@ id|desc|method|url|request_headers|request_body|tags|status|duration_s|expect_st
 
 ## 历史执行记录
 
-测试执行完成后，系统会自动：
+监控执行完成后，系统会自动：
 
-1. **记录执行时间**：每个测试用例执行时间会记录到 CSV 文件
-2. **计算平均值**：自动计算每个测试用例的历史平均执行时间
+1. **记录执行时间**：每个监控任务执行时间会记录到 CSV 文件
+2. **计算平均值**：自动计算每个监控任务的历史平均执行时间
 3. **预估执行时间**：下次运行时根据历史数据预估总执行时间
 
 CSV 文件存储在 `sql/` 目录，包含以下文件：
-- `test_execution_times.csv` - 每次执行的详细记录
-- `test_average_times.csv` - 各测试用例的平均执行时间
+- `monitor_execution_times.csv` - 每次执行的详细记录
+- `monitor_average_times.csv` - 各监控任务的平均执行时间
 
 ## 自动清理
 

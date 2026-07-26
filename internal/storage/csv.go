@@ -134,11 +134,11 @@ func initCSVInternal(dir string) error {
 }
 
 func executionCSVPath() string {
-	return filepath.Join(dataDir, "test_execution_times.csv")
+	return filepath.Join(dataDir, "monitor_execution_times.csv")
 }
 
 func averageCSVPath() string {
-	return filepath.Join(dataDir, "test_average_times.csv")
+	return filepath.Join(dataDir, "monitor_average_times.csv")
 }
 
 func monitorCSVPath() string {
