@@ -5,7 +5,6 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
-	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -713,63 +712,6 @@ func generateAndSendReport(period report.ReportPeriod, date time.Time) {
 			logger.Error("Failed to send report email", zap.Error(err))
 		}
 	}
-}
-
-// getAllMonitorResults 获取所有监控结果
-func getAllMonitorResults() ([]storage.MonitorResultRecord, error) {
-	mu.RLock()
-	defer mu.RUnlock()
-
-	if dataDir == "" {
-		return nil, fmt.Errorf("storage not initialized")
-	}
-
-	header, records, err := readRecords(monitorCSVPath())
-	if err != nil {
-		return nil, err
-	}
-
-	if len(header) == 0 {
-		return nil, nil
-	}
-
-	colIndex := make(map[string]int)
-	for i, h := range header {
-		colIndex[strings.TrimSpace(h)] = i
-	}
-
-	get := func(rec []string, name string) string {
-		if idx, ok := colIndex[name]; ok && idx < len(rec) {
-			return rec[idx]
-		}
-		return ""
-	}
-
-	var results []storage.MonitorResultRecord
-	for _, rec := range records {
-		timestampStr := get(rec, "timestamp")
-		timestamp, err := time.Parse("2006-01-02 15:04:05", timestampStr)
-		if err != nil {
-			continue
-		}
-
-		results = append(results, storage.MonitorResultRecord{
-			TestCaseID:     get(rec, "test_case_id"),
-			TestCaseDesc:   get(rec, "test_case_desc"),
-			URL:            get(rec, "url"),
-			Method:         get(rec, "method"),
-			ExpectedStatus: int(parseInt64(get(rec, "expected_status"))),
-			ActualStatus:   int(parseInt64(get(rec, "actual_status"))),
-			ExpectedBody:   get(rec, "expected_body"),
-			ActualBody:     get(rec, "actual_body"),
-			ErrorMsg:       get(rec, "error_msg"),
-			DurationMS:     parseInt64(get(rec, "duration_ms")),
-			Success:        parseSuccess(get(rec, "success")),
-			Timestamp:      timestamp,
-		})
-	}
-
-	return results, nil
 }
 
 // generateAndSendDailyReport 生成并发送每日报告（兼容旧接口）
