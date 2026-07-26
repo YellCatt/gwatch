@@ -58,6 +58,39 @@ var (
 func StartMonitor(testCases []psv.TestCase) {
 	logger.Info("Starting monitor mode")
 
+	// 执行全局前置条件（所有监控任务启动前运行）
+	if len(config.GlobalConfig.App.GlobalPre) > 0 {
+		fmt.Printf("\n════════════════════════════════════════════════════════╗\n")
+		fmt.Printf("║ 执行全局前置条件                                       ║\n")
+		fmt.Printf("╚════════════════════════════════════════════════════════╝\n\n")
+
+		for _, preID := range config.GlobalConfig.App.GlobalPre {
+			found := false
+			for _, tc := range testCases {
+				if tc.ID == preID {
+					fmt.Printf("[全局前置] 执行: %s - %s\n", tc.ID, tc.Desc)
+					result := testcase.ExecuteTestCase(tc)
+					if !result.Passed {
+						fmt.Printf("[全局前置] ❌ 失败: %s\n", result.Error)
+						fmt.Printf("\n全局前置条件失败，终止监控启动\n")
+						errorMsg := fmt.Sprintf("全局前置条件 '%s' 执行失败: %s", tc.ID, result.Error)
+						if err := email.SendErrorReportEmail(errorMsg); err != nil {
+							logger.Warn("Failed to send error report email", zap.Error(err))
+						}
+						os.Exit(1)
+					}
+					fmt.Printf("[全局前置] ✅ 成功\n")
+					found = true
+					break
+				}
+			}
+			if !found {
+				fmt.Printf("[全局前置] ⚠️ 未找到测试用例: %s\n", preID)
+			}
+		}
+		fmt.Println()
+	}
+
 	// 过滤出启用监控的测试用例
 	monitorCases := filterMonitorCases(testCases)
 	if len(monitorCases) == 0 {
