@@ -15,8 +15,10 @@ import (
 )
 
 // log 是全局日志实例
-
 var log *zap.Logger
+
+// atomicLevel 用于动态修改日志级别
+var atomicLevel zap.AtomicLevel
 
 // LogConfig 表示日志配置
 type LogConfig struct {
@@ -39,7 +41,8 @@ func InitLogger(cfg LogConfig) {
 	}
 
 	// 设置日志级别
-	zapConfig.Level = zap.NewAtomicLevelAt(getLogLevel(cfg.Level))
+	atomicLevel = zap.NewAtomicLevelAt(getLogLevel(cfg.Level))
+	zapConfig.Level = atomicLevel
 	zapConfig.Encoding = cfg.Encoding
 
 	// 设置输出路径
@@ -158,4 +161,15 @@ func Fatal(msg string, fields ...zap.Field) {
 // Sync 刷新日志缓冲区
 func Sync() error {
 	return log.Sync()
+}
+
+// SetLogLevel 动态设置日志级别
+// level: 日志级别字符串 (debug/info/warn/error/dpanic/panic/fatal)
+func SetLogLevel(level string) {
+	atomicLevel.SetLevel(getLogLevel(level))
+}
+
+// GetLogLevel 获取当前日志级别
+func GetLogLevel() string {
+	return atomicLevel.Level().String()
 }

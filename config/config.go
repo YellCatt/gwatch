@@ -4,10 +4,12 @@ package config
 
 import (
 	"fmt"
+	"gwatch/internal/logger"
 	"log"
 	"os"
 
 	"github.com/spf13/viper"
+	"go.uber.org/zap"
 	"gopkg.in/yaml.v3"
 )
 
@@ -172,6 +174,36 @@ func InitConfig() {
 
 	// 单独读取 vars 配置，保留原始键名（避免 viper 自动转换小写）
 	GlobalConfig.Vars = loadRawVars()
+}
+
+// ReloadConfig 重新加载配置文件
+// 返回日志级别是否发生了变化
+func ReloadConfig() bool {
+	// 保存旧的日志级别
+	oldLogLevel := GlobalConfig.Log.Level
+
+	// 重新读取配置文件
+	if err := viper.ReadInConfig(); err != nil {
+		logger.Warn("Failed to reload config file", zap.Error(err))
+		return false
+	}
+
+	// 重新解析配置
+	if err := viper.Unmarshal(&GlobalConfig); err != nil {
+		logger.Warn("Failed to unmarshal config", zap.Error(err))
+		return false
+	}
+
+	// 设置默认值
+	setCleanerDefaults()
+	setMonitorDefaults()
+	setScraperDefaults()
+
+	// 重新加载 vars
+	GlobalConfig.Vars = loadRawVars()
+
+	// 返回日志级别是否发生变化
+	return oldLogLevel != GlobalConfig.Log.Level
 }
 
 // setCleanerDefaults 设置 cleaner 配置的默认值

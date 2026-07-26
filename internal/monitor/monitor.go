@@ -488,7 +488,15 @@ func startHotReload() {
 
 // hotReload 执行热加载逻辑
 func hotReload() {
-	logger.Debug("Checking for new test cases")
+	logger.Debug("Checking for hot reload changes")
+
+	// 检查配置文件变化（用于动态修改日志级别）
+	if config.ReloadConfig() {
+		newLevel := config.GlobalConfig.Log.Level
+		logger.SetLogLevel(newLevel)
+		logger.Info("Log level updated via config file", zap.String("new_level", newLevel))
+		fmt.Printf("\n[热加载] 配置文件已更新，日志级别已切换为: %s\n", newLevel)
+	}
 
 	// 获取当前测试用例目录
 	caseDir := config.GlobalConfig.App.CaseDir
