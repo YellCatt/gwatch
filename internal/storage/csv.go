@@ -677,7 +677,6 @@ func UpdateMonitorSummary(record MonitorResultRecord) error {
 	}
 
 	dateStr := record.Timestamp.Format("2006-01-02")
-	key := dateStr + "\x00" + record.TestCaseID
 
 	header, records, err := readRecords(monitorSummaryCSVPath())
 	if err != nil {
