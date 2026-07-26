@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -96,9 +97,12 @@ func StartMonitor(testCases []psv.TestCase) {
 	// 发送启动通知邮件
 	go sendStartupNotification(len(monitorCases))
 
-	// 启动每日报告调度（如果启用）
-	if config.GlobalConfig.Monitor.DailyReport {
-		go scheduleDailyReport()
+	// 启动报告调度（支持每日、每周、每月、年度报告）
+	if config.GlobalConfig.Monitor.DailyReport ||
+		config.GlobalConfig.Monitor.WeeklyReport ||
+		config.GlobalConfig.Monitor.MonthlyReport ||
+		config.GlobalConfig.Monitor.YearlyReport {
+		go scheduleReports()
 	}
 
 	// 启动热加载协程
@@ -159,7 +163,7 @@ func executeAndMonitorTask(tc psv.TestCase) {
 
 	// 保存结果到CSV文件（持久化）
 	go func() {
-		err := storage.RecordMonitorResult(storage.MonitorResultRecord{
+		record := storage.MonitorResultRecord{
 			TestCaseID:     tc.ID,
 			TestCaseDesc:   tc.Desc,
 			URL:            tc.URL,
@@ -172,9 +176,14 @@ func executeAndMonitorTask(tc psv.TestCase) {
 			DurationMS:     int64(result.Duration / time.Millisecond),
 			Success:        result.Passed,
 			Timestamp:      timeutil.Now(),
-		})
-		if err != nil {
+		}
+
+		if err := storage.RecordMonitorResult(record); err != nil {
 			logger.Error("Failed to record monitor result to CSV", zap.Error(err))
+		}
+
+		if err := storage.UpdateMonitorSummary(record); err != nil {
+			logger.Error("Failed to update monitor summary", zap.Error(err))
 		}
 	}()
 
@@ -566,83 +575,206 @@ func removeTask(id string) {
 	}
 }
 
-// scheduleDailyReport 调度每日报告生成
-func scheduleDailyReport() {
+// scheduleReports 调度各种周期报告的生成
+func scheduleReports() {
 	for {
 		now := timeutil.Now()
 		reportTimeStr := config.GlobalConfig.Monitor.ReportTime
 		if reportTimeStr == "" {
-			reportTimeStr = "00:00"
+			reportTimeStr = "07:00"
 		}
 
 		var reportHour, reportMinute int
 		fmt.Sscanf(reportTimeStr, "%d:%d", &reportHour, &reportMinute)
 
-		reportTime := time.Date(now.Year(), now.Month(), now.Day(), reportHour, reportMinute, 0, 0, now.Location())
-		if now.After(reportTime) {
-			reportTime = reportTime.Add(24 * time.Hour)
+		nextReportTime := time.Date(now.Year(), now.Month(), now.Day(), reportHour, reportMinute, 0, 0, now.Location())
+		if now.After(nextReportTime) {
+			nextReportTime = nextReportTime.Add(24 * time.Hour)
 		}
 
-		duration := reportTime.Sub(now)
-		logger.Info("Scheduling daily report", zap.Time("next_run", reportTime))
+		duration := nextReportTime.Sub(now)
+		logger.Info("Scheduling reports", zap.Time("next_run", nextReportTime))
 
 		time.Sleep(duration)
 
-		yesterday := timeutil.Now().Add(-24 * time.Hour)
-		logger.Info("Generating daily report for", zap.String("date", yesterday.Format("2006-01-02")))
-		generateAndSendDailyReport(yesterday)
+		// 生成每日报告
+		if config.GlobalConfig.Monitor.DailyReport {
+			yesterday := timeutil.Now().Add(-24 * time.Hour)
+			logger.Info("Generating daily report for", zap.String("date", yesterday.Format("2006-01-02")))
+			generateAndSendReport(report.PeriodDaily, yesterday)
+		}
+
+		// 生成每周报告（周一早上）
+		if config.GlobalConfig.Monitor.WeeklyReport {
+			today := timeutil.Now()
+			if today.Weekday() == time.Monday {
+				logger.Info("Generating weekly report for week starting", zap.String("date", getWeekStart(today).Format("2006-01-02")))
+				generateAndSendReport(report.PeriodWeekly, today)
+			}
+		}
+
+		// 生成每月报告（每月1号）
+		if config.GlobalConfig.Monitor.MonthlyReport {
+			today := timeutil.Now()
+			if today.Day() == 1 {
+				logger.Info("Generating monthly report for", zap.String("month", today.Format("2006-01")))
+				generateAndSendReport(report.PeriodMonthly, today)
+			}
+		}
+
+		// 生成年度报告（每年1月1号）
+		if config.GlobalConfig.Monitor.YearlyReport {
+			today := timeutil.Now()
+			if today.Month() == time.January && today.Day() == 1 {
+				logger.Info("Generating yearly report for", zap.String("year", today.Format("2006")))
+				generateAndSendReport(report.PeriodYearly, today)
+			}
+		}
 	}
 }
 
-// generateAndSendDailyReport 生成并发送每日报告
-func generateAndSendDailyReport(date time.Time) {
-	// 从CSV文件中读取指定日期的监控结果
-	csvResults, err := storage.GetMonitorResultsByDate(date)
-	if err != nil {
-		logger.Error("Failed to get monitor results from CSV", zap.Error(err))
+// getWeekStart 获取本周一的日期
+func getWeekStart(date time.Time) time.Time {
+	weekday := date.Weekday()
+	daysToMonday := int(weekday - time.Monday)
+	if daysToMonday < 0 {
+		daysToMonday += 7
+	}
+	return time.Date(date.Year(), date.Month(), date.Day(), 0, 0, 0, 0, date.Location()).AddDate(0, 0, -daysToMonday)
+}
+
+// generateAndSendReport 生成并发送指定周期的报告
+func generateAndSendReport(period report.ReportPeriod, date time.Time) {
+	var (
+		totalTasks   int
+		successTasks int
+		failedTasks  int
+	)
+
+	var startDate, endDate time.Time
+	switch period {
+	case report.PeriodDaily:
+		startDate = time.Date(date.Year(), date.Month(), date.Day(), 0, 0, 0, 0, date.Location())
+		endDate = startDate.Add(24 * time.Hour)
+	case report.PeriodWeekly:
+		weekday := date.Weekday()
+		daysToMonday := int(weekday - time.Monday)
+		if daysToMonday < 0 {
+			daysToMonday += 7
+		}
+		startDate = time.Date(date.Year(), date.Month(), date.Day(), 0, 0, 0, 0, date.Location()).AddDate(0, 0, -daysToMonday)
+		endDate = startDate.AddDate(0, 0, 7)
+	case report.PeriodMonthly:
+		startDate = time.Date(date.Year(), date.Month(), 1, 0, 0, 0, 0, date.Location())
+		endDate = startDate.AddDate(0, 1, 0)
+	case report.PeriodYearly:
+		startDate = time.Date(date.Year(), 1, 1, 0, 0, 0, 0, date.Location())
+		endDate = startDate.AddDate(1, 0, 0)
+	default:
+		logger.Error("Unknown report period", zap.String("period", string(period)))
 		return
 	}
 
-	// 转换为 report.MonitorResult 类型
-	reportResults := make([]report.MonitorResult, len(csvResults))
-	for i, r := range csvResults {
-		reportResults[i] = report.MonitorResult{
-			TestCase: psv.TestCase{
-				ID:             r.TestCaseID,
-				Desc:           r.TestCaseDesc,
-				URL:            r.URL,
-				Method:         r.Method,
-				ExpectedStatus: r.ExpectedStatus,
-				ExpectedBody:   r.ExpectedBody,
-			},
-			Result: testcase.TestResult{
-				ActualStatus: r.ActualStatus,
-				ResponseBody: r.ActualBody,
-				Error:        r.ErrorMsg,
-				Duration:     time.Duration(r.DurationMS) * time.Millisecond,
-				Passed:       r.Success,
-			},
-			Timestamp: r.Timestamp,
-		}
+	// 使用汇总数据生成报告
+	summaryResults, err := storage.GetMonitorSummaryByPeriod(startDate, endDate)
+	if err != nil {
+		logger.Error("Failed to get monitor summary", zap.Error(err))
+		return
+	}
+
+	for _, summary := range summaryResults {
+		totalTasks += int(summary.TotalCount)
+		successTasks += int(summary.SuccessCount)
+		failedTasks += int(summary.FailedCount)
 	}
 
 	// 生成报告
-	r := report.GenerateDailyReport(reportResults, date)
+	r := &report.Report{
+		Period:       period,
+		StartDate:    startDate.Format("2006-01-02"),
+		EndDate:      endDate.Format("2006-01-02"),
+		TotalTasks:   totalTasks,
+		SuccessTasks: successTasks,
+		FailedTasks:  failedTasks,
+		GeneratedAt:  timeutil.Now(),
+	}
 
 	// 保存报告
 	_, err = r.SaveReport()
 	if err != nil {
-		logger.Error("Failed to save daily report", zap.Error(err))
+		logger.Error("Failed to save report", zap.Error(err))
 		return
 	}
 
-	// 发送邮件
+	// 发送邮件（有失败任务或配置了始终发送）
 	if r.FailedTasks > 0 || config.GlobalConfig.Monitor.AlertOnFailure {
 		err = r.SendReportEmail()
 		if err != nil {
-			logger.Error("Failed to send daily report email", zap.Error(err))
+			logger.Error("Failed to send report email", zap.Error(err))
 		}
 	}
+}
+
+// getAllMonitorResults 获取所有监控结果
+func getAllMonitorResults() ([]storage.MonitorResultRecord, error) {
+	mu.RLock()
+	defer mu.RUnlock()
+
+	if dataDir == "" {
+		return nil, fmt.Errorf("storage not initialized")
+	}
+
+	header, records, err := readRecords(monitorCSVPath())
+	if err != nil {
+		return nil, err
+	}
+
+	if len(header) == 0 {
+		return nil, nil
+	}
+
+	colIndex := make(map[string]int)
+	for i, h := range header {
+		colIndex[strings.TrimSpace(h)] = i
+	}
+
+	get := func(rec []string, name string) string {
+		if idx, ok := colIndex[name]; ok && idx < len(rec) {
+			return rec[idx]
+		}
+		return ""
+	}
+
+	var results []storage.MonitorResultRecord
+	for _, rec := range records {
+		timestampStr := get(rec, "timestamp")
+		timestamp, err := time.Parse("2006-01-02 15:04:05", timestampStr)
+		if err != nil {
+			continue
+		}
+
+		results = append(results, storage.MonitorResultRecord{
+			TestCaseID:     get(rec, "test_case_id"),
+			TestCaseDesc:   get(rec, "test_case_desc"),
+			URL:            get(rec, "url"),
+			Method:         get(rec, "method"),
+			ExpectedStatus: int(parseInt64(get(rec, "expected_status"))),
+			ActualStatus:   int(parseInt64(get(rec, "actual_status"))),
+			ExpectedBody:   get(rec, "expected_body"),
+			ActualBody:     get(rec, "actual_body"),
+			ErrorMsg:       get(rec, "error_msg"),
+			DurationMS:     parseInt64(get(rec, "duration_ms")),
+			Success:        parseSuccess(get(rec, "success")),
+			Timestamp:      timestamp,
+		})
+	}
+
+	return results, nil
+}
+
+// generateAndSendDailyReport 生成并发送每日报告（兼容旧接口）
+func generateAndSendDailyReport(date time.Time) {
+	generateAndSendReport(report.PeriodDaily, date)
 }
 
 // sendStartupNotification 发送监控启动通知邮件

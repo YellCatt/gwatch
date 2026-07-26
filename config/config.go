@@ -129,7 +129,10 @@ type MonitorConfig struct {
 	MaxWorkers      int    `mapstructure:"max_workers"`      // 最大并发goroutine数，0表示不限制，默认1适合资源受限设备
 	AlertInterval   int    `mapstructure:"alert_interval"`   // 告警间隔（秒），相同接口异常后需要等待此时间才能再次告警，默认6小时
 	DailyReport     bool   `mapstructure:"daily_report"`     // 是否启用每日报告
-	ReportTime      string `mapstructure:"report_time"`      // 每日报告生成时间（HH:MM）
+	WeeklyReport    bool   `mapstructure:"weekly_report"`    // 是否启用每周报告
+	MonthlyReport   bool   `mapstructure:"monthly_report"`   // 是否启用每月报告
+	YearlyReport    bool   `mapstructure:"yearly_report"`    // 是否启用年度报告
+	ReportTime      string `mapstructure:"report_time"`      // 报告生成时间（HH:MM），适用于所有周期报告
 }
 
 // GlobalConfig 存储全局配置实例
@@ -295,22 +298,43 @@ func loadRawVars() map[string]string {
 
 // setMonitorDefaults 设置 monitor 配置的默认值
 // 如果未配置告警间隔，则默认为 6 小时（21600 秒）
-// 如果未配置每日报告相关选项，默认启用并设置时间为早上七点
+// 如果未配置报告相关选项，默认启用所有报告并设置时间为早上七点
 func setMonitorDefaults() {
 	if GlobalConfig.Monitor.AlertInterval <= 0 {
 		GlobalConfig.Monitor.AlertInterval = 6 * 60 * 60 // 6 小时（秒）
 	}
 
-	// 检查配置文件中是否存在 daily_report 配置
-	hasDailyReportConfig := viper.IsSet("monitor.daily_report")
-
 	// 如果用户完全没有配置 daily_report，默认启用
-	if !hasDailyReportConfig {
+	if !viper.IsSet("monitor.daily_report") {
 		GlobalConfig.Monitor.DailyReport = true
 	}
 
-	// 如果用户配置了 daily_report 为 true，但未配置 report_time，默认设置为早上七点
-	if GlobalConfig.Monitor.DailyReport && GlobalConfig.Monitor.ReportTime == "" {
+	// 如果用户完全没有配置 weekly_report，默认启用
+	if !viper.IsSet("monitor.weekly_report") {
+		GlobalConfig.Monitor.WeeklyReport = true
+	}
+
+	// 如果用户完全没有配置 monthly_report，默认启用
+	if !viper.IsSet("monitor.monthly_report") {
+		GlobalConfig.Monitor.MonthlyReport = true
+	}
+
+	// 如果用户完全没有配置 yearly_report，默认启用
+	if !viper.IsSet("monitor.yearly_report") {
+		GlobalConfig.Monitor.YearlyReport = true
+	}
+
+	// 如果用户配置了任何报告为 true，但未配置 report_time，默认设置为早上七点
+	if (GlobalConfig.Monitor.DailyReport ||
+		GlobalConfig.Monitor.WeeklyReport ||
+		GlobalConfig.Monitor.MonthlyReport ||
+		GlobalConfig.Monitor.YearlyReport) &&
+		GlobalConfig.Monitor.ReportTime == "" {
 		GlobalConfig.Monitor.ReportTime = "07:00"
+	}
+
+	// 如果未配置 AlertOnFailure，默认开启（确保报告能发送邮件）
+	if !viper.IsSet("monitor.alert_on_failure") {
+		GlobalConfig.Monitor.AlertOnFailure = true
 	}
 }

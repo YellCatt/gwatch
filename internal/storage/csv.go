@@ -59,6 +59,22 @@ var (
 		"success",
 		"timestamp",
 	}
+
+	monitorSummaryHeader = []string{
+		"date",
+		"test_case_id",
+		"test_case_desc",
+		"url",
+		"method",
+		"total_count",
+		"success_count",
+		"failed_count",
+		"total_duration_ms",
+		"min_duration_ms",
+		"max_duration_ms",
+		"last_success_time",
+		"last_failure_time",
+	}
 )
 
 // InitDB 初始化 CSV 数据目录（单例模式，保持与原 SQLite 接口一致）
@@ -104,11 +120,16 @@ func initCSVInternal(dir string) error {
 		logger.Error("初始化监控记录 CSV 失败", zap.Error(err))
 		return err
 	}
+	if err := ensureCSV(monitorSummaryCSVPath(), monitorSummaryHeader); err != nil {
+		logger.Error("初始化监控汇总 CSV 失败", zap.Error(err))
+		return err
+	}
 
 	logger.Info("CSV 存储初始化成功",
 		zap.String("executionCSV", executionCSVPath()),
 		zap.String("averageCSV", averageCSVPath()),
-		zap.String("monitorCSV", monitorCSVPath()))
+		zap.String("monitorCSV", monitorCSVPath()),
+		zap.String("monitorSummaryCSV", monitorSummaryCSVPath()))
 	return nil
 }
 
@@ -122,6 +143,10 @@ func averageCSVPath() string {
 
 func monitorCSVPath() string {
 	return filepath.Join(dataDir, "monitor_results.csv")
+}
+
+func monitorSummaryCSVPath() string {
+	return filepath.Join(dataDir, "monitor_summary.csv")
 }
 
 // ensureCSV 如果 CSV 文件不存在或为空，则创建并写入表头
@@ -532,6 +557,23 @@ type MonitorResultRecord struct {
 	Timestamp      time.Time
 }
 
+// MonitorSummaryRecord 表示监控每日汇总记录
+type MonitorSummaryRecord struct {
+	Date            string
+	TestCaseID      string
+	TestCaseDesc    string
+	URL             string
+	Method          string
+	TotalCount      int64
+	SuccessCount    int64
+	FailedCount     int64
+	TotalDurationMS int64
+	MinDurationMS   int64
+	MaxDurationMS   int64
+	LastSuccessTime string
+	LastFailureTime string
+}
+
 // RecordMonitorResult 记录监控结果到CSV
 func RecordMonitorResult(record MonitorResultRecord) error {
 	mu.Lock()
@@ -620,6 +662,267 @@ func GetMonitorResultsByDate(date time.Time) ([]MonitorResultRecord, error) {
 				Timestamp:      timestamp,
 			})
 		}
+	}
+
+	return results, nil
+}
+
+// UpdateMonitorSummary 更新每日监控汇总记录
+func UpdateMonitorSummary(record MonitorResultRecord) error {
+	mu.Lock()
+	defer mu.Unlock()
+
+	if dataDir == "" {
+		return fmt.Errorf("storage not initialized")
+	}
+
+	dateStr := record.Timestamp.Format("2006-01-02")
+	key := dateStr + "\x00" + record.TestCaseID
+
+	header, records, err := readRecords(monitorSummaryCSVPath())
+	if err != nil {
+		return err
+	}
+
+	colIndex := make(map[string]int)
+	for i, h := range header {
+		colIndex[strings.TrimSpace(h)] = i
+	}
+
+	get := func(rec []string, name string) string {
+		if idx, ok := colIndex[name]; ok && idx < len(rec) {
+			return rec[idx]
+		}
+		return ""
+	}
+
+	foundIdx := -1
+	var summary MonitorSummaryRecord
+	for i, rec := range records {
+		recDate := get(rec, "date")
+		recID := get(rec, "test_case_id")
+		if recDate == dateStr && recID == record.TestCaseID {
+			foundIdx = i
+			summary = MonitorSummaryRecord{
+				Date:            recDate,
+				TestCaseID:      recID,
+				TestCaseDesc:    get(rec, "test_case_desc"),
+				URL:             get(rec, "url"),
+				Method:          get(rec, "method"),
+				TotalCount:      parseInt64(get(rec, "total_count")),
+				SuccessCount:    parseInt64(get(rec, "success_count")),
+				FailedCount:     parseInt64(get(rec, "failed_count")),
+				TotalDurationMS: parseInt64(get(rec, "total_duration_ms")),
+				MinDurationMS:   parseInt64(get(rec, "min_duration_ms")),
+				MaxDurationMS:   parseInt64(get(rec, "max_duration_ms")),
+				LastSuccessTime: get(rec, "last_success_time"),
+				LastFailureTime: get(rec, "last_failure_time"),
+			}
+			break
+		}
+	}
+
+	if foundIdx == -1 {
+		summary = MonitorSummaryRecord{
+			Date:          dateStr,
+			TestCaseID:    record.TestCaseID,
+			TestCaseDesc:  record.TestCaseDesc,
+			URL:           record.URL,
+			Method:        record.Method,
+			MinDurationMS: record.DurationMS,
+			MaxDurationMS: record.DurationMS,
+		}
+	}
+
+	summary.TotalCount++
+	summary.TotalDurationMS += record.DurationMS
+
+	if record.DurationMS < summary.MinDurationMS {
+		summary.MinDurationMS = record.DurationMS
+	}
+	if record.DurationMS > summary.MaxDurationMS {
+		summary.MaxDurationMS = record.DurationMS
+	}
+
+	if record.Success {
+		summary.SuccessCount++
+		summary.LastSuccessTime = record.Timestamp.Format("2006-01-02 15:04:05")
+	} else {
+		summary.FailedCount++
+		summary.LastFailureTime = record.Timestamp.Format("2006-01-02 15:04:05")
+	}
+
+	newRecord := []string{
+		summary.Date,
+		summary.TestCaseID,
+		summary.TestCaseDesc,
+		summary.URL,
+		summary.Method,
+		strconv.FormatInt(summary.TotalCount, 10),
+		strconv.FormatInt(summary.SuccessCount, 10),
+		strconv.FormatInt(summary.FailedCount, 10),
+		strconv.FormatInt(summary.TotalDurationMS, 10),
+		strconv.FormatInt(summary.MinDurationMS, 10),
+		strconv.FormatInt(summary.MaxDurationMS, 10),
+		summary.LastSuccessTime,
+		summary.LastFailureTime,
+	}
+
+	if foundIdx >= 0 {
+		records[foundIdx] = newRecord
+	} else {
+		records = append(records, newRecord)
+	}
+
+	return writeRecords(monitorSummaryCSVPath(), monitorSummaryHeader, records)
+}
+
+// GetMonitorSummaryByDate 获取指定日期的监控汇总
+func GetMonitorSummaryByDate(date time.Time) ([]MonitorSummaryRecord, error) {
+	mu.RLock()
+	defer mu.RUnlock()
+
+	if dataDir == "" {
+		return nil, fmt.Errorf("storage not initialized")
+	}
+
+	header, records, err := readRecords(monitorSummaryCSVPath())
+	if err != nil {
+		return nil, err
+	}
+
+	if len(header) == 0 {
+		return nil, nil
+	}
+
+	colIndex := make(map[string]int)
+	for i, h := range header {
+		colIndex[strings.TrimSpace(h)] = i
+	}
+
+	get := func(rec []string, name string) string {
+		if idx, ok := colIndex[name]; ok && idx < len(rec) {
+			return rec[idx]
+		}
+		return ""
+	}
+
+	dateStr := date.Format("2006-01-02")
+	var results []MonitorSummaryRecord
+	for _, rec := range records {
+		if get(rec, "date") == dateStr {
+			results = append(results, MonitorSummaryRecord{
+				Date:            get(rec, "date"),
+				TestCaseID:      get(rec, "test_case_id"),
+				TestCaseDesc:    get(rec, "test_case_desc"),
+				URL:             get(rec, "url"),
+				Method:          get(rec, "method"),
+				TotalCount:      parseInt64(get(rec, "total_count")),
+				SuccessCount:    parseInt64(get(rec, "success_count")),
+				FailedCount:     parseInt64(get(rec, "failed_count")),
+				TotalDurationMS: parseInt64(get(rec, "total_duration_ms")),
+				MinDurationMS:   parseInt64(get(rec, "min_duration_ms")),
+				MaxDurationMS:   parseInt64(get(rec, "max_duration_ms")),
+				LastSuccessTime: get(rec, "last_success_time"),
+				LastFailureTime: get(rec, "last_failure_time"),
+			})
+		}
+	}
+
+	return results, nil
+}
+
+// GetMonitorSummaryByPeriod 获取指定时间段的监控汇总
+func GetMonitorSummaryByPeriod(startDate, endDate time.Time) ([]MonitorSummaryRecord, error) {
+	mu.RLock()
+	defer mu.RUnlock()
+
+	if dataDir == "" {
+		return nil, fmt.Errorf("storage not initialized")
+	}
+
+	header, records, err := readRecords(monitorSummaryCSVPath())
+	if err != nil {
+		return nil, err
+	}
+
+	if len(header) == 0 {
+		return nil, nil
+	}
+
+	colIndex := make(map[string]int)
+	for i, h := range header {
+		colIndex[strings.TrimSpace(h)] = i
+	}
+
+	get := func(rec []string, name string) string {
+		if idx, ok := colIndex[name]; ok && idx < len(rec) {
+			return rec[idx]
+		}
+		return ""
+	}
+
+	startStr := startDate.Format("2006-01-02")
+	endStr := endDate.Format("2006-01-02")
+
+	type key struct {
+		testCaseID string
+		url        string
+	}
+	aggMap := make(map[key]*MonitorSummaryRecord)
+
+	for _, rec := range records {
+		dateStr := get(rec, "date")
+		if dateStr < startStr || dateStr >= endStr {
+			continue
+		}
+
+		k := key{
+			testCaseID: get(rec, "test_case_id"),
+			url:        get(rec, "url"),
+		}
+
+		if aggMap[k] == nil {
+			aggMap[k] = &MonitorSummaryRecord{
+				Date:          startStr + "~" + endStr,
+				TestCaseID:    get(rec, "test_case_id"),
+				TestCaseDesc:  get(rec, "test_case_desc"),
+				URL:           get(rec, "url"),
+				Method:        get(rec, "method"),
+				MinDurationMS: 999999999,
+			}
+		}
+
+		agg := aggMap[k]
+		agg.TotalCount += parseInt64(get(rec, "total_count"))
+		agg.SuccessCount += parseInt64(get(rec, "success_count"))
+		agg.FailedCount += parseInt64(get(rec, "failed_count"))
+		agg.TotalDurationMS += parseInt64(get(rec, "total_duration_ms"))
+
+		minMS := parseInt64(get(rec, "min_duration_ms"))
+		if minMS < agg.MinDurationMS {
+			agg.MinDurationMS = minMS
+		}
+
+		maxMS := parseInt64(get(rec, "max_duration_ms"))
+		if maxMS > agg.MaxDurationMS {
+			agg.MaxDurationMS = maxMS
+		}
+
+		lastSuccess := get(rec, "last_success_time")
+		if lastSuccess > agg.LastSuccessTime {
+			agg.LastSuccessTime = lastSuccess
+		}
+
+		lastFailure := get(rec, "last_failure_time")
+		if lastFailure > agg.LastFailureTime {
+			agg.LastFailureTime = lastFailure
+		}
+	}
+
+	var results []MonitorSummaryRecord
+	for _, agg := range aggMap {
+		results = append(results, *agg)
 	}
 
 	return results, nil

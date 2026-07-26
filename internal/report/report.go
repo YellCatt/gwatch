@@ -24,9 +24,21 @@ type MonitorResult struct {
 	Timestamp time.Time
 }
 
-// DailyReport 每日运维报告
-type DailyReport struct {
-	Date         string
+// ReportPeriod 报告周期类型
+type ReportPeriod string
+
+const (
+	PeriodDaily   ReportPeriod = "daily"
+	PeriodWeekly  ReportPeriod = "weekly"
+	PeriodMonthly ReportPeriod = "monthly"
+	PeriodYearly  ReportPeriod = "yearly"
+)
+
+// Report 运维报告（支持多种周期）
+type Report struct {
+	Period       ReportPeriod
+	StartDate    string
+	EndDate      string
 	TotalTasks   int
 	FailedTasks  int
 	SuccessTasks int
@@ -49,20 +61,21 @@ type ErrorDetail struct {
 	Duration       time.Duration
 }
 
-// GenerateDailyReport 生成每日运维报告
+// GenerateReport 生成运维报告
 // results: 监控结果列表
-// date: 报告日期
-func GenerateDailyReport(results []MonitorResult, date time.Time) *DailyReport {
-	report := &DailyReport{
-		Date:        date.Format("2006-01-02"),
+// period: 报告周期
+// startDate: 报告开始日期
+// endDate: 报告结束日期（不含）
+func GenerateReport(results []MonitorResult, period ReportPeriod, startDate, endDate time.Time) *Report {
+	report := &Report{
+		Period:      period,
+		StartDate:   startDate.Format("2006-01-02"),
+		EndDate:     endDate.Format("2006-01-02"),
 		GeneratedAt: timeutil.Now(),
 	}
 
-	todayStart := time.Date(date.Year(), date.Month(), date.Day(), 0, 0, 0, 0, date.Location())
-	todayEnd := todayStart.Add(24 * time.Hour)
-
 	for _, result := range results {
-		if result.Timestamp.After(todayStart) && result.Timestamp.Before(todayEnd) {
+		if result.Timestamp.After(startDate) && result.Timestamp.Before(endDate) {
 			if !result.Result.Passed {
 				report.FailedTasks++
 				report.ErrorDetails = append(report.ErrorDetails, ErrorDetail{
@@ -88,15 +101,56 @@ func GenerateDailyReport(results []MonitorResult, date time.Time) *DailyReport {
 	return report
 }
 
+// GenerateDailyReport 生成每日运维报告
+func GenerateDailyReport(results []MonitorResult, date time.Time) *Report {
+	startDate := time.Date(date.Year(), date.Month(), date.Day(), 0, 0, 0, 0, date.Location())
+	endDate := startDate.Add(24 * time.Hour)
+	return GenerateReport(results, PeriodDaily, startDate, endDate)
+}
+
+// GenerateWeeklyReport 生成每周运维报告（周一到周日）
+func GenerateWeeklyReport(results []MonitorResult, date time.Time) *Report {
+	// 获取本周一（日期调整到周一）
+	weekday := date.Weekday()
+	daysToMonday := int(weekday - time.Monday)
+	if daysToMonday < 0 {
+		daysToMonday += 7
+	}
+	startDate := time.Date(date.Year(), date.Month(), date.Day(), 0, 0, 0, 0, date.Location()).AddDate(0, 0, -daysToMonday)
+	endDate := startDate.AddDate(0, 0, 7)
+	return GenerateReport(results, PeriodWeekly, startDate, endDate)
+}
+
+// GenerateMonthlyReport 生成每月运维报告
+func GenerateMonthlyReport(results []MonitorResult, date time.Time) *Report {
+	startDate := time.Date(date.Year(), date.Month(), 1, 0, 0, 0, 0, date.Location())
+	endDate := startDate.AddDate(0, 1, 0)
+	return GenerateReport(results, PeriodMonthly, startDate, endDate)
+}
+
+// GenerateYearlyReport 生成年度运维报告
+func GenerateYearlyReport(results []MonitorResult, date time.Time) *Report {
+	startDate := time.Date(date.Year(), 1, 1, 0, 0, 0, 0, date.Location())
+	endDate := startDate.AddDate(1, 0, 0)
+	return GenerateReport(results, PeriodYearly, startDate, endDate)
+}
+
 // GenerateReportContent 生成报告内容（文本格式）
-func (r *DailyReport) GenerateReportContent() string {
+func (r *Report) GenerateReportContent() string {
 	var content strings.Builder
 
+	periodNames := map[ReportPeriod]string{
+		PeriodDaily:   "每日",
+		PeriodWeekly:  "每周",
+		PeriodMonthly: "每月",
+		PeriodYearly:  "年度",
+	}
+
 	content.WriteString(fmt.Sprintf("══════════════════════════════════════════════════════════════╗\n"))
-	content.WriteString(fmt.Sprintf("║              gwatch 每日运维报告                              ║\n"))
+	content.WriteString(fmt.Sprintf("║              gwatch %s运维报告                              ║\n", periodNames[r.Period]))
 	content.WriteString(fmt.Sprintf("╚══════════════════════════════════════════════════════════════╝\n"))
 	content.WriteString(fmt.Sprintf("\n"))
-	content.WriteString(fmt.Sprintf("【报告日期】%s\n", r.Date))
+	content.WriteString(fmt.Sprintf("【报告周期】%s ~ %s\n", r.StartDate, r.EndDate))
 	content.WriteString(fmt.Sprintf("【生成时间】%s\n", timeutil.FormatDateTime(r.GeneratedAt)))
 	content.WriteString(fmt.Sprintf("【设备名称】%s\n", getDeviceName()))
 	content.WriteString(fmt.Sprintf("\n"))
@@ -162,7 +216,7 @@ func formatBody(body string) string {
 }
 
 // SaveReport 保存报告到文件
-func (r *DailyReport) SaveReport() (string, error) {
+func (r *Report) SaveReport() (string, error) {
 	reportDir := config.GlobalConfig.App.ReportDir
 	if reportDir == "" {
 		reportDir = "./reports"
@@ -173,30 +227,44 @@ func (r *DailyReport) SaveReport() (string, error) {
 		return "", err
 	}
 
-	filename := fmt.Sprintf("daily_report_%s.txt", r.Date)
+	periodNames := map[ReportPeriod]string{
+		PeriodDaily:   "daily",
+		PeriodWeekly:  "weekly",
+		PeriodMonthly: "monthly",
+		PeriodYearly:  "yearly",
+	}
+
+	filename := fmt.Sprintf("%s_report_%s_%s.txt", periodNames[r.Period], r.StartDate, r.EndDate)
 	filePath := filepath.Join(reportDir, filename)
 
 	content := r.GenerateReportContent()
 	if err := os.WriteFile(filePath, []byte(content), 0644); err != nil {
-		logger.Error("Failed to save daily report", zap.String("file", filePath), zap.Error(err))
+		logger.Error("Failed to save report", zap.String("file", filePath), zap.Error(err))
 		return "", err
 	}
 
-	logger.Info("Daily report saved", zap.String("file", filePath))
+	logger.Info("Report saved", zap.String("file", filePath))
 	return filePath, nil
 }
 
 // SendReportEmail 发送报告邮件
-func (r *DailyReport) SendReportEmail() error {
+func (r *Report) SendReportEmail() error {
 	if !email.Config.Enabled {
 		logger.Info("Email is disabled, skipping report email")
 		return nil
 	}
 
-	subject := fmt.Sprintf("[gwatch] 每日运维报告 - %s", r.Date)
+	periodNames := map[ReportPeriod]string{
+		PeriodDaily:   "每日",
+		PeriodWeekly:  "每周",
+		PeriodMonthly: "每月",
+		PeriodYearly:  "年度",
+	}
+
+	subject := fmt.Sprintf("[gwatch] %s运维报告 - %s ~ %s", periodNames[r.Period], r.StartDate, r.EndDate)
 	body := r.GenerateReportContent()
 
-	logger.Info("Sending daily report email")
+	logger.Info("Sending report email", zap.String("period", string(r.Period)))
 	return email.SendCustomEmail(subject, body)
 }
 
