@@ -93,6 +93,9 @@ func StartMonitor(testCases []psv.TestCase) {
 		startTask(tc)
 	}
 
+	// 发送启动通知邮件
+	go sendStartupNotification(len(monitorCases))
+
 	// 启动每日报告调度（如果启用）
 	if config.GlobalConfig.Monitor.DailyReport {
 		go scheduleDailyReport()
@@ -639,5 +642,37 @@ func generateAndSendDailyReport(date time.Time) {
 		if err != nil {
 			logger.Error("Failed to send daily report email", zap.Error(err))
 		}
+	}
+}
+
+// sendStartupNotification 发送监控启动通知邮件
+func sendStartupNotification(taskCount int) {
+	if !email.Config.Enabled {
+		logger.Info("Email is disabled, skipping startup notification")
+		return
+	}
+
+	hostname, _ := os.Hostname()
+	if hostname == "" {
+		hostname = "Unknown"
+	}
+
+	subject := "[gwatch] 监控服务已启动"
+	body := fmt.Sprintf(`══════════════════════════════════════════════════════════════╗
+║              gwatch 接口监控服务启动通知                     ║
+╚══════════════════════════════════════════════════════════════╝
+
+【设备名称】%s
+【启动时间】%s
+【监控任务数】%d
+
+【状态】监控服务已成功启动，开始执行监控任务。
+
+来自 gwatch 接口监控系统`, hostname, timeutil.FormatDateTime(timeutil.Now()), taskCount)
+
+	logger.Info("Sending startup notification email")
+	err := email.SendCustomEmail(subject, body)
+	if err != nil {
+		logger.Error("Failed to send startup notification email", zap.Error(err))
 	}
 }
