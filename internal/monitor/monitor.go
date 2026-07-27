@@ -822,12 +822,10 @@ func generateAndSendReport(period report.ReportPeriod, date time.Time) {
 		return
 	}
 
-	// 发送邮件（有失败任务或配置了始终发送）
-	if r.FailedTasks > 0 || config.GlobalConfig.Monitor.AlertOnFailure {
-		err = r.SendReportEmail()
-		if err != nil {
-			logger.Error("Failed to send report email", zap.Error(err))
-		}
+	// 发送报告邮件（始终发送）
+	err = r.SendReportEmail()
+	if err != nil {
+		logger.Error("Failed to send report email", zap.Error(err))
 	}
 }
 
