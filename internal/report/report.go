@@ -36,14 +36,15 @@ const (
 
 // Report 运维报告（支持多种周期）
 type Report struct {
-	Period       ReportPeriod
-	StartDate    string
-	EndDate      string
-	TotalTasks   int
-	FailedTasks  int
-	SuccessTasks int
-	ErrorDetails []ErrorDetail
-	GeneratedAt  time.Time
+	Period             ReportPeriod
+	StartDate          string
+	EndDate            string
+	TotalTasks         int
+	FailedTasks        int
+	SuccessTasks       int
+	ErrorDetails       []ErrorDetail
+	AggregatedErrors   []AggregatedError
+	GeneratedAt        time.Time
 }
 
 // ErrorDetail 错误详情
@@ -61,6 +62,19 @@ type ErrorDetail struct {
 	Duration       time.Duration
 }
 
+// AggregatedError 聚合后的错误信息（按TaskID分组）
+type AggregatedError struct {
+	TaskID         string
+	TaskDesc       string
+	URL            string
+	Method         string
+	ExpectedStatus int
+	AlertCount     int
+	FirstOccurrence time.Time
+	LastOccurrence  time.Time
+	ErrorMsg       string
+}
+
 // GenerateReport 生成运维报告
 // results: 监控结果列表
 // period: 报告周期
@@ -73,6 +87,9 @@ func GenerateReport(results []MonitorResult, period ReportPeriod, startDate, end
 		EndDate:     endDate.Format("2006-01-02"),
 		GeneratedAt: timeutil.Now(),
 	}
+
+	// 用于按TaskID聚合错误
+	errorMap := make(map[string]*AggregatedError)
 
 	for _, result := range results {
 		if result.Timestamp.After(startDate) && result.Timestamp.Before(endDate) {
@@ -91,11 +108,39 @@ func GenerateReport(results []MonitorResult, period ReportPeriod, startDate, end
 					Timestamp:      result.Timestamp,
 					Duration:       result.Result.Duration,
 				})
+
+				// 按TaskID聚合
+				if aggErr, exists := errorMap[result.TestCase.ID]; exists {
+					aggErr.AlertCount++
+					if result.Timestamp.After(aggErr.LastOccurrence) {
+						aggErr.LastOccurrence = result.Timestamp
+					}
+					if result.Timestamp.Before(aggErr.FirstOccurrence) {
+						aggErr.FirstOccurrence = result.Timestamp
+					}
+				} else {
+					errorMap[result.TestCase.ID] = &AggregatedError{
+						TaskID:         result.TestCase.ID,
+						TaskDesc:       result.TestCase.Desc,
+						URL:            result.TestCase.URL,
+						Method:         result.TestCase.Method,
+						ExpectedStatus: result.TestCase.ExpectedStatus,
+						AlertCount:     1,
+						FirstOccurrence: result.Timestamp,
+						LastOccurrence:  result.Timestamp,
+						ErrorMsg:       result.Result.Error,
+					}
+				}
 			} else {
 				report.SuccessTasks++
 			}
 			report.TotalTasks++
 		}
+	}
+
+	// 将聚合结果转换为切片
+	for _, aggErr := range errorMap {
+		report.AggregatedErrors = append(report.AggregatedErrors, *aggErr)
 	}
 
 	return report
@@ -160,37 +205,26 @@ func (r *Report) GenerateReportContent() string {
 	content.WriteString(fmt.Sprintf("  ✅ 成功: %d\n", r.SuccessTasks))
 	content.WriteString(fmt.Sprintf("  ❌ 失败: %d\n", r.FailedTasks))
 
-	if r.FailedTasks > 0 {
+	if len(r.AggregatedErrors) > 0 {
 		content.WriteString(fmt.Sprintf("\n"))
 		content.WriteString(fmt.Sprintf("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"))
-		content.WriteString(fmt.Sprintf("【错误详情】\n"))
+		content.WriteString(fmt.Sprintf("【告警汇总】（按任务ID聚合）\n"))
+		content.WriteString(fmt.Sprintf("  告警任务数: %d\n", len(r.AggregatedErrors)))
 		content.WriteString(fmt.Sprintf("\n"))
 
-		for i, detail := range r.ErrorDetails {
+		for i, aggErr := range r.AggregatedErrors {
 			content.WriteString(fmt.Sprintf("┌──────────────────────────────────────────────────────────────┐\n"))
-			content.WriteString(fmt.Sprintf("│ 错误 #%d\n", i+1))
+			content.WriteString(fmt.Sprintf("│ 告警 #%d\n", i+1))
 			content.WriteString(fmt.Sprintf("├──────────────────────────────────────────────────────────────┤\n"))
-			content.WriteString(fmt.Sprintf("│ 任务ID:     %s\n", detail.TaskID))
-			content.WriteString(fmt.Sprintf("│ 任务描述:   %s\n", detail.TaskDesc))
-			content.WriteString(fmt.Sprintf("│ 请求方法:   %s\n", detail.Method))
-			content.WriteString(fmt.Sprintf("│ 请求URL:    %s\n", detail.URL))
-			content.WriteString(fmt.Sprintf("│ 执行时间:   %s\n", timeutil.FormatDateTime(detail.Timestamp)))
-			content.WriteString(fmt.Sprintf("│ 耗时:       %.3fms\n", detail.Duration.Milliseconds()))
+			content.WriteString(fmt.Sprintf("│ 任务ID:         %s\n", aggErr.TaskID))
+			content.WriteString(fmt.Sprintf("│ 任务描述:       %s\n", aggErr.TaskDesc))
+			content.WriteString(fmt.Sprintf("│ 请求方法:       %s\n", aggErr.Method))
+			content.WriteString(fmt.Sprintf("│ 请求URL:        %s\n", aggErr.URL))
+			content.WriteString(fmt.Sprintf("│ 告警次数:       %d\n", aggErr.AlertCount))
+			content.WriteString(fmt.Sprintf("│ 首次告警:       %s\n", timeutil.FormatDateTime(aggErr.FirstOccurrence)))
+			content.WriteString(fmt.Sprintf("│ 最后告警:       %s\n", timeutil.FormatDateTime(aggErr.LastOccurrence)))
 			content.WriteString(fmt.Sprintf("├──────────────────────────────────────────────────────────────┤\n"))
-			content.WriteString(fmt.Sprintf("│ 错误信息:   %s\n", detail.ErrorMsg))
-			content.WriteString(fmt.Sprintf("├──────────────────────────────────────────────────────────────┤\n"))
-			content.WriteString(fmt.Sprintf("│ HTTP状态码断言:\n"))
-			content.WriteString(fmt.Sprintf("│   期望: %d\n", detail.ExpectedStatus))
-			content.WriteString(fmt.Sprintf("│   实际: %d\n", detail.ActualStatus))
-
-			if detail.ExpectedBody != "" {
-				content.WriteString(fmt.Sprintf("├──────────────────────────────────────────────────────────────┤\n"))
-				content.WriteString(fmt.Sprintf("│ 响应体断言:\n"))
-				content.WriteString(fmt.Sprintf("│   期望:\n"))
-				content.WriteString(fmt.Sprintf("│     %s\n", formatBody(detail.ExpectedBody)))
-				content.WriteString(fmt.Sprintf("│   实际:\n"))
-				content.WriteString(fmt.Sprintf("│     %s\n", formatBody(detail.ActualBody)))
-			}
+			content.WriteString(fmt.Sprintf("│ 错误信息:       %s\n", aggErr.ErrorMsg))
 			content.WriteString(fmt.Sprintf("└──────────────────────────────────────────────────────────────┘\n"))
 			content.WriteString(fmt.Sprintf("\n"))
 		}
