@@ -45,7 +45,23 @@ type Report struct {
 	SuccessTasks       int
 	ErrorDetails       []ErrorDetail
 	AggregatedErrors   []AggregatedError
+	ResourceMetrics    []ResourceMetric
 	GeneratedAt        time.Time
+}
+
+// ResourceMetric 表示系统资源指标（按小时聚合）
+type ResourceMetric struct {
+	TargetName  string
+	MetricName  string
+	MetricAlias string
+	Unit        string
+	HourlyData  []HourlyData
+}
+
+// HourlyData 表示小时级别的数据
+type HourlyData struct {
+	Hour     int
+	AvgValue float64
 }
 
 // ErrorDetail 错误详情
@@ -161,7 +177,60 @@ func GenerateReportFromStorage(period ReportPeriod, startDate, endDate time.Time
 		report.SuccessTasks += int(summary.SuccessCount)
 	}
 
+	if config.GlobalConfig.Scraper.Enabled && len(config.GlobalConfig.Scraper.Targets) > 0 {
+		report.ResourceMetrics = loadResourceMetrics(startDate, endDate)
+	}
+
 	return report
+}
+
+func loadResourceMetrics(startDate, endDate time.Time) []ResourceMetric {
+	hourlyAvgs, err := storage.GetScraperMetricsHourlyAvg(startDate, endDate)
+	if err != nil {
+		logger.Error("Failed to get scraper metrics hourly avg", zap.Error(err))
+		return nil
+	}
+
+	if len(hourlyAvgs) == 0 {
+		return nil
+	}
+
+	type key struct {
+		targetName string
+		metricName string
+	}
+
+	metricMap := make(map[key]*ResourceMetric)
+
+	for _, avg := range hourlyAvgs {
+		k := key{
+			targetName: avg.TargetName,
+			metricName: avg.MetricName,
+		}
+
+		if metricMap[k] == nil {
+			metricMap[k] = &ResourceMetric{
+				TargetName:  avg.TargetName,
+				MetricName:  avg.MetricName,
+				MetricAlias: avg.MetricAlias,
+				Unit:        avg.Unit,
+				HourlyData:  make([]HourlyData, 24),
+			}
+			for i := range metricMap[k].HourlyData {
+				metricMap[k].HourlyData[i].Hour = i
+				metricMap[k].HourlyData[i].AvgValue = -1
+			}
+		}
+
+		metricMap[k].HourlyData[avg.Hour].AvgValue = avg.AvgValue
+	}
+
+	var results []ResourceMetric
+	for _, m := range metricMap {
+		results = append(results, *m)
+	}
+
+	return results
 }
 
 // GenerateDailyReport 生成每日运维报告
@@ -180,7 +249,6 @@ func GenerateDailyReportFromStorage(date time.Time) *Report {
 
 // GenerateWeeklyReport 生成每周运维报告（周一到周日）
 func GenerateWeeklyReport(results []MonitorResult, date time.Time) *Report {
-	// 获取本周一（日期调整到周一）
 	weekday := date.Weekday()
 	daysToMonday := int(weekday - time.Monday)
 	if daysToMonday < 0 {
@@ -256,6 +324,10 @@ func (r *Report) GenerateReportContent() string {
 	content.WriteString(fmt.Sprintf("  ✅ 成功: %d\n", r.SuccessTasks))
 	content.WriteString(fmt.Sprintf("  ❌ 失败: %d\n", r.FailedTasks))
 
+	if len(r.ResourceMetrics) > 0 {
+		content.WriteString(r.generateResourceMetricsContent())
+	}
+
 	if len(r.AggregatedErrors) > 0 {
 		content.WriteString(fmt.Sprintf("\n"))
 		content.WriteString(fmt.Sprintf("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"))
@@ -290,6 +362,57 @@ func (r *Report) GenerateReportContent() string {
 	content.WriteString(fmt.Sprintf("来自 gwatch 接口监控系统\n"))
 
 	return content.String()
+}
+
+func (r *Report) generateResourceMetricsContent() string {
+	var content strings.Builder
+
+	targetMap := make(map[string][]*ResourceMetric)
+	for i := range r.ResourceMetrics {
+		targetMap[r.ResourceMetrics[i].TargetName] = append(targetMap[r.ResourceMetrics[i].TargetName], &r.ResourceMetrics[i])
+	}
+
+	for targetName, metrics := range targetMap {
+		content.WriteString(fmt.Sprintf("\n"))
+		content.WriteString(fmt.Sprintf("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"))
+		content.WriteString(fmt.Sprintf("【系统资源监控 - %s】\n", targetName))
+
+		for _, metric := range metrics {
+			name := metric.MetricName
+			if metric.MetricAlias != "" {
+				name = metric.MetricAlias
+			}
+
+			content.WriteString(fmt.Sprintf("\n"))
+			content.WriteString(fmt.Sprintf("============ %s 24小时平均负载 ============\n", name))
+
+			for _, hourly := range metric.HourlyData {
+				if hourly.AvgValue < 0 {
+					content.WriteString(fmt.Sprintf("%02d│\n", hourly.Hour))
+				} else {
+					bar := generateBar(hourly.AvgValue)
+					content.WriteString(fmt.Sprintf("%02d│%s %d%%\n", hourly.Hour, bar, int(hourly.AvgValue)))
+				}
+			}
+
+			content.WriteString(fmt.Sprintf("============================================\n"))
+		}
+	}
+
+	return content.String()
+}
+
+func generateBar(value float64) string {
+	maxLen := 10
+	ratio := value / 100
+	barLen := int(ratio * float64(maxLen))
+	if barLen < 0 {
+		barLen = 0
+	}
+	if barLen > maxLen {
+		barLen = maxLen
+	}
+	return strings.Repeat("█", barLen)
 }
 
 // formatBody 格式化响应体显示

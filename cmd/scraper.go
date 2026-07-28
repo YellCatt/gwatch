@@ -17,6 +17,7 @@ import (
 	"gwatch/internal/email"
 	"gwatch/internal/logger"
 	"gwatch/internal/scraper"
+	"gwatch/internal/storage"
 )
 
 var scraperCmd = &cobra.Command{
@@ -161,6 +162,21 @@ func runScraper() {
 					}
 				} else {
 					fmt.Printf("  %s %s: 提取失败 - %s\n", status, name, metric.Error)
+				}
+
+				// 保存指标到存储
+				record := storage.ScraperMetricRecord{
+					TargetName:  result.TargetName,
+					TargetURL:   result.TargetURL,
+					MetricName:  metric.Name,
+					MetricAlias: metric.Alias,
+					Value:       metric.Value,
+					Unit:        metric.Unit,
+					Success:     metric.Success,
+					Timestamp:   result.Timestamp,
+				}
+				if err := storage.RecordScraperMetric(record); err != nil {
+					logger.Warn("Failed to record scraper metric", zap.Error(err))
 				}
 			}
 		}

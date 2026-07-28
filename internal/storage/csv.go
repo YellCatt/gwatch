@@ -88,6 +88,17 @@ var (
 		"last_occurrence",
 		"error_msg",
 	}
+
+	scraperMetricHeader = []string{
+		"target_name",
+		"target_url",
+		"metric_name",
+		"metric_alias",
+		"value",
+		"unit",
+		"success",
+		"timestamp",
+	}
 )
 
 // InitDB 初始化 CSV 数据目录（单例模式，保持与原 SQLite 接口一致）
@@ -141,12 +152,17 @@ func initCSVInternal(dir string) error {
 		logger.Error("初始化告警汇总 CSV 失败", zap.Error(err))
 		return err
 	}
+	if err := ensureCSV(scraperMetricCSVPath(), scraperMetricHeader); err != nil {
+		logger.Error("初始化采集指标 CSV 失败", zap.Error(err))
+		return err
+	}
 
 	logger.Info("CSV 存储初始化成功",
 		zap.String("executionCSV", executionCSVPath()),
 		zap.String("averageCSV", averageCSVPath()),
 		zap.String("monitorCSV", monitorCSVPath()),
-		zap.String("monitorSummaryCSV", monitorSummaryCSVPath()))
+		zap.String("monitorSummaryCSV", monitorSummaryCSVPath()),
+		zap.String("scraperMetricCSV", scraperMetricCSVPath()))
 	return nil
 }
 
@@ -168,6 +184,10 @@ func monitorSummaryCSVPath() string {
 
 func alertSummaryCSVPath() string {
 	return filepath.Join(dataDir, "alert_summary.csv")
+}
+
+func scraperMetricCSVPath() string {
+	return filepath.Join(dataDir, "scraper_metrics.csv")
 }
 
 // ensureCSV 如果 CSV 文件不存在或为空，则创建并写入表头
@@ -562,7 +582,7 @@ func GetAllStoredAverages() ([]map[string]interface{}, error) {
 	return averages, nil
 }
 
-// MonitorResult 表示监控结果记录
+// MonitorResultRecord 表示监控结果记录
 type MonitorResultRecord struct {
 	TestCaseID     string
 	TestCaseDesc   string
@@ -607,6 +627,28 @@ type AlertSummaryRecord struct {
 	FirstOccurrence string
 	LastOccurrence  string
 	ErrorMsg        string
+}
+
+// ScraperMetricRecord 表示采集指标记录
+type ScraperMetricRecord struct {
+	TargetName  string
+	TargetURL   string
+	MetricName  string
+	MetricAlias string
+	Value       float64
+	Unit        string
+	Success     bool
+	Timestamp   time.Time
+}
+
+// ScraperMetricHourlyAvg 表示按小时聚合的指标平均值
+type ScraperMetricHourlyAvg struct {
+	TargetName  string
+	MetricName  string
+	MetricAlias string
+	Unit        string
+	Hour        int
+	AvgValue    float64
 }
 
 // RecordMonitorResult 记录监控结果到CSV
@@ -1184,6 +1226,160 @@ func GetMonitorSummaryByPeriod(startDate, endDate time.Time) ([]MonitorSummaryRe
 	for _, agg := range aggMap {
 		results = append(results, *agg)
 	}
+
+	return results, nil
+}
+
+// RecordScraperMetric 记录采集指标到CSV
+func RecordScraperMetric(record ScraperMetricRecord) error {
+	mu.Lock()
+	defer mu.Unlock()
+
+	if dataDir == "" {
+		return fmt.Errorf("storage not initialized")
+	}
+
+	rec := []string{
+		record.TargetName,
+		record.TargetURL,
+		record.MetricName,
+		record.MetricAlias,
+		strconv.FormatFloat(record.Value, 'f', -1, 64),
+		record.Unit,
+		strconv.FormatBool(record.Success),
+		record.Timestamp.Format("2006-01-02 15:04:05"),
+	}
+
+	if err := appendRecord(scraperMetricCSVPath(), rec); err != nil {
+		logger.Error("Failed to record scraper metric", zap.Error(err))
+		return err
+	}
+	return nil
+}
+
+// GetScraperMetricsByPeriod 获取指定时间段内的采集指标
+func GetScraperMetricsByPeriod(startDate, endDate time.Time) ([]ScraperMetricRecord, error) {
+	mu.RLock()
+	defer mu.RUnlock()
+
+	if dataDir == "" {
+		return nil, fmt.Errorf("storage not initialized")
+	}
+
+	header, records, err := readRecords(scraperMetricCSVPath())
+	if err != nil {
+		return nil, err
+	}
+
+	if len(header) == 0 {
+		return nil, nil
+	}
+
+	colIndex := make(map[string]int)
+	for i, h := range header {
+		colIndex[strings.TrimSpace(h)] = i
+	}
+
+	get := func(rec []string, name string) string {
+		if idx, ok := colIndex[name]; ok && idx < len(rec) {
+			return rec[idx]
+		}
+		return ""
+	}
+
+	var results []ScraperMetricRecord
+	for _, rec := range records {
+		timestampStr := get(rec, "timestamp")
+		timestamp, err := time.Parse("2006-01-02 15:04:05", timestampStr)
+		if err != nil {
+			continue
+		}
+
+		if timestamp.After(startDate) && timestamp.Before(endDate) {
+			results = append(results, ScraperMetricRecord{
+				TargetName:  get(rec, "target_name"),
+				TargetURL:   get(rec, "target_url"),
+				MetricName:  get(rec, "metric_name"),
+				MetricAlias: get(rec, "metric_alias"),
+				Value:       parseFloat64(get(rec, "value")),
+				Unit:        get(rec, "unit"),
+				Success:     parseSuccess(get(rec, "success")),
+				Timestamp:   timestamp,
+			})
+		}
+	}
+
+	return results, nil
+}
+
+// GetScraperMetricsHourlyAvg 获取指定时间段内按小时聚合的指标平均值
+func GetScraperMetricsHourlyAvg(startDate, endDate time.Time) ([]ScraperMetricHourlyAvg, error) {
+	metrics, err := GetScraperMetricsByPeriod(startDate, endDate)
+	if err != nil {
+		return nil, err
+	}
+
+	// 按 target_name + metric_name + hour 分组
+	type key struct {
+		targetName string
+		metricName string
+		hour       int
+	}
+
+	type agg struct {
+		metricAlias string
+		unit        string
+		sum         float64
+		count       int
+	}
+
+	aggMap := make(map[key]*agg)
+
+	for _, m := range metrics {
+		if !m.Success {
+			continue
+		}
+		hour := m.Timestamp.Hour()
+		k := key{
+			targetName: m.TargetName,
+			metricName: m.MetricName,
+			hour:       hour,
+		}
+
+		if aggMap[k] == nil {
+			aggMap[k] = &agg{
+				metricAlias: m.MetricAlias,
+				unit:        m.Unit,
+			}
+		}
+		aggMap[k].sum += m.Value
+		aggMap[k].count++
+	}
+
+	var results []ScraperMetricHourlyAvg
+	for k, v := range aggMap {
+		if v.count > 0 {
+			results = append(results, ScraperMetricHourlyAvg{
+				TargetName:  k.targetName,
+				MetricName:  k.metricName,
+				MetricAlias: v.metricAlias,
+				Unit:        v.unit,
+				Hour:        k.hour,
+				AvgValue:    v.sum / float64(v.count),
+			})
+		}
+	}
+
+	// 按 target_name, metric_name, hour 排序
+	sort.Slice(results, func(i, j int) bool {
+		if results[i].TargetName != results[j].TargetName {
+			return results[i].TargetName < results[j].TargetName
+		}
+		if results[i].MetricName != results[j].MetricName {
+			return results[i].MetricName < results[j].MetricName
+		}
+		return results[i].Hour < results[j].Hour
+	})
 
 	return results, nil
 }
