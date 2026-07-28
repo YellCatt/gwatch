@@ -45,12 +45,14 @@ type Report struct {
 	SuccessTasks       int
 	ErrorDetails       []ErrorDetail
 	AggregatedErrors   []AggregatedError
-	ResourceMetrics    []ResourceMetric
+	HourlyMetrics      []HourlyResourceMetric
+	DailyMetrics       []DailyResourceMetric
+	MonthlyMetrics     []MonthlyResourceMetric
 	GeneratedAt        time.Time
 }
 
-// ResourceMetric 表示系统资源指标（按小时聚合）
-type ResourceMetric struct {
+// HourlyResourceMetric 表示按小时聚合的系统资源指标
+type HourlyResourceMetric struct {
 	TargetName  string
 	MetricName  string
 	MetricAlias string
@@ -58,10 +60,42 @@ type ResourceMetric struct {
 	HourlyData  []HourlyData
 }
 
+// DailyResourceMetric 表示按天聚合的系统资源指标
+type DailyResourceMetric struct {
+	TargetName string
+	MetricName string
+	MetricAlias string
+	Unit        string
+	DailyData  []DailyData
+}
+
+// MonthlyResourceMetric 表示按月聚合的系统资源指标
+type MonthlyResourceMetric struct {
+	TargetName string
+	MetricName string
+	MetricAlias string
+	Unit        string
+	MonthlyData []MonthlyData
+}
+
 // HourlyData 表示小时级别的数据
 type HourlyData struct {
 	Hour     int
 	AvgValue float64
+}
+
+// DailyData 表示天级别的数据
+type DailyData struct {
+	Day      int
+	DayLabel string
+	AvgValue float64
+}
+
+// MonthlyData 表示月级别的数据
+type MonthlyData struct {
+	Month     int
+	MonthLabel string
+	AvgValue  float64
 }
 
 // ErrorDetail 错误详情
@@ -178,13 +212,26 @@ func GenerateReportFromStorage(period ReportPeriod, startDate, endDate time.Time
 	}
 
 	if config.GlobalConfig.Scraper.Enabled && len(config.GlobalConfig.Scraper.Targets) > 0 {
-		report.ResourceMetrics = loadResourceMetrics(startDate, endDate)
+		loadResourceMetricsByPeriod(report, period, startDate, endDate)
 	}
 
 	return report
 }
 
-func loadResourceMetrics(startDate, endDate time.Time) []ResourceMetric {
+func loadResourceMetricsByPeriod(report *Report, period ReportPeriod, startDate, endDate time.Time) {
+	switch period {
+	case PeriodDaily:
+		report.HourlyMetrics = loadHourlyResourceMetrics(startDate, endDate)
+	case PeriodWeekly:
+		report.DailyMetrics = loadDailyResourceMetrics(startDate, endDate)
+	case PeriodMonthly:
+		report.DailyMetrics = loadDailyResourceMetrics(startDate, endDate)
+	case PeriodYearly:
+		report.MonthlyMetrics = loadMonthlyResourceMetrics(startDate, endDate)
+	}
+}
+
+func loadHourlyResourceMetrics(startDate, endDate time.Time) []HourlyResourceMetric {
 	hourlyAvgs, err := storage.GetScraperMetricsHourlyAvg(startDate, endDate)
 	if err != nil {
 		logger.Error("Failed to get scraper metrics hourly avg", zap.Error(err))
@@ -200,7 +247,7 @@ func loadResourceMetrics(startDate, endDate time.Time) []ResourceMetric {
 		metricName string
 	}
 
-	metricMap := make(map[key]*ResourceMetric)
+	metricMap := make(map[key]*HourlyResourceMetric)
 
 	for _, avg := range hourlyAvgs {
 		k := key{
@@ -209,7 +256,7 @@ func loadResourceMetrics(startDate, endDate time.Time) []ResourceMetric {
 		}
 
 		if metricMap[k] == nil {
-			metricMap[k] = &ResourceMetric{
+			metricMap[k] = &HourlyResourceMetric{
 				TargetName:  avg.TargetName,
 				MetricName:  avg.MetricName,
 				MetricAlias: avg.MetricAlias,
@@ -225,7 +272,113 @@ func loadResourceMetrics(startDate, endDate time.Time) []ResourceMetric {
 		metricMap[k].HourlyData[avg.Hour].AvgValue = avg.AvgValue
 	}
 
-	var results []ResourceMetric
+	var results []HourlyResourceMetric
+	for _, m := range metricMap {
+		results = append(results, *m)
+	}
+
+	return results
+}
+
+func loadDailyResourceMetrics(startDate, endDate time.Time) []DailyResourceMetric {
+	dailyAvgs, err := storage.GetScraperMetricsDailyAvg(startDate, endDate)
+	if err != nil {
+		logger.Error("Failed to get scraper metrics daily avg", zap.Error(err))
+		return nil
+	}
+
+	if len(dailyAvgs) == 0 {
+		return nil
+	}
+
+	daysInPeriod := int(endDate.Sub(startDate).Hours() / 24)
+
+	type key struct {
+		targetName string
+		metricName string
+	}
+
+	metricMap := make(map[key]*DailyResourceMetric)
+
+	for _, avg := range dailyAvgs {
+		k := key{
+			targetName: avg.TargetName,
+			metricName: avg.MetricName,
+		}
+
+		if metricMap[k] == nil {
+			metricMap[k] = &DailyResourceMetric{
+				TargetName:  avg.TargetName,
+				MetricName:  avg.MetricName,
+				MetricAlias: avg.MetricAlias,
+				Unit:        avg.Unit,
+				DailyData:   make([]DailyData, daysInPeriod),
+			}
+			for i := range metricMap[k].DailyData {
+				metricMap[k].DailyData[i].Day = i
+				metricMap[k].DailyData[i].DayLabel = startDate.AddDate(0, 0, i).Format("01-02")
+				metricMap[k].DailyData[i].AvgValue = -1
+			}
+		}
+
+		if avg.Day >= 0 && avg.Day < daysInPeriod {
+			metricMap[k].DailyData[avg.Day].AvgValue = avg.AvgValue
+		}
+	}
+
+	var results []DailyResourceMetric
+	for _, m := range metricMap {
+		results = append(results, *m)
+	}
+
+	return results
+}
+
+func loadMonthlyResourceMetrics(startDate, endDate time.Time) []MonthlyResourceMetric {
+	monthlyAvgs, err := storage.GetScraperMetricsMonthlyAvg(startDate, endDate)
+	if err != nil {
+		logger.Error("Failed to get scraper metrics monthly avg", zap.Error(err))
+		return nil
+	}
+
+	if len(monthlyAvgs) == 0 {
+		return nil
+	}
+
+	type key struct {
+		targetName string
+		metricName string
+	}
+
+	metricMap := make(map[key]*MonthlyResourceMetric)
+
+	for _, avg := range monthlyAvgs {
+		k := key{
+			targetName: avg.TargetName,
+			metricName: avg.MetricName,
+		}
+
+		if metricMap[k] == nil {
+			metricMap[k] = &MonthlyResourceMetric{
+				TargetName:  avg.TargetName,
+				MetricName:  avg.MetricName,
+				MetricAlias: avg.MetricAlias,
+				Unit:        avg.Unit,
+				MonthlyData: make([]MonthlyData, 12),
+			}
+			for i := range metricMap[k].MonthlyData {
+				metricMap[k].MonthlyData[i].Month = i + 1
+				metricMap[k].MonthlyData[i].MonthLabel = []string{"1月", "2月", "3月", "4月", "5月", "6月", "7月", "8月", "9月", "10月", "11月", "12月"}[i]
+				metricMap[k].MonthlyData[i].AvgValue = -1
+			}
+		}
+
+		if avg.Month >= 1 && avg.Month <= 12 {
+			metricMap[k].MonthlyData[avg.Month-1].AvgValue = avg.AvgValue
+		}
+	}
+
+	var results []MonthlyResourceMetric
 	for _, m := range metricMap {
 		results = append(results, *m)
 	}
@@ -324,9 +477,7 @@ func (r *Report) GenerateReportContent() string {
 	content.WriteString(fmt.Sprintf("  ✅ 成功: %d\n", r.SuccessTasks))
 	content.WriteString(fmt.Sprintf("  ❌ 失败: %d\n", r.FailedTasks))
 
-	if len(r.ResourceMetrics) > 0 {
-		content.WriteString(r.generateResourceMetricsContent())
-	}
+	r.generateResourceMetricsContent(&content)
 
 	if len(r.AggregatedErrors) > 0 {
 		content.WriteString(fmt.Sprintf("\n"))
@@ -364,12 +515,27 @@ func (r *Report) GenerateReportContent() string {
 	return content.String()
 }
 
-func (r *Report) generateResourceMetricsContent() string {
-	var content strings.Builder
+func (r *Report) generateResourceMetricsContent(content *strings.Builder) {
+	switch r.Period {
+	case PeriodDaily:
+		r.generateHourlyMetricsContent(content)
+	case PeriodWeekly:
+		r.generateDailyMetricsContent(content, "周")
+	case PeriodMonthly:
+		r.generateDailyMetricsContent(content, "月")
+	case PeriodYearly:
+		r.generateMonthlyMetricsContent(content)
+	}
+}
 
-	targetMap := make(map[string][]*ResourceMetric)
-	for i := range r.ResourceMetrics {
-		targetMap[r.ResourceMetrics[i].TargetName] = append(targetMap[r.ResourceMetrics[i].TargetName], &r.ResourceMetrics[i])
+func (r *Report) generateHourlyMetricsContent(content *strings.Builder) {
+	if len(r.HourlyMetrics) == 0 {
+		return
+	}
+
+	targetMap := make(map[string][]*HourlyResourceMetric)
+	for i := range r.HourlyMetrics {
+		targetMap[r.HourlyMetrics[i].TargetName] = append(targetMap[r.HourlyMetrics[i].TargetName], &r.HourlyMetrics[i])
 	}
 
 	for targetName, metrics := range targetMap {
@@ -398,8 +564,82 @@ func (r *Report) generateResourceMetricsContent() string {
 			content.WriteString(fmt.Sprintf("============================================\n"))
 		}
 	}
+}
 
-	return content.String()
+func (r *Report) generateDailyMetricsContent(content *strings.Builder, periodLabel string) {
+	if len(r.DailyMetrics) == 0 {
+		return
+	}
+
+	targetMap := make(map[string][]*DailyResourceMetric)
+	for i := range r.DailyMetrics {
+		targetMap[r.DailyMetrics[i].TargetName] = append(targetMap[r.DailyMetrics[i].TargetName], &r.DailyMetrics[i])
+	}
+
+	for targetName, metrics := range targetMap {
+		content.WriteString(fmt.Sprintf("\n"))
+		content.WriteString(fmt.Sprintf("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"))
+		content.WriteString(fmt.Sprintf("【系统资源监控 - %s】\n", targetName))
+
+		for _, metric := range metrics {
+			name := metric.MetricName
+			if metric.MetricAlias != "" {
+				name = metric.MetricAlias
+			}
+
+			content.WriteString(fmt.Sprintf("\n"))
+			content.WriteString(fmt.Sprintf("============ %s %s平均负载 ============\n", name, periodLabel))
+
+			for _, daily := range metric.DailyData {
+				if daily.AvgValue < 0 {
+					content.WriteString(fmt.Sprintf("%s│\n", daily.DayLabel))
+				} else {
+					bar := generateBar(daily.AvgValue)
+					content.WriteString(fmt.Sprintf("%s│%s %d%%\n", daily.DayLabel, bar, int(daily.AvgValue)))
+				}
+			}
+
+			content.WriteString(fmt.Sprintf("============================================\n"))
+		}
+	}
+}
+
+func (r *Report) generateMonthlyMetricsContent(content *strings.Builder) {
+	if len(r.MonthlyMetrics) == 0 {
+		return
+	}
+
+	targetMap := make(map[string][]*MonthlyResourceMetric)
+	for i := range r.MonthlyMetrics {
+		targetMap[r.MonthlyMetrics[i].TargetName] = append(targetMap[r.MonthlyMetrics[i].TargetName], &r.MonthlyMetrics[i])
+	}
+
+	for targetName, metrics := range targetMap {
+		content.WriteString(fmt.Sprintf("\n"))
+		content.WriteString(fmt.Sprintf("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"))
+		content.WriteString(fmt.Sprintf("【系统资源监控 - %s】\n", targetName))
+
+		for _, metric := range metrics {
+			name := metric.MetricName
+			if metric.MetricAlias != "" {
+				name = metric.MetricAlias
+			}
+
+			content.WriteString(fmt.Sprintf("\n"))
+			content.WriteString(fmt.Sprintf("============ %s 年度平均负载 ============\n", name))
+
+			for _, monthly := range metric.MonthlyData {
+				if monthly.AvgValue < 0 {
+					content.WriteString(fmt.Sprintf("%s│\n", monthly.MonthLabel))
+				} else {
+					bar := generateBar(monthly.AvgValue)
+					content.WriteString(fmt.Sprintf("%s│%s %d%%\n", monthly.MonthLabel, bar, int(monthly.AvgValue)))
+				}
+			}
+
+			content.WriteString(fmt.Sprintf("============================================\n"))
+		}
+	}
 }
 
 func generateBar(value float64) string {

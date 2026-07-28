@@ -651,6 +651,26 @@ type ScraperMetricHourlyAvg struct {
 	AvgValue    float64
 }
 
+// ScraperMetricDailyAvg 表示按天聚合的指标平均值
+type ScraperMetricDailyAvg struct {
+	TargetName  string
+	MetricName  string
+	MetricAlias string
+	Unit        string
+	Day         int
+	AvgValue    float64
+}
+
+// ScraperMetricMonthlyAvg 表示按月聚合的指标平均值
+type ScraperMetricMonthlyAvg struct {
+	TargetName  string
+	MetricName  string
+	MetricAlias string
+	Unit        string
+	Month       int
+	AvgValue    float64
+}
+
 // RecordMonitorResult 记录监控结果到CSV
 func RecordMonitorResult(record MonitorResultRecord) error {
 	mu.Lock()
@@ -1379,6 +1399,160 @@ func GetScraperMetricsHourlyAvg(startDate, endDate time.Time) ([]ScraperMetricHo
 			return results[i].MetricName < results[j].MetricName
 		}
 		return results[i].Hour < results[j].Hour
+	})
+
+	return results, nil
+}
+
+// GetScraperMetricsDailyAvg 获取指定时间段内按天聚合的指标平均值
+func GetScraperMetricsDailyAvg(startDate, endDate time.Time) ([]ScraperMetricDailyAvg, error) {
+	metrics, err := GetScraperMetricsByPeriod(startDate, endDate)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(metrics) == 0 {
+		return nil, nil
+	}
+
+	type key struct {
+		targetName string
+		metricName string
+		dayOffset  int
+	}
+
+	type agg struct {
+		metricAlias string
+		unit        string
+		sum         float64
+		count       int
+	}
+
+	aggMap := make(map[key]*agg)
+
+	startOfStartDate := time.Date(startDate.Year(), startDate.Month(), startDate.Day(), 0, 0, 0, 0, startDate.Location())
+
+	for _, m := range metrics {
+		if !m.Success {
+			continue
+		}
+		dayOffset := int(m.Timestamp.Sub(startOfStartDate).Hours() / 24)
+		k := key{
+			targetName: m.TargetName,
+			metricName: m.MetricName,
+			dayOffset:  dayOffset,
+		}
+
+		if aggMap[k] == nil {
+			aggMap[k] = &agg{
+				metricAlias: m.MetricAlias,
+				unit:        m.Unit,
+			}
+		}
+		aggMap[k].sum += m.Value
+		aggMap[k].count++
+	}
+
+	var results []ScraperMetricDailyAvg
+	for k, v := range aggMap {
+		if v.count > 0 {
+			results = append(results, ScraperMetricDailyAvg{
+				TargetName:  k.targetName,
+				MetricName:  k.metricName,
+				MetricAlias: v.metricAlias,
+				Unit:        v.unit,
+				Day:         k.dayOffset,
+				AvgValue:    v.sum / float64(v.count),
+			})
+		}
+	}
+
+	sort.Slice(results, func(i, j int) bool {
+		if results[i].TargetName != results[j].TargetName {
+			return results[i].TargetName < results[j].TargetName
+		}
+		if results[i].MetricName != results[j].MetricName {
+			return results[i].MetricName < results[j].MetricName
+		}
+		return results[i].Day < results[j].Day
+	})
+
+	return results, nil
+}
+
+// GetScraperMetricsMonthlyAvg 获取指定时间段内按月聚合的指标平均值
+func GetScraperMetricsMonthlyAvg(startDate, endDate time.Time) ([]ScraperMetricMonthlyAvg, error) {
+	metrics, err := GetScraperMetricsByPeriod(startDate, endDate)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(metrics) == 0 {
+		return nil, nil
+	}
+
+	type key struct {
+		targetName string
+		metricName string
+		monthKey   int
+	}
+
+	type agg struct {
+		metricAlias string
+		unit        string
+		sum         float64
+		count       int
+	}
+
+	aggMap := make(map[key]*agg)
+
+	for _, m := range metrics {
+		if !m.Success {
+			continue
+		}
+		monthKey := m.Timestamp.Year()*12 + int(m.Timestamp.Month())
+		k := key{
+			targetName: m.TargetName,
+			metricName: m.MetricName,
+			monthKey:   monthKey,
+		}
+
+		if aggMap[k] == nil {
+			aggMap[k] = &agg{
+				metricAlias: m.MetricAlias,
+				unit:        m.Unit,
+			}
+		}
+		aggMap[k].sum += m.Value
+		aggMap[k].count++
+	}
+
+	var results []ScraperMetricMonthlyAvg
+	for k, v := range aggMap {
+		if v.count > 0 {
+			month := (k.monthKey % 12)
+			if month == 0 {
+				month = 12
+			}
+			results = append(results, ScraperMetricMonthlyAvg{
+				TargetName:  k.targetName,
+				MetricName:  k.metricName,
+				MetricAlias: v.metricAlias,
+				Unit:        v.unit,
+				Month:       month,
+				AvgValue:    v.sum / float64(v.count),
+			})
+		}
+	}
+
+	sort.Slice(results, func(i, j int) bool {
+		if results[i].TargetName != results[j].TargetName {
+			return results[i].TargetName < results[j].TargetName
+		}
+		if results[i].MetricName != results[j].MetricName {
+			return results[i].MetricName < results[j].MetricName
+		}
+		return results[i].Month < results[j].Month
 	})
 
 	return results, nil
