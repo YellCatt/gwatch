@@ -217,6 +217,10 @@ func executeAndMonitorTask(tc psv.TestCase) {
 		if err := storage.UpdateMonitorSummary(record); err != nil {
 			logger.Error("Failed to update monitor summary", zap.Error(err))
 		}
+
+		if err := storage.UpdateAlertSummary(record); err != nil {
+			logger.Error("Failed to update alert summary", zap.Error(err))
+		}
 	}()
 
 	// 如果有告警，发送邮件
@@ -761,12 +765,6 @@ func getWeekStart(date time.Time) time.Time {
 
 // generateAndSendReport 生成并发送指定周期的报告
 func generateAndSendReport(period report.ReportPeriod, date time.Time) {
-	var (
-		totalTasks   int
-		successTasks int
-		failedTasks  int
-	)
-
 	var startDate, endDate time.Time
 	switch period {
 	case report.PeriodDaily:
@@ -791,32 +789,11 @@ func generateAndSendReport(period report.ReportPeriod, date time.Time) {
 		return
 	}
 
-	// 使用汇总数据生成报告
-	summaryResults, err := storage.GetMonitorSummaryByPeriod(startDate, endDate)
-	if err != nil {
-		logger.Error("Failed to get monitor summary", zap.Error(err))
-		return
-	}
-
-	for _, summary := range summaryResults {
-		totalTasks += int(summary.TotalCount)
-		successTasks += int(summary.SuccessCount)
-		failedTasks += int(summary.FailedCount)
-	}
-
-	// 生成报告
-	r := &report.Report{
-		Period:       period,
-		StartDate:    startDate.Format("2006-01-02"),
-		EndDate:      endDate.Format("2006-01-02"),
-		TotalTasks:   totalTasks,
-		SuccessTasks: successTasks,
-		FailedTasks:  failedTasks,
-		GeneratedAt:  timeutil.Now(),
-	}
+	// 从存储生成报告（使用已聚合的告警数据）
+	r := report.GenerateReportFromStorage(period, startDate, endDate)
 
 	// 保存报告
-	_, err = r.SaveReport()
+	_, err := r.SaveReport()
 	if err != nil {
 		logger.Error("Failed to save report", zap.Error(err))
 		return

@@ -13,6 +13,7 @@ import (
 	"gwatch/internal/email"
 	"gwatch/internal/logger"
 	"gwatch/internal/psv"
+	"gwatch/internal/storage"
 	"gwatch/internal/testcase"
 	"gwatch/internal/timeutil"
 )
@@ -88,9 +89,6 @@ func GenerateReport(results []MonitorResult, period ReportPeriod, startDate, end
 		GeneratedAt: timeutil.Now(),
 	}
 
-	// 用于按TaskID聚合错误
-	errorMap := make(map[string]*AggregatedError)
-
 	for _, result := range results {
 		if result.Timestamp.After(startDate) && result.Timestamp.Before(endDate) {
 			if !result.Result.Passed {
@@ -108,29 +106,6 @@ func GenerateReport(results []MonitorResult, period ReportPeriod, startDate, end
 					Timestamp:      result.Timestamp,
 					Duration:       result.Result.Duration,
 				})
-
-				// 按TaskID聚合
-				if aggErr, exists := errorMap[result.TestCase.ID]; exists {
-					aggErr.AlertCount++
-					if result.Timestamp.After(aggErr.LastOccurrence) {
-						aggErr.LastOccurrence = result.Timestamp
-					}
-					if result.Timestamp.Before(aggErr.FirstOccurrence) {
-						aggErr.FirstOccurrence = result.Timestamp
-					}
-				} else {
-					errorMap[result.TestCase.ID] = &AggregatedError{
-						TaskID:         result.TestCase.ID,
-						TaskDesc:       result.TestCase.Desc,
-						URL:            result.TestCase.URL,
-						Method:         result.TestCase.Method,
-						ExpectedStatus: result.TestCase.ExpectedStatus,
-						AlertCount:     1,
-						FirstOccurrence: result.Timestamp,
-						LastOccurrence:  result.Timestamp,
-						ErrorMsg:       result.Result.Error,
-					}
-				}
 			} else {
 				report.SuccessTasks++
 			}
@@ -138,9 +113,52 @@ func GenerateReport(results []MonitorResult, period ReportPeriod, startDate, end
 		}
 	}
 
-	// 将聚合结果转换为切片
-	for _, aggErr := range errorMap {
-		report.AggregatedErrors = append(report.AggregatedErrors, *aggErr)
+	return report
+}
+
+// GenerateReportFromStorage 从存储中读取告警汇总数据生成运维报告
+func GenerateReportFromStorage(period ReportPeriod, startDate, endDate time.Time) *Report {
+	report := &Report{
+		Period:      period,
+		StartDate:   startDate.Format("2006-01-02"),
+		EndDate:     endDate.Format("2006-01-02"),
+		GeneratedAt: timeutil.Now(),
+	}
+
+	alertSummaries, err := storage.GetAlertSummaryByPeriod(startDate, endDate)
+	if err != nil {
+		logger.Error("Failed to get alert summary from storage", zap.Error(err))
+		return report
+	}
+
+	for _, summary := range alertSummaries {
+		firstOccurrence, _ := time.Parse("2006-01-02 15:04:05", summary.FirstOccurrence)
+		lastOccurrence, _ := time.Parse("2006-01-02 15:04:05", summary.LastOccurrence)
+
+		report.AggregatedErrors = append(report.AggregatedErrors, AggregatedError{
+			TaskID:         summary.TestCaseID,
+			TaskDesc:       summary.TestCaseDesc,
+			URL:            summary.URL,
+			Method:         summary.Method,
+			ExpectedStatus: summary.ExpectedStatus,
+			AlertCount:     int(summary.AlertCount),
+			FirstOccurrence: firstOccurrence,
+			LastOccurrence:  lastOccurrence,
+			ErrorMsg:       summary.ErrorMsg,
+		})
+
+		report.FailedTasks += int(summary.AlertCount)
+	}
+
+	monitorSummaries, err := storage.GetMonitorSummaryByPeriod(startDate, endDate)
+	if err != nil {
+		logger.Error("Failed to get monitor summary from storage", zap.Error(err))
+		return report
+	}
+
+	for _, summary := range monitorSummaries {
+		report.TotalTasks += int(summary.TotalCount)
+		report.SuccessTasks += int(summary.SuccessCount)
 	}
 
 	return report
@@ -151,6 +169,13 @@ func GenerateDailyReport(results []MonitorResult, date time.Time) *Report {
 	startDate := time.Date(date.Year(), date.Month(), date.Day(), 0, 0, 0, 0, date.Location())
 	endDate := startDate.Add(24 * time.Hour)
 	return GenerateReport(results, PeriodDaily, startDate, endDate)
+}
+
+// GenerateDailyReportFromStorage 从存储生成每日运维报告
+func GenerateDailyReportFromStorage(date time.Time) *Report {
+	startDate := time.Date(date.Year(), date.Month(), date.Day(), 0, 0, 0, 0, date.Location())
+	endDate := startDate.Add(24 * time.Hour)
+	return GenerateReportFromStorage(PeriodDaily, startDate, endDate)
 }
 
 // GenerateWeeklyReport 生成每周运维报告（周一到周日）
@@ -166,6 +191,18 @@ func GenerateWeeklyReport(results []MonitorResult, date time.Time) *Report {
 	return GenerateReport(results, PeriodWeekly, startDate, endDate)
 }
 
+// GenerateWeeklyReportFromStorage 从存储生成每周运维报告
+func GenerateWeeklyReportFromStorage(date time.Time) *Report {
+	weekday := date.Weekday()
+	daysToMonday := int(weekday - time.Monday)
+	if daysToMonday < 0 {
+		daysToMonday += 7
+	}
+	startDate := time.Date(date.Year(), date.Month(), date.Day(), 0, 0, 0, 0, date.Location()).AddDate(0, 0, -daysToMonday)
+	endDate := startDate.AddDate(0, 0, 7)
+	return GenerateReportFromStorage(PeriodWeekly, startDate, endDate)
+}
+
 // GenerateMonthlyReport 生成每月运维报告
 func GenerateMonthlyReport(results []MonitorResult, date time.Time) *Report {
 	startDate := time.Date(date.Year(), date.Month(), 1, 0, 0, 0, 0, date.Location())
@@ -173,11 +210,25 @@ func GenerateMonthlyReport(results []MonitorResult, date time.Time) *Report {
 	return GenerateReport(results, PeriodMonthly, startDate, endDate)
 }
 
+// GenerateMonthlyReportFromStorage 从存储生成每月运维报告
+func GenerateMonthlyReportFromStorage(date time.Time) *Report {
+	startDate := time.Date(date.Year(), date.Month(), 1, 0, 0, 0, 0, date.Location())
+	endDate := startDate.AddDate(0, 1, 0)
+	return GenerateReportFromStorage(PeriodMonthly, startDate, endDate)
+}
+
 // GenerateYearlyReport 生成年度运维报告
 func GenerateYearlyReport(results []MonitorResult, date time.Time) *Report {
 	startDate := time.Date(date.Year(), 1, 1, 0, 0, 0, 0, date.Location())
 	endDate := startDate.AddDate(1, 0, 0)
 	return GenerateReport(results, PeriodYearly, startDate, endDate)
+}
+
+// GenerateYearlyReportFromStorage 从存储生成年度运维报告
+func GenerateYearlyReportFromStorage(date time.Time) *Report {
+	startDate := time.Date(date.Year(), 1, 1, 0, 0, 0, 0, date.Location())
+	endDate := startDate.AddDate(1, 0, 0)
+	return GenerateReportFromStorage(PeriodYearly, startDate, endDate)
 }
 
 // GenerateReportContent 生成报告内容（文本格式）
