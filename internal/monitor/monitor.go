@@ -328,7 +328,7 @@ func checkAlerts(result *MonitorResult) {
 	if tc.ResponseThreshold > 0 && result.Result.Duration.Milliseconds() > int64(tc.ResponseThreshold) && tc.AlertOnSlow {
 		result.AlertType = "slow"
 		result.AlertMsg = fmt.Sprintf("接口监控告警: [%s] %s 响应超时 - 耗时 %.2fms > 阈值 %dms",
-			tc.ID, tc.Desc, result.Result.Duration.Milliseconds(), tc.ResponseThreshold)
+			tc.ID, tc.Desc, float64(result.Result.Duration.Milliseconds()), tc.ResponseThreshold)
 		logger.Warn(result.AlertMsg)
 	}
 }
@@ -416,7 +416,7 @@ func sendAlertEmail(result MonitorResult) {
 		result.AlertType,
 		result.AlertMsg,
 		map[bool]string{true: "✅ 通过", false: "❌ 失败"}[result.Result.Passed],
-		result.Result.Duration.Milliseconds(),
+		float64(result.Result.Duration.Milliseconds()),
 		result.Result.ActualStatus,
 		tc.URL,
 		tc.Method,
