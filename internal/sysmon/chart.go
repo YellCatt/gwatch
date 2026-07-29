@@ -122,7 +122,7 @@ func GenerateASCIIChart(data []float64, width int, unit string, thresholds ...fl
 
 	now := time.Now()
 	timeLabels := fmt.Sprintf("       %s          %s",
-		now.Add(-time.Duration(len(data))*config.GlobalConfig.SystemMon.Interval*time.Second).Format("15:04"),
+		now.Add(-time.Duration(len(data)*config.GlobalConfig.SystemMon.Interval)*time.Second).Format("15:04"),
 		now.Format("15:04"))
 	builder.WriteString(timeLabels + "\n")
 
