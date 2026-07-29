@@ -2,7 +2,6 @@ package storage
 
 import (
 	"encoding/csv"
-	"fmt"
 	"os"
 	"path/filepath"
 	"strconv"

@@ -5,10 +5,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-
-	"go.uber.org/zap"
-
-	"gwatch/internal/logger"
 )
 
 func UpdateAlertSummary(record MonitorResultRecord) error {
