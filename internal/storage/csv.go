@@ -100,6 +100,14 @@ var (
 		"success",
 		"timestamp",
 	}
+
+	indexHeader = []string{
+		"file_name",
+		"description",
+		"write_mode",
+		"columns",
+		"updated_at",
+	}
 )
 
 // 告警级别常量
@@ -176,13 +184,115 @@ func initCSVInternal(dir string) error {
 		return err
 	}
 
+	// 每次启动自动生成 CSV 数据表总表，方便用户查阅各表作用
+	if err := writeIndexCSV(); err != nil {
+		logger.Error("生成 CSV 数据表总表失败", zap.Error(err))
+		return err
+	}
+
 	logger.Info("CSV 存储初始化成功",
 		zap.String("executionCSV", executionCSVPath()),
 		zap.String("averageCSV", averageCSVPath()),
 		zap.String("monitorCSV", monitorCSVPath()),
 		zap.String("monitorSummaryCSV", monitorSummaryCSVPath()),
-		zap.String("scraperMetricCSV", scraperMetricCSVPath()))
+		zap.String("scraperMetricCSV", scraperMetricCSVPath()),
+		zap.String("indexCSV", indexCSVPath()))
 	return nil
+}
+
+// csvFileMeta 描述一张 CSV 数据表的元信息（用于生成总表）
+type csvFileMeta struct {
+	fileName    string
+	description string
+	writeMode   string
+	header      []string
+}
+
+// csvFileMetas 列出所有 CSV 数据表的元信息
+// 注意：新增或修改数据表时需同步维护此列表
+func csvFileMetas() []csvFileMeta {
+	return []csvFileMeta{
+		{
+			fileName:    filepath.Base(executionCSVPath()),
+			description: "测试执行时间明细：每次测试/监控执行的耗时记录，用于计算接口平均执行时间",
+			writeMode:   "追加",
+			header:      executionHeader,
+		},
+		{
+			fileName:    filepath.Base(averageCSVPath()),
+			description: "接口平均执行时间：按 任务ID+文件+URL 聚合的成功执行平均耗时，用于预估测试执行时间",
+			writeMode:   "覆盖重写",
+			header:      averageHeader,
+		},
+		{
+			fileName:    filepath.Base(monitorCSVPath()),
+			description: "接口监控结果明细：每次监控执行的完整结果（期望/实际状态码、响应体、错误信息、耗时等）",
+			writeMode:   "追加",
+			header:      monitorHeader,
+		},
+		{
+			fileName:    filepath.Base(monitorSummaryCSVPath()),
+			description: "接口监控每日汇总：按 日期+任务ID 聚合的执行总数/成功数/失败数/耗时极值/最后成功失败时间，是运维报告执行统计的数据来源",
+			writeMode:   "覆盖重写",
+			header:      monitorSummaryHeader,
+		},
+		{
+			fileName:    filepath.Base(alertSummaryCSVPath()),
+			description: "接口告警每日汇总：按 日期+任务ID 聚合的告警级别(CRITICAL严重/WARNING警告)/告警次数/首末次告警时间，是运维报告告警汇总的数据来源",
+			writeMode:   "覆盖重写",
+			header:      alertSummaryHeader,
+		},
+		{
+			fileName:    filepath.Base(scraperMetricCSVPath()),
+			description: "系统资源采集指标明细：通用采集器每次采集的指标值（如 CPU/内存/负载），是运维报告资源监控图表的数据来源",
+			writeMode:   "追加",
+			header:      scraperMetricHeader,
+		},
+		{
+			fileName:    filepath.Base(indexCSVPath()),
+			description: "CSV 数据表总表（本文件）：列出所有数据表的文件名、作用、写入方式与字段说明，程序启动时自动生成",
+			writeMode:   "覆盖重写",
+			header:      indexHeader,
+		},
+	}
+}
+
+// writeIndexCSV 生成 CSV 数据表总表（csv_index.csv），每次启动覆盖重写保证与实际表结构一致
+// 文件带 UTF-8 BOM，保证 Excel 直接打开时中文不乱码
+func writeIndexCSV() error {
+	now := time.Now().Format("2006-01-02 15:04:05")
+
+	var records [][]string
+	for _, m := range csvFileMetas() {
+		records = append(records, []string{
+			m.fileName,
+			m.description,
+			m.writeMode,
+			strings.Join(m.header, "; "),
+			now,
+		})
+	}
+
+	file, err := os.Create(indexCSVPath())
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	// 写入 UTF-8 BOM
+	if _, err := file.Write([]byte{0xEF, 0xBB, 0xBF}); err != nil {
+		return err
+	}
+
+	w := csv.NewWriter(file)
+	if err := w.Write(indexHeader); err != nil {
+		return err
+	}
+	if err := w.WriteAll(records); err != nil {
+		return err
+	}
+	w.Flush()
+	return w.Error()
 }
 
 func executionCSVPath() string {
@@ -207,6 +317,10 @@ func alertSummaryCSVPath() string {
 
 func scraperMetricCSVPath() string {
 	return filepath.Join(dataDir, "scraper_metrics.csv")
+}
+
+func indexCSVPath() string {
+	return filepath.Join(dataDir, "csv_index.csv")
 }
 
 // ensureCSV 如果 CSV 文件不存在或为空，则创建并写入表头
