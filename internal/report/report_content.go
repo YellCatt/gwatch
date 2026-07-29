@@ -90,7 +90,7 @@ gwatch %s运维报告
 		builder.WriteString("  ✅ 无告警\n")
 	}
 
-	builder.WriteString("\n════════════════════════════════════════════════════════════════════\n")
+	builder.WriteString("\n\n")
 	builder.WriteString("来自 gwatch 接口监控系统\n")
 
 	return builder.String()
@@ -107,9 +107,7 @@ func (r *Report) GenerateHourlyResourceContent() string {
 	}
 
 	builder.WriteString(fmt.Sprintf(`
-════════════════════════════════════════════════════════════════════
   📈 %s报表 - 每小时资源指标趋势
-════════════════════════════════════════════════════════════════════
 
   【报告周期】%s ~ %s
 `, periodNames[r.Period], r.StartDate, r.EndDate))
@@ -152,9 +150,7 @@ func (r *Report) GenerateDailyResourceContent() string {
 	}
 
 	builder.WriteString(fmt.Sprintf(`
-════════════════════════════════════════════════════════════════════
   📈 %s报表 - 每日资源指标趋势
-════════════════════════════════════════════════════════════════════
 
   【报告周期】%s ~ %s
 `, periodNames[r.Period], r.StartDate, r.EndDate))
@@ -195,9 +191,7 @@ func (r *Report) GenerateMonthlyResourceContent() string {
 	}
 
 	builder.WriteString(fmt.Sprintf(`
-════════════════════════════════════════════════════════════════════
   📈 %s报表 - 月度资源指标趋势
-════════════════════════════════════════════════════════════════════
 
   【报告周期】%s ~ %s
 `, periodNames[r.Period], r.StartDate, r.EndDate))

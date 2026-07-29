@@ -73,7 +73,7 @@ func sendAlertEmail(result MonitorResult) {
 【告警时间】%s
 【监控设备】%s
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
 
 【测试用例】
   ID:         %s
@@ -93,13 +93,11 @@ func sendAlertEmail(result MonitorResult) {
   URL:        %s
   方法:       %s
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 【时间信息】
   开始时间:   %s
   结束时间:   %s
 
-========================================
 来自 gwatch 接口监控系统`,
 		alertIcon, alertIcon,
 		alertLevel,
@@ -169,9 +167,9 @@ func sendStartupNotification(taskCount int) {
 	}
 
 	subject := "[gwatch] 监控服务已启动"
-	body := fmt.Sprintf(`══════════════════════════════════════════════════════════════╗
-║              gwatch 接口监控服务启动通知                     ║
-╚══════════════════════════════════════════════════════════════╝
+	body := fmt.Sprintf(`
+gwatch 接口监控服务启动通知
+
 
 【设备名称】%s
 【启动时间】%s
