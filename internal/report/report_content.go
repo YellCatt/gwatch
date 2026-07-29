@@ -18,16 +18,13 @@ func (r *Report) GenerateReportContent() string {
 		PeriodYearly:  "年度",
 	}
 
-	builder.WriteString(fmt.Sprintf(`╔══════════════════════════════════════════════════════════════════╗
-║                    gwatch %s运维报告                            ║
-╚══════════════════════════════════════════════════════════════════╝
+	builder.WriteString(fmt.Sprintf(`
+gwatch %s运维报告
 
-【报告周期】%s ~ %s
-【生成时间】%s
-【监控设备】%s
 
-════════════════════════════════════════════════════════════════════
-
+  【报告周期】%s ~ %s
+  【生成时间】%s
+  【监控设备】%s
 `, periodNames[r.Period], r.StartDate, r.EndDate, timeutil.FormatDateTime(timeutil.Now()), getDeviceName()))
 
 	successRate := 0.0
@@ -35,8 +32,8 @@ func (r *Report) GenerateReportContent() string {
 		successRate = float64(r.SuccessTasks) / float64(r.TotalTasks) * 100
 	}
 
-	builder.WriteString(fmt.Sprintf(`📊 执行概览
-────────────────────────────────────────────────────────────────
+	builder.WriteString(fmt.Sprintf(`
+📊 执行概览
   总执行次数:  %d 次
   成功次数:    %d 次
   失败次数:    %d 次
@@ -45,7 +42,7 @@ func (r *Report) GenerateReportContent() string {
 
 `, r.TotalTasks, r.SuccessTasks, r.FailedTasks, successRate, formatAvgDuration(r.InterfaceStats)))
 
-	builder.WriteString("🔧 接口状态详情\n────────────────────────────────────────────────────────────────\n")
+	builder.WriteString("🔧 接口状态详情\n\n")
 	if len(r.InterfaceStats) > 0 {
 		builder.WriteString(fmt.Sprintf("%-32s %-8s %-8s %-8s %-12s %-10s\n",
 			"接口ID", "总次数", "成功", "失败", "平均耗时", "最大耗时"))
@@ -68,7 +65,7 @@ func (r *Report) GenerateReportContent() string {
 		builder.WriteString("  暂无接口数据\n")
 	}
 
-	builder.WriteString("\n📢 告警汇总\n────────────────────────────────────────────────────────────────\n")
+	builder.WriteString("\n📢 告警汇总\n\n")
 	if len(r.AggregatedErrors) > 0 {
 		criticalCount := 0
 		warningCount := 0
