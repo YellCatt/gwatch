@@ -90,6 +90,18 @@ var (
 		"error_msg",
 	}
 
+	scraperMetricHeader = []string{
+		"target_name",
+		"target_url",
+		"metric_name",
+		"metric_alias",
+		"value",
+		"unit",
+		"success",
+		"timestamp",
+	}
+)
+
 // 告警级别常量
 const (
 	AlertLevelCritical = "CRITICAL"
@@ -107,18 +119,6 @@ func alertLevelRank(level string) int {
 		return 0
 	}
 }
-
-	scraperMetricHeader = []string{
-		"target_name",
-		"target_url",
-		"metric_name",
-		"metric_alias",
-		"value",
-		"unit",
-		"success",
-		"timestamp",
-	}
-)
 
 // InitDB 初始化 CSV 数据目录（单例模式，保持与原 SQLite 接口一致）
 func InitDB(dir string) error {
