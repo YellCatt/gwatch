@@ -10,7 +10,6 @@ import (
 
 	"gwatch/config"
 	"gwatch/internal/logger"
-	"gwatch/internal/psv"
 	"gwatch/internal/timeutil"
 	"gwatch/internal/vars"
 )
