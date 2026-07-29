@@ -1,0 +1,206 @@
+package sysmon
+
+import (
+	"fmt"
+	"strings"
+	"sync"
+	"time"
+
+	"go.uber.org/zap"
+
+	"gwatch/config"
+	"gwatch/internal/email"
+	"gwatch/internal/logger"
+	"gwatch/internal/timeutil"
+)
+
+var (
+	lastAlertTimes = make(map[string]time.Time)
+	lastAlertMu    sync.Mutex
+)
+
+func CheckAlerts(metric SystemMetric) []AlertItem {
+	cfg := config.GlobalConfig.SystemMon
+	var alerts []AlertItem
+
+	if metric.CPUPercent >= cfg.CPUThreshold {
+		alerts = append(alerts, AlertItem{
+			Metric:    "CPU使用率",
+			Value:     metric.CPUPercent,
+			Threshold: cfg.CPUThreshold,
+			Unit:      "%",
+			Message:   fmt.Sprintf("CPU 使用率 %.2f%% 超过阈值 %.2f%%", metric.CPUPercent, cfg.CPUThreshold),
+			Level:     "CRITICAL",
+			Timestamp: metric.Timestamp,
+		})
+	}
+
+	if metric.MemoryPercent >= cfg.MemoryThreshold {
+		alerts = append(alerts, AlertItem{
+			Metric:    "内存使用率",
+			Value:     metric.MemoryPercent,
+			Threshold: cfg.MemoryThreshold,
+			Unit:      "%",
+			Message:   fmt.Sprintf("内存使用率 %.2f%% 超过阈值 %.2f%%", metric.MemoryPercent, cfg.MemoryThreshold),
+			Level:     "CRITICAL",
+			Timestamp: metric.Timestamp,
+		})
+	}
+
+	if metric.DiskPercent >= cfg.DiskUsageThreshold {
+		alerts = append(alerts, AlertItem{
+			Metric:    "磁盘使用率",
+			Value:     metric.DiskPercent,
+			Threshold: cfg.DiskUsageThreshold,
+			Unit:      "%",
+			Message:   fmt.Sprintf("磁盘使用率 %.2f%% 超过阈值 %.2f%%", metric.DiskPercent, cfg.DiskUsageThreshold),
+			Level:     "WARNING",
+			Timestamp: metric.Timestamp,
+		})
+	}
+
+	if metric.NetDownKBps < cfg.NetworkDownThreshold && metric.NetDownKBps >= 0 {
+		alerts = append(alerts, AlertItem{
+			Metric:    "网络下行速度",
+			Value:     metric.NetDownKBps,
+			Threshold: cfg.NetworkDownThreshold,
+			Unit:      "KB/s",
+			Message:   fmt.Sprintf("网络下行速度 %.2f KB/s 低于阈值 %.2f KB/s", metric.NetDownKBps, cfg.NetworkDownThreshold),
+			Level:     "WARNING",
+			Timestamp: metric.Timestamp,
+		})
+	}
+
+	if metric.NetUpKBps < cfg.NetworkUpThreshold && metric.NetUpKBps >= 0 {
+		alerts = append(alerts, AlertItem{
+			Metric:    "网络上行速度",
+			Value:     metric.NetUpKBps,
+			Threshold: cfg.NetworkUpThreshold,
+			Unit:      "KB/s",
+			Message:   fmt.Sprintf("网络上行速度 %.2f KB/s 低于阈值 %.2f KB/s", metric.NetUpKBps, cfg.NetworkUpThreshold),
+			Level:     "WARNING",
+			Timestamp: metric.Timestamp,
+		})
+	}
+
+	return alerts
+}
+
+func ShouldSendAlert(alert AlertItem) bool {
+	lastAlertMu.Lock()
+	defer lastAlertMu.Unlock()
+
+	cooldown := time.Duration(config.GlobalConfig.SystemMon.AlertCooldown) * time.Second
+	if cooldown <= 0 {
+		cooldown = 5 * time.Minute
+	}
+
+	last, ok := lastAlertTimes[alert.Metric]
+	if ok && time.Since(last) < cooldown {
+		return false
+	}
+
+	lastAlertTimes[alert.Metric] = time.Now()
+	return true
+}
+
+func ClearAlertCooldown(metric string) {
+	lastAlertMu.Lock()
+	defer lastAlertMu.Unlock()
+	delete(lastAlertTimes, metric)
+}
+
+func SendAlertEmail(alerts []AlertItem) error {
+	if !config.GlobalConfig.SystemMon.EmailEnabled {
+		logger.Info("System monitor email alerts disabled")
+		return nil
+	}
+
+	if !email.Config.Enabled {
+		logger.Warn("Email is disabled globally, skipping system alert email")
+		return nil
+	}
+
+	if len(alerts) == 0 {
+		return nil
+	}
+
+	var filteredAlerts []AlertItem
+	for _, a := range alerts {
+		if ShouldSendAlert(a) {
+			filteredAlerts = append(filteredAlerts, a)
+		}
+	}
+
+	if len(filteredAlerts) == 0 {
+		return nil
+	}
+
+	hostname, _ := GetHostInfo()
+
+	var criticalCount, warningCount int
+	for _, a := range filteredAlerts {
+		if a.Level == "CRITICAL" {
+			criticalCount++
+		} else if a.Level == "WARNING" {
+			warningCount++
+		}
+	}
+
+	subject := fmt.Sprintf("【系统告警】%s - %d项告警 (严重:%d 警告:%d)",
+		timeutil.FormatDateTime(timeutil.Now()), len(filteredAlerts), criticalCount, warningCount)
+
+	var body strings.Builder
+	body.WriteString("===== 系统资源监控告警报告 =====\n\n")
+	body.WriteString(fmt.Sprintf("告警时间: %s\n", timeutil.FormatDateTime(timeutil.Now())))
+	body.WriteString(fmt.Sprintf("监控设备: %s\n\n", hostname))
+	body.WriteString(fmt.Sprintf("告警数量: %d (严重:%d 警告:%d)\n\n", len(filteredAlerts), criticalCount, warningCount))
+
+	for _, a := range filteredAlerts {
+		icon := "⚠️"
+		if a.Level == "CRITICAL" {
+			icon = "🚨"
+		}
+		body.WriteString(fmt.Sprintf("%s [%s] %s\n", icon, a.Level, a.Metric))
+		body.WriteString(fmt.Sprintf("   当前值:  %.2f %s\n", a.Value, a.Unit))
+		body.WriteString(fmt.Sprintf("   阈值:    %.2f %s\n", a.Threshold, a.Unit))
+		body.WriteString(fmt.Sprintf("   消息:    %s\n\n", a.Message))
+	}
+
+	body.WriteString("===== 报告结束 =====\n")
+	body.WriteString("来自 gwatch 系统监控")
+
+	logger.Info("Sending system alert email", zap.Int("alerts", len(filteredAlerts)))
+	return email.SendCustomEmail(subject, body.String())
+}
+
+func SendSystemStatusEmail(metrics []SystemMetric) error {
+	if !config.GlobalConfig.SystemMon.EmailEnabled {
+		return nil
+	}
+	if !email.Config.Enabled {
+		return nil
+	}
+
+	if len(metrics) == 0 {
+		return nil
+	}
+
+	latest := metrics[len(metrics)-1]
+	alerts := CheckAlerts(latest)
+
+	report := GenerateSystemReport(metrics, alerts)
+
+	hostname, _ := GetHostInfo()
+
+	subject := fmt.Sprintf("【系统状态报告】%s - CPU:%.1f%% MEM:%.1f%% DISK:%.1f%%",
+		timeutil.FormatDateTime(timeutil.Now()),
+		latest.CPUPercent, latest.MemoryPercent, latest.DiskPercent)
+
+	var body strings.Builder
+	body.WriteString(report)
+	body.WriteString(fmt.Sprintf("\n设备: %s\n", hostname))
+
+	logger.Info("Sending system status email")
+	return email.SendCustomEmail(subject, body.String())
+}

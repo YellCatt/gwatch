@@ -1,15 +1,16 @@
 package config
 
 type Config struct {
-	Target  TargetConfig      `mapstructure:"target"`
-	Log     LogConfig         `mapstructure:"log"`
-	App     AppConfig         `mapstructure:"app"`
-	HTTP    HTTPConfig        `mapstructure:"http"`
-	Email   EmailConfig       `mapstructure:"email"`
-	Cleaner CleanupConfig     `mapstructure:"cleaner"`
-	Monitor MonitorConfig     `mapstructure:"monitor"`
-	Scraper ScraperConfig     `mapstructure:"scraper"`
-	Vars    map[string]string `mapstructure:"vars"`
+	Target      TargetConfig       `mapstructure:"target"`
+	Log         LogConfig          `mapstructure:"log"`
+	App         AppConfig          `mapstructure:"app"`
+	HTTP        HTTPConfig         `mapstructure:"http"`
+	Email       EmailConfig        `mapstructure:"email"`
+	Cleaner     CleanupConfig      `mapstructure:"cleaner"`
+	Monitor     MonitorConfig      `mapstructure:"monitor"`
+	Scraper     ScraperConfig      `mapstructure:"scraper"`
+	SystemMon   SystemMonitorConfig `mapstructure:"sys_monitor"`
+	Vars        map[string]string  `mapstructure:"vars"`
 }
 
 type HTTPConfig struct {
@@ -108,4 +109,18 @@ type MonitorConfig struct {
 	MonthlyReport   bool   `mapstructure:"monthly_report"`
 	YearlyReport    bool   `mapstructure:"yearly_report"`
 	ReportTime      string `mapstructure:"report_time"`
+}
+
+type SystemMonitorConfig struct {
+	Enabled             bool  `mapstructure:"enabled"`
+	Interval            int   `mapstructure:"interval"`
+	ChartEnabled        bool  `mapstructure:"chart_enabled"`
+	EmailEnabled        bool  `mapstructure:"email_enabled"`
+	RetentionHours      int   `mapstructure:"retention_hours"`
+	CPUThreshold        float64 `mapstructure:"cpu_threshold"`
+	MemoryThreshold     float64 `mapstructure:"memory_threshold"`
+	DiskUsageThreshold  float64 `mapstructure:"disk_usage_threshold"`
+	NetworkDownThreshold float64 `mapstructure:"network_down_threshold"`
+	NetworkUpThreshold  float64 `mapstructure:"network_up_threshold"`
+	AlertCooldown       int   `mapstructure:"alert_cooldown"`
 }

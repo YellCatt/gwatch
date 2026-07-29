@@ -35,6 +35,7 @@ func InitConfig() {
 	setCleanerDefaults()
 	setMonitorDefaults()
 	setScraperDefaults()
+	setSystemMonitorDefaults()
 
 	GlobalConfig.Vars = loadRawVars()
 }
@@ -55,6 +56,7 @@ func ReloadConfig() bool {
 	setCleanerDefaults()
 	setMonitorDefaults()
 	setScraperDefaults()
+	setSystemMonitorDefaults()
 
 	GlobalConfig.Vars = loadRawVars()
 

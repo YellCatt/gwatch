@@ -106,3 +106,52 @@ func setMonitorDefaults() {
 		GlobalConfig.Monitor.AlertOnFailure = true
 	}
 }
+
+func setSystemMonitorDefaults() {
+	sm := GlobalConfig.SystemMon
+
+	hasSysMonConfig := viper.IsSet("sys_monitor")
+
+	if !hasSysMonConfig {
+		sm.Enabled = true
+		sm.ChartEnabled = true
+		sm.EmailEnabled = false
+	} else {
+		if !viper.IsSet("sys_monitor.enabled") {
+			sm.Enabled = true
+		}
+		if !viper.IsSet("sys_monitor.chart_enabled") {
+			sm.ChartEnabled = true
+		}
+		if !viper.IsSet("sys_monitor.email_enabled") {
+			sm.EmailEnabled = false
+		}
+	}
+
+	if sm.Interval <= 0 {
+		sm.Interval = 10
+	}
+	if sm.RetentionHours <= 0 {
+		sm.RetentionHours = 168
+	}
+	if sm.CPUThreshold <= 0 {
+		sm.CPUThreshold = 85
+	}
+	if sm.MemoryThreshold <= 0 {
+		sm.MemoryThreshold = 90
+	}
+	if sm.DiskUsageThreshold <= 0 {
+		sm.DiskUsageThreshold = 90
+	}
+	if sm.NetworkDownThreshold <= 0 {
+		sm.NetworkDownThreshold = 1.0
+	}
+	if sm.NetworkUpThreshold <= 0 {
+		sm.NetworkUpThreshold = 1.0
+	}
+	if sm.AlertCooldown <= 0 {
+		sm.AlertCooldown = 300
+	}
+
+	GlobalConfig.SystemMon = sm
+}

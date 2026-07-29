@@ -128,6 +128,19 @@ email:
   smtp_server: "smtp.example.com"
   smtp_port: 465
 
+sys_monitor:
+  enabled: true
+  interval: 10
+  chart_enabled: true
+  email_enabled: true
+  retention_hours: 168
+  cpu_threshold: 85
+  memory_threshold: 90
+  disk_usage_threshold: 90
+  network_down_threshold: 1.0
+  network_up_threshold: 1.0
+  alert_cooldown: 300
+
 cleaner:
   enabled: true
   retention_days: 30

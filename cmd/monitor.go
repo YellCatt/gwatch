@@ -14,6 +14,7 @@ import (
 	"gwatch/internal/monitor"
 	"gwatch/internal/psv"
 	"gwatch/internal/storage"
+	"gwatch/internal/sysmon"
 	"gwatch/internal/testcase"
 )
 
@@ -24,6 +25,11 @@ func startMonitor(paths []string) {
 		logger.Warn("CSV 存储初始化失败", zap.Error(err))
 	} else {
 		logger.Info("CSV 存储初始化成功")
+	}
+
+	if config.GlobalConfig.SystemMon.Enabled {
+		sysmon.InitStorage()
+		go sysmon.StartSystemMonitor()
 	}
 
 	if len(paths) == 0 {
