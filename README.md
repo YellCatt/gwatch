@@ -124,6 +124,38 @@ monitor:
 | `sql/` | CSV 数据目录 | 否（自动创建） |
 | `logs/` | 日志目录 | 否（自动创建） |
 
+## 项目结构
+
+```
+gwatch/
+├── cmd/
+│   ├── root.go          # 主命令入口
+│   ├── run.go           # 测试执行命令
+│   ├── monitor.go       # 监控模式命令
+│   ├── init.go          # 初始化命令
+│   └── scraper.go       # 采集器命令
+├── config/
+│   ├── config.go        # 配置加载/重载核心逻辑
+│   ├── types.go         # 配置类型定义
+│   └── defaults.go      # 默认值设置
+├── internal/
+│   ├── storage/         # CSV存储
+│   ├── report/          # 报告生成
+│   ├── monitor/         # 监控模式
+│   ├── testcase/        # 测试执行
+│   ├── assert/          # 断言逻辑
+│   ├── psv/             # PSV解析
+│   ├── scraper/         # 采集器
+│   ├── cleaner/         # 清理器
+│   ├── vars/            # 变量管理
+│   ├── email/           # 邮件发送
+│   ├── logger/          # 日志
+│   ├── timeutil/        # 时间工具
+│   └── httpclient/      # HTTP客户端
+├── go.mod
+└── go.sum
+```
+
 ### 配置说明
 
 - **target.base_url**: API 目标地址，测试用例中可用 `{{base_url}}` 引用
