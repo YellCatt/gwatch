@@ -207,6 +207,7 @@ func executeAndMonitorTask(tc psv.TestCase) {
 			ErrorMsg:       result.Error,
 			DurationMS:     int64(result.Duration / time.Millisecond),
 			Success:        result.Passed,
+			AlertType:      monitorResult.AlertType,
 			Timestamp:      timeutil.Now(),
 		}
 

@@ -83,11 +83,30 @@ var (
 		"url",
 		"method",
 		"expected_status",
+		"alert_level",
 		"alert_count",
 		"first_occurrence",
 		"last_occurrence",
 		"error_msg",
 	}
+
+// 告警级别常量
+const (
+	AlertLevelCritical = "CRITICAL"
+	AlertLevelWarning  = "WARNING"
+)
+
+// alertLevelRank 返回告警级别权重，用于比较严重程度（数值越大越严重）
+func alertLevelRank(level string) int {
+	switch strings.ToUpper(strings.TrimSpace(level)) {
+	case AlertLevelCritical:
+		return 2
+	case AlertLevelWarning:
+		return 1
+	default:
+		return 0
+	}
+}
 
 	scraperMetricHeader = []string{
 		"target_name",
@@ -595,6 +614,7 @@ type MonitorResultRecord struct {
 	ErrorMsg       string
 	DurationMS     int64
 	Success        bool
+	AlertType      string // 告警类型：failure（失败）、slow（响应缓慢）、空（无告警）
 	Timestamp      time.Time
 }
 
@@ -623,6 +643,7 @@ type AlertSummaryRecord struct {
 	URL             string
 	Method          string
 	ExpectedStatus  int
+	AlertLevel      string // 告警级别：CRITICAL（严重）、WARNING（警告）
 	AlertCount      int64
 	FirstOccurrence string
 	LastOccurrence  string
@@ -873,9 +894,10 @@ func UpdateMonitorSummary(record MonitorResultRecord) error {
 	return writeRecords(monitorSummaryCSVPath(), monitorSummaryHeader, records)
 }
 
-// UpdateAlertSummary 更新告警汇总记录（仅在失败时更新）
+// UpdateAlertSummary 更新告警汇总记录（接口失败或响应缓慢时更新）
 func UpdateAlertSummary(record MonitorResultRecord) error {
-	if record.Success {
+	// 执行成功且无告警类型时不产生告警记录
+	if record.Success && record.AlertType == "" {
 		return nil
 	}
 
@@ -889,14 +911,24 @@ func UpdateAlertSummary(record MonitorResultRecord) error {
 	dateStr := record.Timestamp.Format("2006-01-02")
 	timestampStr := record.Timestamp.Format("2006-01-02 15:04:05")
 
+	// 接口失败为严重告警，响应缓慢为警告
+	alertLevel := AlertLevelCritical
+	if record.Success && record.AlertType == "slow" {
+		alertLevel = AlertLevelWarning
+	}
+
 	header, records, err := readRecords(alertSummaryCSVPath())
 	if err != nil {
 		return err
 	}
 
+	// 旧格式文件（无 alert_level 列）升级为新格式，避免重写后列错位
+	records = upgradeAlertSummaryRecords(header, records)
+
+	// 升级后记录已对齐新表头，直接基于 alertSummaryHeader 构建索引
 	colIndex := make(map[string]int)
-	for i, h := range header {
-		colIndex[strings.TrimSpace(h)] = i
+	for i, h := range alertSummaryHeader {
+		colIndex[h] = i
 	}
 
 	get := func(rec []string, name string) string {
@@ -920,6 +952,7 @@ func UpdateAlertSummary(record MonitorResultRecord) error {
 				URL:             get(rec, "url"),
 				Method:          get(rec, "method"),
 				ExpectedStatus:  int(parseInt64(get(rec, "expected_status"))),
+				AlertLevel:      get(rec, "alert_level"),
 				AlertCount:      parseInt64(get(rec, "alert_count")),
 				FirstOccurrence: get(rec, "first_occurrence"),
 				LastOccurrence:  get(rec, "last_occurrence"),
@@ -937,8 +970,12 @@ func UpdateAlertSummary(record MonitorResultRecord) error {
 			URL:             record.URL,
 			Method:          record.Method,
 			ExpectedStatus:  record.ExpectedStatus,
+			AlertLevel:      alertLevel,
 			FirstOccurrence: timestampStr,
 		}
+	} else if alertLevelRank(alertLevel) > alertLevelRank(summary.AlertLevel) {
+		// 同一接口一天内出现更高级别告警时升级级别
+		summary.AlertLevel = alertLevel
 	}
 
 	summary.AlertCount++
@@ -954,6 +991,7 @@ func UpdateAlertSummary(record MonitorResultRecord) error {
 		summary.URL,
 		summary.Method,
 		strconv.FormatInt(int64(summary.ExpectedStatus), 10),
+		summary.AlertLevel,
 		strconv.FormatInt(summary.AlertCount, 10),
 		summary.FirstOccurrence,
 		summary.LastOccurrence,
@@ -967,6 +1005,29 @@ func UpdateAlertSummary(record MonitorResultRecord) error {
 	}
 
 	return writeRecords(alertSummaryCSVPath(), alertSummaryHeader, records)
+}
+
+// upgradeAlertSummaryRecords 将旧格式（无 alert_level 列）的告警记录升级为当前表头格式
+// 旧记录均为接口失败产生的告警，默认级别为 CRITICAL
+func upgradeAlertSummaryRecords(header []string, records [][]string) [][]string {
+	for _, h := range header {
+		if strings.TrimSpace(h) == "alert_level" {
+			return records
+		}
+	}
+
+	upgraded := make([][]string, 0, len(records))
+	for _, rec := range records {
+		// 旧格式: date, test_case_id, test_case_desc, url, method, expected_status, alert_count, first_occurrence, last_occurrence, error_msg
+		row := make([]string, 10)
+		copy(row, rec)
+		upgraded = append(upgraded, []string{
+			row[0], row[1], row[2], row[3], row[4], row[5],
+			AlertLevelCritical,
+			row[6], row[7], row[8], row[9],
+		})
+	}
+	return upgraded
 }
 
 // GetAlertSummaryByDate 获取指定日期的告警汇总
@@ -1010,6 +1071,7 @@ func GetAlertSummaryByDate(date time.Time) ([]AlertSummaryRecord, error) {
 				URL:             get(rec, "url"),
 				Method:          get(rec, "method"),
 				ExpectedStatus:  int(parseInt64(get(rec, "expected_status"))),
+				AlertLevel:      parseAlertLevel(get(rec, "alert_level")),
 				AlertCount:      parseInt64(get(rec, "alert_count")),
 				FirstOccurrence: get(rec, "first_occurrence"),
 				LastOccurrence:  get(rec, "last_occurrence"),
@@ -1019,6 +1081,15 @@ func GetAlertSummaryByDate(date time.Time) ([]AlertSummaryRecord, error) {
 	}
 
 	return results, nil
+}
+
+// parseAlertLevel 解析告警级别，旧格式记录（无级别列）均为失败告警，默认 CRITICAL
+func parseAlertLevel(level string) string {
+	level = strings.ToUpper(strings.TrimSpace(level))
+	if level == "" {
+		return AlertLevelCritical
+	}
+	return level
 }
 
 // GetAlertSummaryByPeriod 获取指定时间段的告警汇总
@@ -1079,6 +1150,7 @@ func GetAlertSummaryByPeriod(startDate, endDate time.Time) ([]AlertSummaryRecord
 				URL:             get(rec, "url"),
 				Method:          get(rec, "method"),
 				ExpectedStatus:  int(parseInt64(get(rec, "expected_status"))),
+				AlertLevel:      parseAlertLevel(get(rec, "alert_level")),
 				FirstOccurrence: get(rec, "first_occurrence"),
 			}
 		}
@@ -1086,6 +1158,10 @@ func GetAlertSummaryByPeriod(startDate, endDate time.Time) ([]AlertSummaryRecord
 		agg := aggMap[k]
 		agg.AlertCount += parseInt64(get(rec, "alert_count"))
 		agg.LastOccurrence = get(rec, "last_occurrence")
+		// 聚合时间段内的最高告警级别
+		if recLevel := parseAlertLevel(get(rec, "alert_level")); alertLevelRank(recLevel) > alertLevelRank(agg.AlertLevel) {
+			agg.AlertLevel = recLevel
+		}
 		if get(rec, "error_msg") != "" {
 			agg.ErrorMsg = get(rec, "error_msg")
 		}

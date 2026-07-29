@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -12,18 +13,9 @@ import (
 	"gwatch/config"
 	"gwatch/internal/email"
 	"gwatch/internal/logger"
-	"gwatch/internal/psv"
 	"gwatch/internal/storage"
-	"gwatch/internal/testcase"
 	"gwatch/internal/timeutil"
 )
-
-// MonitorResult 表示监控结果（与 monitor 包中的结构相同，避免导入）
-type MonitorResult struct {
-	TestCase  psv.TestCase
-	Result    testcase.TestResult
-	Timestamp time.Time
-}
 
 // ReportPeriod 报告周期类型
 type ReportPeriod string
@@ -35,7 +27,7 @@ const (
 	PeriodYearly  ReportPeriod = "yearly"
 )
 
-// Report 运维报告（支持多种周期）
+// Report 运维报告（支持多种周期，数据全部来源于 CSV 持久化存储）
 type Report struct {
 	Period             ReportPeriod
 	StartDate          string
@@ -43,7 +35,7 @@ type Report struct {
 	TotalTasks         int
 	FailedTasks        int
 	SuccessTasks       int
-	ErrorDetails       []ErrorDetail
+	InterfaceStats     []InterfaceStat
 	AggregatedErrors   []AggregatedError
 	HourlyMetrics      []HourlyResourceMetric
 	DailyMetrics       []DailyResourceMetric
@@ -98,75 +90,35 @@ type MonthlyData struct {
 	AvgValue  float64
 }
 
-// ErrorDetail 错误详情
-type ErrorDetail struct {
-	TaskID         string
-	TaskDesc       string
-	URL            string
-	Method         string
-	ExpectedStatus int
-	ActualStatus   int
-	ExpectedBody   string
-	ActualBody     string
-	ErrorMsg       string
-	Timestamp      time.Time
-	Duration       time.Duration
+// InterfaceStat 按接口聚合的执行统计（来源于 monitor_summary.csv）
+type InterfaceStat struct {
+	TaskID          string
+	TaskDesc        string
+	URL             string
+	Method          string
+	TotalCount      int
+	SuccessCount    int
+	FailedCount     int
+	AvgDurationMS   int64
+	MaxDurationMS   int64
+	LastFailureTime string
 }
 
-// AggregatedError 聚合后的错误信息（按TaskID分组）
+// AggregatedError 聚合后的告警信息（按接口分组，来源于 alert_summary.csv）
 type AggregatedError struct {
-	TaskID         string
-	TaskDesc       string
-	URL            string
-	Method         string
-	ExpectedStatus int
-	AlertCount     int
+	TaskID          string
+	TaskDesc        string
+	URL             string
+	Method          string
+	ExpectedStatus  int
+	AlertLevel      string
+	AlertCount      int
 	FirstOccurrence time.Time
 	LastOccurrence  time.Time
-	ErrorMsg       string
+	ErrorMsg        string
 }
 
-// GenerateReport 生成运维报告
-// results: 监控结果列表
-// period: 报告周期
-// startDate: 报告开始日期
-// endDate: 报告结束日期（不含）
-func GenerateReport(results []MonitorResult, period ReportPeriod, startDate, endDate time.Time) *Report {
-	report := &Report{
-		Period:      period,
-		StartDate:   startDate.Format("2006-01-02"),
-		EndDate:     endDate.Format("2006-01-02"),
-		GeneratedAt: timeutil.Now(),
-	}
-
-	for _, result := range results {
-		if result.Timestamp.After(startDate) && result.Timestamp.Before(endDate) {
-			if !result.Result.Passed {
-				report.FailedTasks++
-				report.ErrorDetails = append(report.ErrorDetails, ErrorDetail{
-					TaskID:         result.TestCase.ID,
-					TaskDesc:       result.TestCase.Desc,
-					URL:            result.TestCase.URL,
-					Method:         result.TestCase.Method,
-					ExpectedStatus: result.TestCase.ExpectedStatus,
-					ActualStatus:   result.Result.ActualStatus,
-					ExpectedBody:   result.TestCase.ExpectedBody,
-					ActualBody:     result.Result.ResponseBody,
-					ErrorMsg:       result.Result.Error,
-					Timestamp:      result.Timestamp,
-					Duration:       result.Result.Duration,
-				})
-			} else {
-				report.SuccessTasks++
-			}
-			report.TotalTasks++
-		}
-	}
-
-	return report
-}
-
-// GenerateReportFromStorage 从存储中读取告警汇总数据生成运维报告
+// GenerateReportFromStorage 从 CSV 存储中读取聚合数据生成运维报告
 func GenerateReportFromStorage(period ReportPeriod, startDate, endDate time.Time) *Report {
 	report := &Report{
 		Period:      period,
@@ -175,31 +127,32 @@ func GenerateReportFromStorage(period ReportPeriod, startDate, endDate time.Time
 		GeneratedAt: timeutil.Now(),
 	}
 
+	// 告警汇总：来源于 alert_summary.csv，按接口聚合
 	alertSummaries, err := storage.GetAlertSummaryByPeriod(startDate, endDate)
 	if err != nil {
 		logger.Error("Failed to get alert summary from storage", zap.Error(err))
-		return report
+	} else {
+		for _, summary := range alertSummaries {
+			firstOccurrence, _ := time.Parse("2006-01-02 15:04:05", summary.FirstOccurrence)
+			lastOccurrence, _ := time.Parse("2006-01-02 15:04:05", summary.LastOccurrence)
+
+			report.AggregatedErrors = append(report.AggregatedErrors, AggregatedError{
+				TaskID:          summary.TestCaseID,
+				TaskDesc:        summary.TestCaseDesc,
+				URL:             summary.URL,
+				Method:          summary.Method,
+				ExpectedStatus:  summary.ExpectedStatus,
+				AlertLevel:      summary.AlertLevel,
+				AlertCount:      int(summary.AlertCount),
+				FirstOccurrence: firstOccurrence,
+				LastOccurrence:  lastOccurrence,
+				ErrorMsg:        summary.ErrorMsg,
+			})
+		}
+		sortAggregatedErrors(report.AggregatedErrors)
 	}
 
-	for _, summary := range alertSummaries {
-		firstOccurrence, _ := time.Parse("2006-01-02 15:04:05", summary.FirstOccurrence)
-		lastOccurrence, _ := time.Parse("2006-01-02 15:04:05", summary.LastOccurrence)
-
-		report.AggregatedErrors = append(report.AggregatedErrors, AggregatedError{
-			TaskID:         summary.TestCaseID,
-			TaskDesc:       summary.TestCaseDesc,
-			URL:            summary.URL,
-			Method:         summary.Method,
-			ExpectedStatus: summary.ExpectedStatus,
-			AlertCount:     int(summary.AlertCount),
-			FirstOccurrence: firstOccurrence,
-			LastOccurrence:  lastOccurrence,
-			ErrorMsg:       summary.ErrorMsg,
-		})
-
-		report.FailedTasks += int(summary.AlertCount)
-	}
-
+	// 执行统计：来源于 monitor_summary.csv，按接口聚合
 	monitorSummaries, err := storage.GetMonitorSummaryByPeriod(startDate, endDate)
 	if err != nil {
 		logger.Error("Failed to get monitor summary from storage", zap.Error(err))
@@ -209,7 +162,27 @@ func GenerateReportFromStorage(period ReportPeriod, startDate, endDate time.Time
 	for _, summary := range monitorSummaries {
 		report.TotalTasks += int(summary.TotalCount)
 		report.SuccessTasks += int(summary.SuccessCount)
+		report.FailedTasks += int(summary.FailedCount)
+
+		var avgMS int64
+		if summary.TotalCount > 0 {
+			avgMS = summary.TotalDurationMS / summary.TotalCount
+		}
+
+		report.InterfaceStats = append(report.InterfaceStats, InterfaceStat{
+			TaskID:          summary.TestCaseID,
+			TaskDesc:        summary.TestCaseDesc,
+			URL:             summary.URL,
+			Method:          summary.Method,
+			TotalCount:      int(summary.TotalCount),
+			SuccessCount:    int(summary.SuccessCount),
+			FailedCount:     int(summary.FailedCount),
+			AvgDurationMS:   avgMS,
+			MaxDurationMS:   summary.MaxDurationMS,
+			LastFailureTime: summary.LastFailureTime,
+		})
 	}
+	sortInterfaceStats(report.InterfaceStats)
 
 	if config.GlobalConfig.Scraper.Enabled && len(config.GlobalConfig.Scraper.Targets) > 0 {
 		loadResourceMetricsByPeriod(report, period, startDate, endDate)
@@ -386,11 +359,49 @@ func loadMonthlyResourceMetrics(startDate, endDate time.Time) []MonthlyResourceM
 	return results
 }
 
-// GenerateDailyReport 生成每日运维报告
-func GenerateDailyReport(results []MonitorResult, date time.Time) *Report {
-	startDate := time.Date(date.Year(), date.Month(), date.Day(), 0, 0, 0, 0, date.Location())
-	endDate := startDate.Add(24 * time.Hour)
-	return GenerateReport(results, PeriodDaily, startDate, endDate)
+// sortAggregatedErrors 按告警级别（严重优先）和告警次数降序排序
+func sortAggregatedErrors(errs []AggregatedError) {
+	sort.SliceStable(errs, func(i, j int) bool {
+		ri, rj := alertLevelRank(errs[i].AlertLevel), alertLevelRank(errs[j].AlertLevel)
+		if ri != rj {
+			return ri > rj
+		}
+		return errs[i].AlertCount > errs[j].AlertCount
+	})
+}
+
+// sortInterfaceStats 按失败次数降序、执行总次数降序排序
+func sortInterfaceStats(stats []InterfaceStat) {
+	sort.SliceStable(stats, func(i, j int) bool {
+		if stats[i].FailedCount != stats[j].FailedCount {
+			return stats[i].FailedCount > stats[j].FailedCount
+		}
+		return stats[i].TotalCount > stats[j].TotalCount
+	})
+}
+
+// alertLevelRank 返回告警级别权重（数值越大越严重）
+func alertLevelRank(level string) int {
+	switch strings.ToUpper(strings.TrimSpace(level)) {
+	case storage.AlertLevelCritical:
+		return 2
+	case storage.AlertLevelWarning:
+		return 1
+	default:
+		return 0
+	}
+}
+
+// alertLevelDisplay 返回告警级别对应的图标和展示文本
+func alertLevelDisplay(level string) (string, string) {
+	switch strings.ToUpper(strings.TrimSpace(level)) {
+	case storage.AlertLevelCritical:
+		return "🚨", "CRITICAL（严重）"
+	case storage.AlertLevelWarning:
+		return "⚠️", "WARNING（警告）"
+	default:
+		return "🔔", level
+	}
 }
 
 // GenerateDailyReportFromStorage 从存储生成每日运维报告
@@ -398,18 +409,6 @@ func GenerateDailyReportFromStorage(date time.Time) *Report {
 	startDate := time.Date(date.Year(), date.Month(), date.Day(), 0, 0, 0, 0, date.Location())
 	endDate := startDate.Add(24 * time.Hour)
 	return GenerateReportFromStorage(PeriodDaily, startDate, endDate)
-}
-
-// GenerateWeeklyReport 生成每周运维报告（周一到周日）
-func GenerateWeeklyReport(results []MonitorResult, date time.Time) *Report {
-	weekday := date.Weekday()
-	daysToMonday := int(weekday - time.Monday)
-	if daysToMonday < 0 {
-		daysToMonday += 7
-	}
-	startDate := time.Date(date.Year(), date.Month(), date.Day(), 0, 0, 0, 0, date.Location()).AddDate(0, 0, -daysToMonday)
-	endDate := startDate.AddDate(0, 0, 7)
-	return GenerateReport(results, PeriodWeekly, startDate, endDate)
 }
 
 // GenerateWeeklyReportFromStorage 从存储生成每周运维报告
@@ -424,25 +423,11 @@ func GenerateWeeklyReportFromStorage(date time.Time) *Report {
 	return GenerateReportFromStorage(PeriodWeekly, startDate, endDate)
 }
 
-// GenerateMonthlyReport 生成每月运维报告
-func GenerateMonthlyReport(results []MonitorResult, date time.Time) *Report {
-	startDate := time.Date(date.Year(), date.Month(), 1, 0, 0, 0, 0, date.Location())
-	endDate := startDate.AddDate(0, 1, 0)
-	return GenerateReport(results, PeriodMonthly, startDate, endDate)
-}
-
 // GenerateMonthlyReportFromStorage 从存储生成每月运维报告
 func GenerateMonthlyReportFromStorage(date time.Time) *Report {
 	startDate := time.Date(date.Year(), date.Month(), 1, 0, 0, 0, 0, date.Location())
 	endDate := startDate.AddDate(0, 1, 0)
 	return GenerateReportFromStorage(PeriodMonthly, startDate, endDate)
-}
-
-// GenerateYearlyReport 生成年度运维报告
-func GenerateYearlyReport(results []MonitorResult, date time.Time) *Report {
-	startDate := time.Date(date.Year(), 1, 1, 0, 0, 0, 0, date.Location())
-	endDate := startDate.AddDate(1, 0, 0)
-	return GenerateReport(results, PeriodYearly, startDate, endDate)
 }
 
 // GenerateYearlyReportFromStorage 从存储生成年度运维报告
@@ -452,7 +437,7 @@ func GenerateYearlyReportFromStorage(date time.Time) *Report {
 	return GenerateReportFromStorage(PeriodYearly, startDate, endDate)
 }
 
-// GenerateReportContent 生成报告内容（文本格式）
+// GenerateReportContent 生成报告内容（文本格式，数据全部来源于 CSV 聚合统计）
 func (r *Report) GenerateReportContent() string {
 	var content strings.Builder
 
@@ -463,54 +448,111 @@ func (r *Report) GenerateReportContent() string {
 		PeriodYearly:  "年度",
 	}
 
-	content.WriteString(fmt.Sprintf("══════════════════════════════════════════════════════════════╗\n"))
+	// 汇总告警数据
+	totalAlerts := 0
+	criticalAlerts := 0
+	warningAlerts := 0
+	for _, e := range r.AggregatedErrors {
+		totalAlerts += e.AlertCount
+		if alertLevelRank(e.AlertLevel) >= 2 {
+			criticalAlerts += e.AlertCount
+		} else {
+			warningAlerts += e.AlertCount
+		}
+	}
+
+	successRate := 0.0
+	if r.TotalTasks > 0 {
+		successRate = float64(r.SuccessTasks) / float64(r.TotalTasks) * 100
+	}
+
+	content.WriteString("══════════════════════════════════════════════════════════════╗\n")
 	content.WriteString(fmt.Sprintf("║              gwatch %s运维报告                              ║\n", periodNames[r.Period]))
-	content.WriteString(fmt.Sprintf("╚══════════════════════════════════════════════════════════════╝\n"))
-	content.WriteString(fmt.Sprintf("\n"))
+	content.WriteString("╚══════════════════════════════════════════════════════════════╝\n")
+	content.WriteString("\n")
 	content.WriteString(fmt.Sprintf("【报告周期】%s ~ %s\n", r.StartDate, r.EndDate))
 	content.WriteString(fmt.Sprintf("【生成时间】%s\n", timeutil.FormatDateTime(r.GeneratedAt)))
 	content.WriteString(fmt.Sprintf("【设备名称】%s\n", getDeviceName()))
-	content.WriteString(fmt.Sprintf("\n"))
-	content.WriteString(fmt.Sprintf("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"))
-	content.WriteString(fmt.Sprintf("【执行统计】\n"))
-	content.WriteString(fmt.Sprintf("  监控任务总数: %d\n", r.TotalTasks))
+	content.WriteString("【数据来源】CSV 持久化存储（按接口聚合统计）\n")
+	content.WriteString("\n")
+
+	// 执行总览
+	content.WriteString("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
+	content.WriteString("【执行总览】\n")
+	content.WriteString(fmt.Sprintf("  监控接口数: %d\n", len(r.InterfaceStats)))
+	content.WriteString(fmt.Sprintf("  执行总次数: %d\n", r.TotalTasks))
 	content.WriteString(fmt.Sprintf("  ✅ 成功: %d\n", r.SuccessTasks))
 	content.WriteString(fmt.Sprintf("  ❌ 失败: %d\n", r.FailedTasks))
+	content.WriteString(fmt.Sprintf("  成功率: %.2f%%\n", successRate))
+	content.WriteString(fmt.Sprintf("  告警接口数: %d\n", len(r.AggregatedErrors)))
+	content.WriteString(fmt.Sprintf("  告警总次数: %d（🚨 严重 %d / ⚠️ 警告 %d）\n", totalAlerts, criticalAlerts, warningAlerts))
 
-	r.generateResourceMetricsContent(&content)
-
+	// 告警汇总（核心内容：哪个接口、什么级别、告警了多少次）
 	if len(r.AggregatedErrors) > 0 {
-		content.WriteString(fmt.Sprintf("\n"))
-		content.WriteString(fmt.Sprintf("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"))
-		content.WriteString(fmt.Sprintf("【告警汇总】（按任务ID聚合）\n"))
-		content.WriteString(fmt.Sprintf("  告警任务数: %d\n", len(r.AggregatedErrors)))
-		content.WriteString(fmt.Sprintf("\n"))
+		content.WriteString("\n")
+		content.WriteString("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
+		content.WriteString("【告警汇总】（按接口聚合，按告警级别排序）\n")
+		content.WriteString("\n")
 
 		for i, aggErr := range r.AggregatedErrors {
-			content.WriteString(fmt.Sprintf("┌──────────────────────────────────────────────────────────────┐\n"))
-			content.WriteString(fmt.Sprintf("│ 告警 #%d\n", i+1))
-			content.WriteString(fmt.Sprintf("├──────────────────────────────────────────────────────────────┤\n"))
-			content.WriteString(fmt.Sprintf("│ 任务ID:         %s\n", aggErr.TaskID))
-			content.WriteString(fmt.Sprintf("│ 任务描述:       %s\n", aggErr.TaskDesc))
-			content.WriteString(fmt.Sprintf("│ 请求方法:       %s\n", aggErr.Method))
-			content.WriteString(fmt.Sprintf("│ 请求URL:        %s\n", aggErr.URL))
-			content.WriteString(fmt.Sprintf("│ 告警次数:       %d\n", aggErr.AlertCount))
-			content.WriteString(fmt.Sprintf("│ 首次告警:       %s\n", timeutil.FormatDateTime(aggErr.FirstOccurrence)))
-			content.WriteString(fmt.Sprintf("│ 最后告警:       %s\n", timeutil.FormatDateTime(aggErr.LastOccurrence)))
-			content.WriteString(fmt.Sprintf("├──────────────────────────────────────────────────────────────┤\n"))
-			content.WriteString(fmt.Sprintf("│ 错误信息:       %s\n", aggErr.ErrorMsg))
-			content.WriteString(fmt.Sprintf("└──────────────────────────────────────────────────────────────┘\n"))
-			content.WriteString(fmt.Sprintf("\n"))
+			levelIcon, levelText := alertLevelDisplay(aggErr.AlertLevel)
+			content.WriteString("┌──────────────────────────────────────────────────────────────┐\n")
+			content.WriteString(fmt.Sprintf("│ 告警 #%d  %s %s\n", i+1, levelIcon, levelText))
+			content.WriteString("├──────────────────────────────────────────────────────────────┤\n")
+			content.WriteString(fmt.Sprintf("│ 接口:     [%s] %s\n", aggErr.Method, aggErr.URL))
+			content.WriteString(fmt.Sprintf("│ 任务:     [%s] %s\n", aggErr.TaskID, aggErr.TaskDesc))
+			content.WriteString(fmt.Sprintf("│ 期望状态: %d\n", aggErr.ExpectedStatus))
+			content.WriteString(fmt.Sprintf("│ 告警次数: %d 次\n", aggErr.AlertCount))
+			content.WriteString(fmt.Sprintf("│ 首次告警: %s\n", timeutil.FormatDateTime(aggErr.FirstOccurrence)))
+			content.WriteString(fmt.Sprintf("│ 最后告警: %s\n", timeutil.FormatDateTime(aggErr.LastOccurrence)))
+			if aggErr.ErrorMsg != "" {
+				content.WriteString(fmt.Sprintf("│ 错误信息: %s\n", aggErr.ErrorMsg))
+			}
+			content.WriteString("└──────────────────────────────────────────────────────────────┘\n")
+			content.WriteString("\n")
 		}
 	} else {
-		content.WriteString(fmt.Sprintf("\n"))
-		content.WriteString(fmt.Sprintf("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"))
-		content.WriteString(fmt.Sprintf("【状态】今日所有接口监控均正常 ✅\n"))
+		content.WriteString("\n")
+		content.WriteString("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
+		content.WriteString("【告警汇总】本周期内无告警，所有接口运行正常 ✅\n")
 	}
 
-	content.WriteString(fmt.Sprintf("\n"))
-	content.WriteString(fmt.Sprintf("══════════════════════════════════════════════════════════════\n"))
-	content.WriteString(fmt.Sprintf("来自 gwatch 接口监控系统\n"))
+	// 接口执行明细（按接口聚合）
+	if len(r.InterfaceStats) > 0 {
+		content.WriteString("\n")
+		content.WriteString("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
+		content.WriteString("【接口执行明细】（按接口聚合，按失败次数排序）\n")
+		content.WriteString("\n")
+
+		for i, stat := range r.InterfaceStats {
+			rate := 0.0
+			if stat.TotalCount > 0 {
+				rate = float64(stat.SuccessCount) / float64(stat.TotalCount) * 100
+			}
+			statusIcon := "✅"
+			if stat.FailedCount > 0 {
+				statusIcon = "❌"
+			}
+			content.WriteString("┌──────────────────────────────────────────────────────────────┐\n")
+			content.WriteString(fmt.Sprintf("│ #%d %s [%s] %s\n", i+1, statusIcon, stat.Method, stat.URL))
+			content.WriteString("├──────────────────────────────────────────────────────────────┤\n")
+			content.WriteString(fmt.Sprintf("│ 任务:     [%s] %s\n", stat.TaskID, stat.TaskDesc))
+			content.WriteString(fmt.Sprintf("│ 执行:     %d 次（成功 %d / 失败 %d，成功率 %.2f%%）\n", stat.TotalCount, stat.SuccessCount, stat.FailedCount, rate))
+			content.WriteString(fmt.Sprintf("│ 耗时:     平均 %dms / 最大 %dms\n", stat.AvgDurationMS, stat.MaxDurationMS))
+			if stat.LastFailureTime != "" {
+				content.WriteString(fmt.Sprintf("│ 最后失败: %s\n", stat.LastFailureTime))
+			}
+			content.WriteString("└──────────────────────────────────────────────────────────────┘\n")
+			content.WriteString("\n")
+		}
+	}
+
+	// 系统资源监控
+	r.generateResourceMetricsContent(&content)
+
+	content.WriteString("\n")
+	content.WriteString("══════════════════════════════════════════════════════════════\n")
+	content.WriteString("来自 gwatch 接口监控系统\n")
 
 	return content.String()
 }
@@ -655,14 +697,6 @@ func generateBar(value float64) string {
 	return strings.Repeat("█", barLen)
 }
 
-// formatBody 格式化响应体显示
-func formatBody(body string) string {
-	if len(body) > 500 {
-		return body[:500] + "..."
-	}
-	return body
-}
-
 // SaveReport 保存报告到文件
 func (r *Report) SaveReport() (string, error) {
 	reportDir := config.GlobalConfig.App.ReportDir
@@ -709,7 +743,15 @@ func (r *Report) SendReportEmail() error {
 		PeriodYearly:  "年度",
 	}
 
+	totalAlerts := 0
+	for _, e := range r.AggregatedErrors {
+		totalAlerts += e.AlertCount
+	}
+
 	subject := fmt.Sprintf("[gwatch] %s运维报告 - %s ~ %s", periodNames[r.Period], r.StartDate, r.EndDate)
+	if totalAlerts > 0 {
+		subject = fmt.Sprintf("[gwatch] %s运维报告 - %s ~ %s（告警 %d 次）", periodNames[r.Period], r.StartDate, r.EndDate, totalAlerts)
+	}
 	body := r.GenerateReportContent()
 
 	logger.Info("Sending report email", zap.String("period", string(r.Period)))
