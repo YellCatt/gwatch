@@ -15,12 +15,12 @@ import (
 )
 
 var (
-	history     []SystemMetric
-	historyMu   sync.RWMutex
-	maxHistory  = 600
-	stopSysMon  chan struct{}
-	running     bool
-	runningMu   sync.Mutex
+	history    []SystemMetric
+	historyMu  sync.RWMutex
+	maxHistory = 600
+	stopSysMon chan struct{}
+	running    bool
+	runningMu  sync.Mutex
 )
 
 func StartSystemMonitor() {
@@ -57,6 +57,8 @@ func StartSystemMonitor() {
 	go cleanupLoop()
 
 	printSystemMonitorInfo(interval)
+
+	sendSystemStartupNotification()
 
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)

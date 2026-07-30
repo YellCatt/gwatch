@@ -15,6 +15,10 @@ import (
 )
 
 func GenerateASCIIChart(data []float64, width int, unit string, thresholds ...float64) string {
+	return GenerateASCIIChartWithTime(data, width, unit, nil, thresholds...)
+}
+
+func GenerateASCIIChartWithTime(data []float64, width int, unit string, timeLabels []string, thresholds ...float64) string {
 	if len(data) == 0 {
 		return "(无数据)"
 	}
@@ -34,12 +38,12 @@ func GenerateASCIIChart(data []float64, width int, unit string, thresholds ...fl
 		maxVal = 1
 	}
 
-	height := 8
-	if height > len(data) {
-		height = len(data)
+	if width <= 0 {
+		width = 20
 	}
 
 	bins := make([]float64, width)
+	binStartIdx := make([]int, width)
 	step := float64(len(data)) / float64(width)
 	for i := 0; i < width; i++ {
 		start := int(float64(i) * step)
@@ -50,6 +54,7 @@ func GenerateASCIIChart(data []float64, width int, unit string, thresholds ...fl
 		if start >= len(data) {
 			break
 		}
+		binStartIdx[i] = start
 		sum := 0.0
 		count := 0
 		for j := start; j < end; j++ {
@@ -61,70 +66,67 @@ func GenerateASCIIChart(data []float64, width int, unit string, thresholds ...fl
 		}
 	}
 
-	var thresholdLine string
-	if len(thresholds) > 0 {
-		th := thresholds[0]
-		thRow := int(float64(height) * th / maxVal)
-		if thRow > height {
-			thRow = height
-		}
-		if thRow > 0 && thRow <= height {
-			thresholdLine = fmt.Sprintf("  -- 阈值 %.0f%s --\n", th, unit)
-		}
-	}
+	barWidth := 20
 
 	var builder strings.Builder
-	builder.WriteString(fmt.Sprintf("  图表 (样本: %d, 宽度: %d)\n", len(data), width))
-	builder.WriteString(thresholdLine)
 
-	for row := height; row >= 0; row-- {
-		thresholdMark := " "
-		thLine := ""
-		if len(thresholds) > 0 {
-			th := thresholds[0]
-			thRow := int(float64(height) * th / maxVal)
-			if row == thRow {
-				thresholdMark = "|"
-				thLine = "--- 阈值线"
-			}
+	builder.WriteString(fmt.Sprintf("  图表 (样本: %d, 时间点: %d)\n", len(data), width))
+
+	var timeRange string
+	if len(timeLabels) >= 2 {
+		timeRange = fmt.Sprintf("  时间范围: %s → %s (过去24小时)\n", timeLabels[0], timeLabels[len(timeLabels)-1])
+	} else {
+		now := time.Now()
+		timeRange = fmt.Sprintf("  时间范围: %s → %s (过去24小时)\n",
+			now.Add(-24*time.Hour).Format("15:04"),
+			now.Format("15:04"))
+	}
+	builder.WriteString(timeRange)
+
+	if len(thresholds) > 0 {
+		builder.WriteString(fmt.Sprintf("  阈值线: %.1f%s\n", thresholds[0], unit))
+	}
+	builder.WriteString("\n")
+
+	for i, v := range bins {
+		percent := v / maxVal
+		if percent > 1.0 {
+			percent = 1.0
+		}
+		if percent < 0 {
+			percent = 0
 		}
 
-		var line strings.Builder
-		label := fmt.Sprintf("%6.1f %s", maxVal*float64(row)/float64(height), unit)
-		if row == 0 {
-			label = fmt.Sprintf("%6.1f %s", 0.0, unit)
+		filled := int(percent * float64(barWidth))
+		empty := barWidth - filled
+
+		barStr := strings.Repeat("█", filled) + strings.Repeat("░", empty)
+
+		var timeLabel string
+		if len(timeLabels) > i && timeLabels[i] != "" {
+			timeLabel = timeLabels[i]
+		} else {
+			now := time.Now()
+			ts := now.Add(-24*time.Hour + time.Duration(binStartIdx[i])*24*time.Hour/time.Duration(len(data)))
+			timeLabel = ts.Format("15:04")
 		}
-		line.WriteString(fmt.Sprintf("%s %s", label, thresholdMark))
-		for _, v := range bins {
-			barHeight := int(float64(height) * v / maxVal)
-			if row == barHeight {
-				if len(thresholds) > 0 && v >= thresholds[0] {
-					line.WriteString("█")
-				} else {
-					line.WriteString("█")
-				}
-			} else if row < barHeight {
-				line.WriteString("█")
-			} else {
-				line.WriteString(" ")
-			}
+
+		thresholdMark := ""
+		if len(thresholds) > 0 && v >= thresholds[0] {
+			thresholdMark = " ⚠️"
 		}
-		line.WriteString(thLine)
-		builder.WriteString(line.String() + "\n")
+
+		var valueStr string
+		if unit == "%" {
+			valueStr = fmt.Sprintf("%6.2f%%", v)
+		} else {
+			valueStr = fmt.Sprintf("%8.2f %s", v, unit)
+		}
+
+		builder.WriteString(fmt.Sprintf("  %s %s %s%s\n", timeLabel, barStr, valueStr, thresholdMark))
 	}
 
-	var axisLine strings.Builder
-	axisLine.WriteString("       +")
-	for i := 0; i < width; i++ {
-		axisLine.WriteString("-")
-	}
-	builder.WriteString(axisLine.String() + "\n")
-
-	now := time.Now()
-	timeLabels := fmt.Sprintf("       %s          %s",
-		now.Add(-time.Duration(len(data)*config.GlobalConfig.SystemMon.Interval)*time.Second).Format("15:04"),
-		now.Format("15:04"))
-	builder.WriteString(timeLabels + "\n")
+	builder.WriteString("\n")
 
 	return builder.String()
 }
@@ -167,7 +169,7 @@ func GenerateSystemReport(metrics []SystemMetric, alerts []AlertItem) string {
 	builder.WriteString(fmt.Sprintf("  磁盘写入速度:   %.2f KB/s\n", latest.DiskWriteKBps))
 	builder.WriteString("\n")
 
-	builder.WriteString("  📈 历史趋势 (ASCII 图表)\n\n")
+	builder.WriteString("  📈 历史趋势 (时间 + 进度 + 百分比)\n\n")
 
 	cpuData := extractField(metrics, func(m SystemMetric) float64 { return m.CPUPercent })
 	memData := extractField(metrics, func(m SystemMetric) float64 { return m.MemoryPercent })
@@ -177,24 +179,26 @@ func GenerateSystemReport(metrics []SystemMetric, alerts []AlertItem) string {
 
 	cfg := config.GlobalConfig.SystemMon
 
+	timeLabels := generateTimeLabels(metrics, 20)
+
 	builder.WriteString("  【CPU 使用率趋势】\n")
-	builder.WriteString(GenerateASCIIChart(cpuData, 40, "%", cfg.CPUThreshold))
+	builder.WriteString(GenerateASCIIChartWithTime(cpuData, 20, "%", timeLabels, cfg.CPUThreshold))
 	builder.WriteString("\n")
 
 	builder.WriteString("  【内存使用率趋势】\n")
-	builder.WriteString(GenerateASCIIChart(memData, 40, "%", cfg.MemoryThreshold))
+	builder.WriteString(GenerateASCIIChartWithTime(memData, 20, "%", timeLabels, cfg.MemoryThreshold))
 	builder.WriteString("\n")
 
 	builder.WriteString("  【磁盘使用率趋势】\n")
-	builder.WriteString(GenerateASCIIChart(diskData, 40, "%", cfg.DiskUsageThreshold))
+	builder.WriteString(GenerateASCIIChartWithTime(diskData, 20, "%", timeLabels, cfg.DiskUsageThreshold))
 	builder.WriteString("\n")
 
 	builder.WriteString("  【网络下行速度趋势】\n")
-	builder.WriteString(GenerateASCIIChart(netDownData, 40, "KB/s"))
+	builder.WriteString(GenerateASCIIChartWithTime(netDownData, 20, "KB/s", timeLabels))
 	builder.WriteString("\n")
 
 	builder.WriteString("  【网络上行速度趋势】\n")
-	builder.WriteString(GenerateASCIIChart(netUpData, 40, "KB/s"))
+	builder.WriteString(GenerateASCIIChartWithTime(netUpData, 20, "KB/s", timeLabels))
 	builder.WriteString("\n")
 
 	if len(alerts) > 0 {
@@ -211,6 +215,27 @@ func GenerateSystemReport(metrics []SystemMetric, alerts []AlertItem) string {
 	builder.WriteString("\n")
 
 	return builder.String()
+}
+
+func generateTimeLabels(metrics []SystemMetric, width int) []string {
+	if len(metrics) == 0 {
+		return nil
+	}
+
+	now := time.Now()
+	startTime := now.Add(-24 * time.Hour)
+
+	labels := make([]string, width)
+	for i := 0; i < width; i++ {
+		offset := time.Duration(float64(i) / float64(width-1) * 24 * float64(time.Hour))
+		if width == 1 {
+			offset = 0
+		}
+		ts := startTime.Add(offset)
+		labels[i] = ts.Format("15:04")
+	}
+
+	return labels
 }
 
 func extractField(metrics []SystemMetric, fn func(SystemMetric) float64) []float64 {

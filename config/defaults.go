@@ -115,7 +115,7 @@ func setSystemMonitorDefaults() {
 	if !hasSysMonConfig {
 		sm.Enabled = true
 		sm.ChartEnabled = true
-		sm.EmailEnabled = false
+		sm.EmailEnabled = true
 	} else {
 		if !viper.IsSet("sys_monitor.enabled") {
 			sm.Enabled = true
@@ -124,7 +124,7 @@ func setSystemMonitorDefaults() {
 			sm.ChartEnabled = true
 		}
 		if !viper.IsSet("sys_monitor.email_enabled") {
-			sm.EmailEnabled = false
+			sm.EmailEnabled = true
 		}
 	}
 

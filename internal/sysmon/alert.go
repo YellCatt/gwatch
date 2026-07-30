@@ -174,6 +174,59 @@ func SendAlertEmail(alerts []AlertItem) error {
 	return email.SendCustomEmail(subject, body.String())
 }
 
+func sendSystemStartupNotification() {
+	if !config.GlobalConfig.SystemMon.EmailEnabled {
+		return
+	}
+
+	if !email.Config.Enabled {
+		logger.Info("Email is disabled globally, skipping system monitor startup notification")
+		return
+	}
+
+	hostname, _ := GetHostInfo()
+
+	subject := "[gwatch] 系统资源监控服务已启动"
+	body := fmt.Sprintf(`
+gwatch 系统资源监控服务启动通知
+
+
+【设备名称】%s
+【启动时间】%s
+【采集间隔】%d 秒
+
+【监控阈值】
+  CPU:        %.0f%%
+  内存:       %.0f%%
+  磁盘:       %.0f%%
+  网络下行:   %.0f KB/s
+  网络上行:   %.0f KB/s
+
+【功能状态】
+  图表生成:   %v
+  邮件告警:   %v
+  数据保留:   %d 小时
+
+【状态】系统资源监控服务已成功启动，开始采集系统指标。
+
+来自 gwatch 系统监控`, hostname,
+		timeutil.FormatDateTime(timeutil.Now()),
+		config.GlobalConfig.SystemMon.Interval,
+		config.GlobalConfig.SystemMon.CPUThreshold,
+		config.GlobalConfig.SystemMon.MemoryThreshold,
+		config.GlobalConfig.SystemMon.DiskUsageThreshold,
+		config.GlobalConfig.SystemMon.NetworkDownThreshold,
+		config.GlobalConfig.SystemMon.NetworkUpThreshold,
+		config.GlobalConfig.SystemMon.ChartEnabled,
+		config.GlobalConfig.SystemMon.EmailEnabled,
+		config.GlobalConfig.SystemMon.RetentionHours)
+
+	logger.Info("Sending system monitor startup notification email")
+	if err := email.SendCustomEmail(subject, body); err != nil {
+		logger.Warn("Failed to send system monitor startup notification email", zap.Error(err))
+	}
+}
+
 func SendSystemStatusEmail(metrics []SystemMetric) error {
 	if !config.GlobalConfig.SystemMon.EmailEnabled {
 		return nil
