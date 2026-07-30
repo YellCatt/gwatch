@@ -5,6 +5,8 @@ import (
 	"strings"
 	"time"
 
+	"gwatch/config"
+	"gwatch/internal/sysmon"
 	"gwatch/internal/timeutil"
 )
 
@@ -89,6 +91,10 @@ gwatch %s运维报告
 	} else {
 		builder.WriteString("  ✅ 无告警\n")
 	}
+
+	builder.WriteString("\n\n")
+
+	builder.WriteString(r.generateSystemResourceSection())
 
 	builder.WriteString("\n\n")
 	builder.WriteString("来自 gwatch 接口监控系统\n")
@@ -239,6 +245,87 @@ func (r *Report) GenerateFullContent() string {
 	}
 
 	return builder.String()
+}
+
+func (r *Report) generateSystemResourceSection() string {
+	var builder strings.Builder
+
+	builder.WriteString("🖥️ 本机资源监控\n\n")
+
+	if len(r.SystemMetrics) == 0 {
+		builder.WriteString("  （无系统资源监控数据）\n")
+		return builder.String()
+	}
+
+	latest := r.SystemMetrics[len(r.SystemMetrics)-1]
+
+	builder.WriteString(fmt.Sprintf("  CPU 使用率:     %.2f %s\n", latest.CPUPercent, "%"))
+	builder.WriteString(fmt.Sprintf("  内存使用率:     %.2f %s (%.1f GB / %.1f GB)\n",
+		latest.MemoryPercent, "%",
+		float64(latest.MemoryUsed)/1024/1024/1024,
+		float64(latest.MemoryTotal)/1024/1024/1024))
+	builder.WriteString(fmt.Sprintf("  磁盘使用率:     %.2f %s (%.1f GB / %.1f GB)\n",
+		latest.DiskPercent, "%",
+		float64(latest.DiskUsed)/1024/1024/1024,
+		float64(latest.DiskTotal)/1024/1024/1024))
+	builder.WriteString(fmt.Sprintf("  网络下行速度:   %.2f KB/s\n", latest.NetDownKBps))
+	builder.WriteString(fmt.Sprintf("  网络上行速度:   %.2f KB/s\n", latest.NetUpKBps))
+	builder.WriteString(fmt.Sprintf("  磁盘读取速度:   %.2f KB/s\n", latest.DiskReadKBps))
+	builder.WriteString(fmt.Sprintf("  磁盘写入速度:   %.2f KB/s\n", latest.DiskWriteKBps))
+	builder.WriteString("\n")
+
+	cpuData := extractSystemField(r.SystemMetrics, func(m sysmon.SystemMetric) float64 { return m.CPUPercent })
+	memData := extractSystemField(r.SystemMetrics, func(m sysmon.SystemMetric) float64 { return m.MemoryPercent })
+	diskData := extractSystemField(r.SystemMetrics, func(m sysmon.SystemMetric) float64 { return m.DiskPercent })
+	netDownData := extractSystemField(r.SystemMetrics, func(m sysmon.SystemMetric) float64 { return m.NetDownKBps })
+	netUpData := extractSystemField(r.SystemMetrics, func(m sysmon.SystemMetric) float64 { return m.NetUpKBps })
+
+	cfg := config.GlobalConfig.SystemMon
+
+	builder.WriteString("  📈 历史趋势 (ASCII 图表)\n\n")
+
+	builder.WriteString("  【CPU 使用率趋势】\n")
+	builder.WriteString(sysmon.GenerateASCIIChart(cpuData, 40, "%", cfg.CPUThreshold))
+	builder.WriteString("\n")
+
+	builder.WriteString("  【内存使用率趋势】\n")
+	builder.WriteString(sysmon.GenerateASCIIChart(memData, 40, "%", cfg.MemoryThreshold))
+	builder.WriteString("\n")
+
+	builder.WriteString("  【磁盘使用率趋势】\n")
+	builder.WriteString(sysmon.GenerateASCIIChart(diskData, 40, "%", cfg.DiskUsageThreshold))
+	builder.WriteString("\n")
+
+	builder.WriteString("  【网络下行速度趋势】\n")
+	builder.WriteString(sysmon.GenerateASCIIChart(netDownData, 40, "KB/s"))
+	builder.WriteString("\n")
+
+	builder.WriteString("  【网络上行速度趋势】\n")
+	builder.WriteString(sysmon.GenerateASCIIChart(netUpData, 40, "KB/s"))
+	builder.WriteString("\n")
+
+	if len(r.SystemAlerts) > 0 {
+		builder.WriteString("  🚨 当前系统告警\n\n")
+		for _, a := range r.SystemAlerts {
+			icon := "⚠️"
+			if a.Level == "CRITICAL" {
+				icon = "🚨"
+			}
+			builder.WriteString(fmt.Sprintf("  %s [%s] %s: %.2f %s (阈值: %.2f %s)\n",
+				icon, a.Level, a.Metric, a.Value, a.Unit, a.Threshold, a.Unit))
+		}
+		builder.WriteString("\n")
+	}
+
+	return builder.String()
+}
+
+func extractSystemField(metrics []sysmon.SystemMetric, fn func(sysmon.SystemMetric) float64) []float64 {
+	result := make([]float64, len(metrics))
+	for i, m := range metrics {
+		result[i] = fn(m)
+	}
+	return result
 }
 
 func formatDuration(durationMs int64) string {

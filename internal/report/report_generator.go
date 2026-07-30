@@ -14,6 +14,7 @@ import (
 	"gwatch/internal/email"
 	"gwatch/internal/logger"
 	"gwatch/internal/storage"
+	"gwatch/internal/sysmon"
 	"gwatch/internal/timeutil"
 )
 
@@ -82,6 +83,10 @@ func GenerateReportFromStorage(period ReportPeriod, startDate, endDate time.Time
 
 	if config.GlobalConfig.Scraper.Enabled && len(config.GlobalConfig.Scraper.Targets) > 0 {
 		loadResourceMetricsByPeriod(report, period, startDate, endDate)
+	}
+
+	if config.GlobalConfig.SystemMon.Enabled {
+		loadSystemMetricsByPeriod(report, startDate, endDate)
 	}
 
 	return report
@@ -253,6 +258,23 @@ func loadMonthlyResourceMetrics(startDate, endDate time.Time) []MonthlyResourceM
 	}
 
 	return results
+}
+
+func loadSystemMetricsByPeriod(report *Report, startDate, endDate time.Time) {
+	metrics, err := sysmon.LoadMetricsByPeriod(startDate, endDate)
+	if err != nil {
+		logger.Error("Failed to load system metrics for report", zap.Error(err))
+		return
+	}
+
+	if len(metrics) == 0 {
+		return
+	}
+
+	report.SystemMetrics = metrics
+
+	latest := metrics[len(metrics)-1]
+	report.SystemAlerts = sysmon.CheckAlerts(latest)
 }
 
 func sortAggregatedErrors(errs []AggregatedError) {

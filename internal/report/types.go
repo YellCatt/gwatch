@@ -1,6 +1,10 @@
 package report
 
-import "time"
+import (
+	"time"
+
+	"gwatch/internal/sysmon"
+)
 
 type ReportPeriod string
 
@@ -23,6 +27,8 @@ type Report struct {
 	HourlyMetrics    []HourlyResourceMetric
 	DailyMetrics     []DailyResourceMetric
 	MonthlyMetrics   []MonthlyResourceMetric
+	SystemMetrics    []sysmon.SystemMetric
+	SystemAlerts     []sysmon.AlertItem
 	GeneratedAt      time.Time
 }
 

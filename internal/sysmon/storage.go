@@ -101,12 +101,20 @@ func RecordMetric(metric SystemMetric) error {
 }
 
 func LoadRecentMetrics(hours int) ([]SystemMetric, error) {
-	storageMu.Lock()
-	defer storageMu.Unlock()
-
 	if hours <= 0 {
 		hours = 24
 	}
+	cutoff := time.Now().Add(-time.Duration(hours) * time.Hour)
+	return loadMetricsByRange(cutoff, time.Now())
+}
+
+func LoadMetricsByPeriod(startDate, endDate time.Time) ([]SystemMetric, error) {
+	return loadMetricsByRange(startDate, endDate)
+}
+
+func loadMetricsByRange(startDate, endDate time.Time) ([]SystemMetric, error) {
+	storageMu.Lock()
+	defer storageMu.Unlock()
 
 	file, err := os.Open(storagePath)
 	if err != nil {
@@ -130,7 +138,6 @@ func LoadRecentMetrics(hours int) ([]SystemMetric, error) {
 		colIndex[strings.TrimSpace(h)] = i
 	}
 
-	cutoff := time.Now().Add(-time.Duration(hours) * time.Hour)
 	var results []SystemMetric
 
 	for _, rec := range all[1:] {
@@ -139,7 +146,7 @@ func LoadRecentMetrics(hours int) ([]SystemMetric, error) {
 		if err != nil {
 			continue
 		}
-		if ts.Before(cutoff) {
+		if ts.Before(startDate) || ts.After(endDate) {
 			continue
 		}
 
