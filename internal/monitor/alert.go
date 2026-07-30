@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"go.uber.org/zap"
@@ -11,6 +12,7 @@ import (
 	"gwatch/config"
 	"gwatch/internal/email"
 	"gwatch/internal/logger"
+	"gwatch/internal/sysmon"
 	"gwatch/internal/timeutil"
 )
 
@@ -167,6 +169,12 @@ func sendStartupNotification(taskCount int) {
 	}
 
 	subject := "[gwatch] 监控服务已启动"
+
+	var sysSection string
+	if config.GlobalConfig.SystemMon.Enabled {
+		sysSection = buildStartupSystemSection()
+	}
+
 	body := fmt.Sprintf(`
 gwatch 接口监控服务启动通知
 
@@ -176,12 +184,74 @@ gwatch 接口监控服务启动通知
 【监控任务数】%d
 
 【状态】监控服务已成功启动，开始执行监控任务。
-
-来自 gwatch 接口监控系统`, hostname, timeutil.FormatDateTime(timeutil.Now()), taskCount)
+%s
+来自 gwatch 接口监控系统`, hostname, timeutil.FormatDateTime(timeutil.Now()), taskCount, sysSection)
 
 	logger.Info("Sending startup notification email")
 	err := email.SendCustomEmail(subject, body)
 	if err != nil {
 		logger.Error("Failed to send startup notification email", zap.Error(err))
 	}
+}
+
+func buildStartupSystemSection() string {
+	var builder strings.Builder
+
+	metric, err := sysmon.CollectMetrics()
+	if err != nil {
+		return fmt.Sprintf("\n🖥️ 系统资源状态\n  获取系统指标失败: %v\n", err)
+	}
+
+	builder.WriteString("\n🖥️ 系统资源状态\n\n")
+
+	builder.WriteString(fmt.Sprintf("  CPU 使用率:     %.2f %s\n", metric.CPUPercent, "%"))
+	builder.WriteString(fmt.Sprintf("  内存使用率:     %.2f %s (%.1f GB / %.1f GB)\n",
+		metric.MemoryPercent, "%",
+		float64(metric.MemoryUsed)/1024/1024/1024,
+		float64(metric.MemoryTotal)/1024/1024/1024))
+	builder.WriteString(fmt.Sprintf("  磁盘使用率:     %.2f %s (%.1f GB / %.1f GB)\n",
+		metric.DiskPercent, "%",
+		float64(metric.DiskUsed)/1024/1024/1024,
+		float64(metric.DiskTotal)/1024/1024/1024))
+	builder.WriteString(fmt.Sprintf("  网络下行速度:   %.2f KB/s\n", metric.NetDownKBps))
+	builder.WriteString(fmt.Sprintf("  网络上行速度:   %.2f KB/s\n", metric.NetUpKBps))
+	builder.WriteString(fmt.Sprintf("  磁盘读取速度:   %.2f KB/s\n", metric.DiskReadKBps))
+	builder.WriteString(fmt.Sprintf("  磁盘写入速度:   %.2f KB/s\n", metric.DiskWriteKBps))
+
+	cfg := config.GlobalConfig.SystemMon
+	alerts := sysmon.CheckAlerts(metric)
+	if len(alerts) > 0 {
+		builder.WriteString("\n  ⚠️ 当前系统告警:\n")
+		for _, a := range alerts {
+			icon := "⚠️"
+			if a.Level == "CRITICAL" {
+				icon = "🚨"
+			}
+			builder.WriteString(fmt.Sprintf("  %s [%s] %s: %.2f %s (阈值: %.2f %s)\n",
+				icon, a.Level, a.Metric, a.Value, a.Unit, a.Threshold, a.Unit))
+		}
+	}
+
+	metrics, loadErr := sysmon.LoadRecentMetrics(1)
+	if loadErr == nil && len(metrics) > 1 {
+		cpuData := make([]float64, len(metrics))
+		memData := make([]float64, len(metrics))
+		diskData := make([]float64, len(metrics))
+		for i, m := range metrics {
+			cpuData[i] = m.CPUPercent
+			memData[i] = m.MemoryPercent
+			diskData[i] = m.DiskPercent
+		}
+
+		builder.WriteString("\n  📈 历史趋势 (近1小时)\n\n")
+		builder.WriteString("  【CPU 使用率】\n")
+		builder.WriteString(sysmon.GenerateASCIIChart(cpuData, 30, "%", cfg.CPUThreshold))
+		builder.WriteString("\n  【内存使用率】\n")
+		builder.WriteString(sysmon.GenerateASCIIChart(memData, 30, "%", cfg.MemoryThreshold))
+		builder.WriteString("\n  【磁盘使用率】\n")
+		builder.WriteString(sysmon.GenerateASCIIChart(diskData, 30, "%", cfg.DiskUsageThreshold))
+		builder.WriteString("\n")
+	}
+
+	return builder.String()
 }
