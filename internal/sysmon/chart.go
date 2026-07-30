@@ -155,18 +155,18 @@ func GenerateSystemReport(metrics []SystemMetric, alerts []AlertItem) string {
 
 	builder.WriteString("  📊 当前状态概览\n\n")
 	builder.WriteString(fmt.Sprintf("  CPU 使用率:     %.2f %s\n", latest.CPUPercent, "%"))
-	builder.WriteString(fmt.Sprintf("  内存使用率:     %.2f %s (%.1f GB / %.1f GB)\n",
+	builder.WriteString(fmt.Sprintf("  内存使用率:     %.2f %s (%s / %s)\n",
 		latest.MemoryPercent, "%",
-		float64(latest.MemoryUsed)/1024/1024/1024,
-		float64(latest.MemoryTotal)/1024/1024/1024))
-	builder.WriteString(fmt.Sprintf("  磁盘使用率:     %.2f %s (%.1f GB / %.1f GB)\n",
+		formatBytes(latest.MemoryUsed),
+		formatBytes(latest.MemoryTotal)))
+	builder.WriteString(fmt.Sprintf("  磁盘使用率:     %.2f %s (%s / %s)\n",
 		latest.DiskPercent, "%",
-		float64(latest.DiskUsed)/1024/1024/1024,
-		float64(latest.DiskTotal)/1024/1024/1024))
-	builder.WriteString(fmt.Sprintf("  网络下行速度:   %.2f KB/s\n", latest.NetDownKBps))
-	builder.WriteString(fmt.Sprintf("  网络上行速度:   %.2f KB/s\n", latest.NetUpKBps))
-	builder.WriteString(fmt.Sprintf("  磁盘读取速度:   %.2f KB/s\n", latest.DiskReadKBps))
-	builder.WriteString(fmt.Sprintf("  磁盘写入速度:   %.2f KB/s\n", latest.DiskWriteKBps))
+		formatBytes(latest.DiskUsed),
+		formatBytes(latest.DiskTotal)))
+	builder.WriteString(fmt.Sprintf("  网络下行速度:   %s\n", formatSpeed(latest.NetDownKBps)))
+	builder.WriteString(fmt.Sprintf("  网络上行速度:   %s\n", formatSpeed(latest.NetUpKBps)))
+	builder.WriteString(fmt.Sprintf("  磁盘读取速度:   %s\n", formatSpeed(latest.DiskReadKBps)))
+	builder.WriteString(fmt.Sprintf("  磁盘写入速度:   %s\n", formatSpeed(latest.DiskWriteKBps)))
 	builder.WriteString("\n")
 
 	builder.WriteString("  📈 历史趋势 (时间 + 进度 + 百分比)\n\n")
@@ -204,8 +204,13 @@ func GenerateSystemReport(metrics []SystemMetric, alerts []AlertItem) string {
 	if len(alerts) > 0 {
 		builder.WriteString("  🚨 当前告警\n\n")
 		for _, a := range alerts {
-			builder.WriteString(fmt.Sprintf("  [%s] %s: %.2f %s (阈值: %.2f %s)\n",
-				a.Level, a.Metric, a.Value, a.Unit, a.Threshold, a.Unit))
+			if a.Unit == "KB/s" {
+				builder.WriteString(fmt.Sprintf("  [%s] %s: %s (阈值: %s)\n",
+					a.Level, a.Metric, formatSpeed(a.Value), formatSpeed(a.Threshold)))
+			} else {
+				builder.WriteString(fmt.Sprintf("  [%s] %s: %.2f %s (阈值: %.2f %s)\n",
+					a.Level, a.Metric, a.Value, a.Unit, a.Threshold, a.Unit))
+			}
 		}
 		builder.WriteString("\n")
 	}
@@ -236,6 +241,21 @@ func generateTimeLabels(metrics []SystemMetric, width int) []string {
 	}
 
 	return labels
+}
+
+func formatBytes(bytes uint64) string {
+	mb := float64(bytes) / 1024 / 1024
+	if mb >= 1024 {
+		return fmt.Sprintf("%.2f GB", mb/1024)
+	}
+	return fmt.Sprintf("%.1f MB", mb)
+}
+
+func formatSpeed(kbps float64) string {
+	if kbps >= 1024 {
+		return fmt.Sprintf("%.2f MB/s", kbps/1024)
+	}
+	return fmt.Sprintf("%.2f KB/s", kbps)
 }
 
 func extractField(metrics []SystemMetric, fn func(SystemMetric) float64) []float64 {

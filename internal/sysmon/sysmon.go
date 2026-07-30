@@ -225,6 +225,8 @@ func printSystemMonitorInfo(interval time.Duration) {
 	fmt.Printf("║ CPU阈值:    %-43s ║\n", fmt.Sprintf("%.0f%%", config.GlobalConfig.SystemMon.CPUThreshold))
 	fmt.Printf("║ 内存阈值:   %-43s ║\n", fmt.Sprintf("%.0f%%", config.GlobalConfig.SystemMon.MemoryThreshold))
 	fmt.Printf("║ 磁盘阈值:   %-43s ║\n", fmt.Sprintf("%.0f%%", config.GlobalConfig.SystemMon.DiskUsageThreshold))
+	fmt.Printf("║ 网络下行阈值: %-43s ║\n", formatSpeed(config.GlobalConfig.SystemMon.NetworkDownThreshold))
+	fmt.Printf("║ 网络上行阈值: %-43s ║\n", formatSpeed(config.GlobalConfig.SystemMon.NetworkUpThreshold))
 	fmt.Printf("║ 图表生成:   %-43v ║\n", config.GlobalConfig.SystemMon.ChartEnabled)
 	fmt.Printf("║ 邮件告警:   %-43v ║\n", config.GlobalConfig.SystemMon.EmailEnabled)
 	fmt.Printf("╚══════════════════════════════════════════════════════════╝\n\n")

@@ -13,8 +13,6 @@ func setCleanerDefaults() {
 		GlobalConfig.Cleaner.Enabled = true
 		GlobalConfig.Cleaner.RetentionDays = 30
 		GlobalConfig.Cleaner.LogDir = "./logs"
-		GlobalConfig.Cleaner.ReportDir = "./reports"
-		GlobalConfig.Cleaner.DataDir = "./sql"
 		GlobalConfig.Cleaner.IncludePatterns = []string{"*.log", "*.json", "*.csv", "*.txt"}
 		GlobalConfig.Cleaner.IntervalHours = 24
 		return
@@ -25,12 +23,6 @@ func setCleanerDefaults() {
 	}
 	if GlobalConfig.Cleaner.LogDir == "" {
 		GlobalConfig.Cleaner.LogDir = "./logs"
-	}
-	if GlobalConfig.Cleaner.ReportDir == "" {
-		GlobalConfig.Cleaner.ReportDir = "./reports"
-	}
-	if GlobalConfig.Cleaner.DataDir == "" {
-		GlobalConfig.Cleaner.DataDir = "./sql"
 	}
 	if len(GlobalConfig.Cleaner.IncludePatterns) == 0 {
 		GlobalConfig.Cleaner.IncludePatterns = []string{"*.log", "*.json", "*.csv", "*.txt"}
@@ -144,10 +136,10 @@ func setSystemMonitorDefaults() {
 		sm.DiskUsageThreshold = 90
 	}
 	if sm.NetworkDownThreshold <= 0 {
-		sm.NetworkDownThreshold = 1.0
+		sm.NetworkDownThreshold = 10240
 	}
 	if sm.NetworkUpThreshold <= 0 {
-		sm.NetworkUpThreshold = 1.0
+		sm.NetworkUpThreshold = 5120
 	}
 	if sm.AlertCooldown <= 0 {
 		sm.AlertCooldown = 300

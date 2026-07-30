@@ -1,144 +1,174 @@
+# gwatch 开发环境配置文件 - 用于本地开发调试，包含所有可用配置项
+
 target:
-  base_url: "https://localhost:8080"
-  timeout: 30
+  base_url: "https://localhost:8080"       # 基础URL，用于测试用例中的相对URL拼接
+  timeout: 30                               # 请求超时时间（秒）
+  authorization: ""                         # 全局 Authorization 请求头（可选）
+  user_id: ""                               # 用户ID标识（可选）
 
 log:
-  level: "info"
-  encoding: "json"
-  output: "./logs/gwatch.log"
+  level: "info"                             # 日志级别: debug, info, warn, error
+  encoding: "json"                          # 日志编码: json, console
+  output: "./logs/gwatch.log"               # 日志输出路径
 
 app:
-  report_dir: "./reports"
-  case_dir: "./cases"
-  data_dir: "./sql"
-  severe_status:
-    - 500
-  global_pre: []
-  global_post: []
-  host_name: ""
+  report_dir: "./reports"                   # 报告输出目录
+  case_dir: "./cases"                       # 测试用例目录
+  data_dir: "./sql"                         # 数据存储目录（CSV/SQLite）
+  severe_status: [500]                      # 严重状态码列表，触发时会发送告警
+  global_pre: []                            # 全局前置条件：执行所有测试用例前先执行这些用例
+  global_post: []                           # 全局后置条件：执行所有测试用例后执行这些用例
+  host_name: ""                             # 自定义主机名（为空则使用系统主机名）
 
 http:
-  insecure_skip_verify: false
+  insecure_skip_verify: false               # 是否跳过HTTPS证书验证
 
-vars: {}
+vars: {}                                    # 全局变量，可在测试用例中通过 {{key}} 引用
 
 monitor:
-  enabled: true
-  default_interval: 60
-  alert_on_failure: true
-  alert_on_slow: true
-  max_workers: 1
-  alert_interval: 21600  # 同一接口异常后再次发送邮件的最小间隔（秒），默认 6 小时
-  daily_report: true     # 是否启用每日报告
-  report_time: "07:00"   # 每日报告生成时间（HH:MM）
+  enabled: true                             # 是否启用监控模式
+  default_interval: 60                      # 默认监控间隔（秒）
+  alert_on_failure: true                    # 接口失败时是否发送告警邮件
+  alert_on_slow: true                       # 响应用超时时是否发送告警邮件
+  max_workers: 1                           # 最大并发执行任务数
+  alert_interval: 21600                     # 同一接口异常后再次发送邮件的最小间隔（秒），默认6小时
+  daily_report: true                        # 是否启用每日报告
+  weekly_report: false                      # 是否启用每周报告
+  monthly_report: false                     # 是否启用每月报告
+  yearly_report: false                      # 是否启用每年报告
+  report_time: "07:00"                      # 报告生成时间（HH:MM格式）
 
 scraper:
-  enabled: true
-  targets:
-    - name: "同事主机监控"
-      url: "http://192.168.1.100/api/status"
-      method: GET
-      timeout: 5s
-      interval: 10
-      enabled: true
-      insecure_skip_verify: false
-      headers:
+  enabled: true                             # 是否启用数据采集器
+  targets:                                  # 采集目标列表
+    - name: "同事主机监控"                   # 目标名称
+      url: "http://192.168.1.100/api/status" # 采集接口URL
+      method: GET                           # HTTP方法: GET, POST, PUT等
+      timeout: 5s                           # 请求超时时间
+      interval: 10                          # 采集间隔（秒）
+      enabled: true                         # 是否启用此目标
+      insecure_skip_verify: false           # 跳过HTTPS证书验证
+      headers:                              # 自定义请求头
         Authorization: "Bearer {{token}}"
-      metrics:
-        - name: cpu_usage
-          path: "$.info.cpu.use_percent"
-          alias: "CPU使用率"
-          unit: "%"
-          compare_op: "gt"           # 比较操作符：gt(大于), lt(小于), eq(等于), ge(大于等于), le(小于等于)
-          warning_threshold: 70      # 警告阈值：超过70%警告
-          threshold: 85              # 严重阈值：超过85%告警
-          alert: true                # 启用告警
-          # 自动处理百分比：接口返回0.45会自动转为45%，返回45保持45%
+      body: ""                              # 请求体（POST/PUT时使用）
+      proxy: ""                             # 代理地址（如 http://proxy:8080）
+      metrics:                              # 采集指标列表
+        - name: cpu_usage                   # 指标名称
+          path: "$.info.cpu.use_percent"    # JSONPath路径
+          alias: "CPU使用率"                # 指标别名（用于报告显示）
+          unit: "%"                         # 单位
+          scale: 1                          # 缩放倍数（采集值乘以此值）
+          auto_percent: false               # 自动百分比：0.45→45%，45→45%
+          compare_op: "gt"                  # 比较操作符: gt(大于), lt(小于), eq(等于), ge(大于等于), le(小于等于)
+          threshold: 85                     # 告警阈值
+          warning_threshold: 70             # 警告阈值（低于告警级别）
+          alert: true                       # 是否启用此指标的告警
+          alert_level: "CRITICAL"           # 告警级别: CRITICAL, WARNING
+          consecutive: 1                    # 连续触发次数才告警
+          optional: false                   # 可选指标：接口不返回时不报错
         - name: mem_used
           path: "$.info.memory.used"
           alias: "已用内存"
           unit: "MB"
+          scale: 1
+          optional: false
         - name: mem_total
           path: "$.info.memory.total"
           alias: "总内存"
           unit: "MB"
+          scale: 1
+          optional: false
         - name: mem_usage
           path: "$.info.memory.use_percent"
           alias: "内存使用率"
           unit: "%"
+          scale: 1
+          auto_percent: false
           compare_op: "gt"
-          warning_threshold: 75
           threshold: 90
+          warning_threshold: 75
           alert: true
+          alert_level: "CRITICAL"
+          consecutive: 1
+          optional: false
         - name: disk_usage
           path: "$.info.disk.root.usage"
           alias: "磁盘使用率"
           unit: "%"
+          scale: 1
+          auto_percent: false
           compare_op: "gt"
-          warning_threshold: 80      # 80%警告
-          threshold: 90              # 90%告警
+          threshold: 90
+          warning_threshold: 80
           alert: true
-        # 可选指标：某些接口可能不返回这些字段，不会报错
+          alert_level: "WARNING"
+          consecutive: 1
+          optional: false
         - name: gpu_usage
           path: "$.info.gpu.use_percent"
           alias: "GPU使用率"
           unit: "%"
-          optional: true
+          scale: 1
+          auto_percent: false
           compare_op: "gt"
-          warning_threshold: 80
           threshold: 95
+          warning_threshold: 80
           alert: true
+          alert_level: "CRITICAL"
+          consecutive: 1
+          optional: true
         - name: network_down
           path: "$.info.network.down_speed"
           alias: "网络下行速度"
           unit: "Mbps"
-          optional: true
-          compare_op: "lt"        # 网速过低告警（小于阈值）
-          threshold: 10           # 低于10Mbps告警
+          scale: 1
+          compare_op: "lt"
+          threshold: 10
           alert: true
+          alert_level: "WARNING"
+          consecutive: 1
+          optional: true
         - name: network_up
           path: "$.info.network.up_speed"
           alias: "网络上行速度"
           unit: "Mbps"
-          optional: true
-          compare_op: "lt"        # 网速过低告警（小于阈值）
-          threshold: 5            # 低于5Mbps告警
+          scale: 1
+          compare_op: "lt"
+          threshold: 5
           alert: true
-
-    
+          alert_level: "WARNING"
+          consecutive: 1
+          optional: true
 
 email:
-  enabled: true
-  from: "768305875@qq.com"
-  to: "768305875@qq.com"
-  auth_code: "gpfruabgjebubdad"
-  smtp_server: "smtp.qq.com"
-  smtp_port: 465
-
+  enabled: true                             # 是否启用邮件通知
+  from: "768305875@qq.com"                  # 发件人地址
+  to:                                       # 收件人列表
+    - "768305875@qq.com"
+  auth_code: "gpfruabgjebubdad"             # SMTP授权码
+  smtp_server: "smtp.qq.com"                # SMTP服务器地址
+  smtp_port: 465                            # SMTP端口
+  error_subject: "[gwatch] 监控系统错误告警" # 错误告警邮件主题
 
 cleaner:
-  enabled: true
-  retention_days: 30
-  log_dir: "./logs"
-  report_dir: "./reports"
-  data_dir: "./sql"
-  include_patterns:
-    - "*.log"
-    - "*.json"
-    - "*.csv"
-    - "*.txt"
-  exclude_patterns: []
-  interval_hours: 24
+  enabled: true                             # 是否启用自动清理
+  retention_days: 30                        # 数据保留天数
+  log_dir: "./logs"                         # 日志目录
+  report_dir: ""                             # 报告目录（留空则不清理）
+  data_dir: ""                              # 数据目录（留空则不清理）
+  include_patterns: ["*.log", "*.json", "*.csv", "*.txt"] # 包含的文件模式
+  exclude_patterns: []                      # 排除的文件模式
+  interval_hours: 24                        # 清理执行间隔（小时）
 
 sys_monitor:
-  enabled: true
-  interval: 10
-  chart_enabled: true
-  email_enabled: true
-  retention_hours: 168
-  cpu_threshold: 85
-  memory_threshold: 90
-  disk_usage_threshold: 90
-  network_down_threshold: 1.0
-  network_up_threshold: 1.0
-  alert_cooldown: 300
+  enabled: true                             # 是否启用系统资源监控
+  interval: 10                              # 采集间隔（秒）
+  chart_enabled: true                       # 是否生成ASCII图表
+  email_enabled: true                       # 是否启用邮件告警
+  retention_hours: 168                       # 数据保留时长（小时）
+  cpu_threshold: 85                         # CPU使用率告警阈值（%）
+  memory_threshold: 90                       # 内存使用率告警阈值（%）
+  disk_usage_threshold: 90                  # 磁盘使用率告警阈值（%）
+  network_down_threshold: 10240              # 网络下行速度告警阈值（KB/s）
+  network_up_threshold: 5120                # 网络上行速度告警阈值（KB/s）
+  alert_cooldown: 300                       # 告警冷却时间（秒），同一指标在此时间内不重复告警

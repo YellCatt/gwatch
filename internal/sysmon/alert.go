@@ -65,7 +65,7 @@ func CheckAlerts(metric SystemMetric) []AlertItem {
 			Value:     metric.NetDownKBps,
 			Threshold: cfg.NetworkDownThreshold,
 			Unit:      "KB/s",
-			Message:   fmt.Sprintf("网络下行速度 %.2f KB/s 低于阈值 %.2f KB/s", metric.NetDownKBps, cfg.NetworkDownThreshold),
+			Message:   fmt.Sprintf("网络下行速度 %s 低于阈值 %s", formatSpeed(metric.NetDownKBps), formatSpeed(cfg.NetworkDownThreshold)),
 			Level:     "WARNING",
 			Timestamp: metric.Timestamp,
 		})
@@ -77,7 +77,7 @@ func CheckAlerts(metric SystemMetric) []AlertItem {
 			Value:     metric.NetUpKBps,
 			Threshold: cfg.NetworkUpThreshold,
 			Unit:      "KB/s",
-			Message:   fmt.Sprintf("网络上行速度 %.2f KB/s 低于阈值 %.2f KB/s", metric.NetUpKBps, cfg.NetworkUpThreshold),
+			Message:   fmt.Sprintf("网络上行速度 %s 低于阈值 %s", formatSpeed(metric.NetUpKBps), formatSpeed(cfg.NetworkUpThreshold)),
 			Level:     "WARNING",
 			Timestamp: metric.Timestamp,
 		})
@@ -162,8 +162,13 @@ func SendAlertEmail(alerts []AlertItem) error {
 			icon = "🚨"
 		}
 		body.WriteString(fmt.Sprintf("%s [%s] %s\n", icon, a.Level, a.Metric))
-		body.WriteString(fmt.Sprintf("   当前值:  %.2f %s\n", a.Value, a.Unit))
-		body.WriteString(fmt.Sprintf("   阈值:    %.2f %s\n", a.Threshold, a.Unit))
+		if a.Unit == "KB/s" {
+			body.WriteString(fmt.Sprintf("   当前值:  %s\n", formatSpeed(a.Value)))
+			body.WriteString(fmt.Sprintf("   阈值:    %s\n", formatSpeed(a.Threshold)))
+		} else {
+			body.WriteString(fmt.Sprintf("   当前值:  %.2f %s\n", a.Value, a.Unit))
+			body.WriteString(fmt.Sprintf("   阈值:    %.2f %s\n", a.Threshold, a.Unit))
+		}
 		body.WriteString(fmt.Sprintf("   消息:    %s\n\n", a.Message))
 	}
 
@@ -199,8 +204,8 @@ gwatch 系统资源监控服务启动通知
   CPU:        %.0f%%
   内存:       %.0f%%
   磁盘:       %.0f%%
-  网络下行:   %.0f KB/s
-  网络上行:   %.0f KB/s
+  网络下行:   %s
+  网络上行:   %s
 
 【功能状态】
   图表生成:   %v
@@ -215,8 +220,8 @@ gwatch 系统资源监控服务启动通知
 		config.GlobalConfig.SystemMon.CPUThreshold,
 		config.GlobalConfig.SystemMon.MemoryThreshold,
 		config.GlobalConfig.SystemMon.DiskUsageThreshold,
-		config.GlobalConfig.SystemMon.NetworkDownThreshold,
-		config.GlobalConfig.SystemMon.NetworkUpThreshold,
+		formatSpeed(config.GlobalConfig.SystemMon.NetworkDownThreshold),
+		formatSpeed(config.GlobalConfig.SystemMon.NetworkUpThreshold),
 		config.GlobalConfig.SystemMon.ChartEnabled,
 		config.GlobalConfig.SystemMon.EmailEnabled,
 		config.GlobalConfig.SystemMon.RetentionHours)
