@@ -153,14 +153,12 @@ func GenerateSystemReport(metrics []SystemMetric, alerts []AlertItem) string {
 
 	builder.WriteString("  📊 当前状态概览\n\n")
 	builder.WriteString(fmt.Sprintf("  CPU 使用率:     %.2f %s\n", latest.CPUPercent, "%"))
-	builder.WriteString(fmt.Sprintf("  内存使用率:     %.2f %s (%.1f GB / %.1f GB)\n",
+	builder.WriteString(fmt.Sprintf("  内存使用率:     %.2f %s (%s)\n",
 		latest.MemoryPercent, "%",
-		float64(latest.MemoryUsed)/1024/1024/1024,
-		float64(latest.MemoryTotal)/1024/1024/1024))
-	builder.WriteString(fmt.Sprintf("  磁盘使用率:     %.2f %s (%.1f GB / %.1f GB)\n",
+		FormatBytes(latest.MemoryUsed, latest.MemoryTotal)))
+	builder.WriteString(fmt.Sprintf("  磁盘使用率:     %.2f %s (%s)\n",
 		latest.DiskPercent, "%",
-		float64(latest.DiskUsed)/1024/1024/1024,
-		float64(latest.DiskTotal)/1024/1024/1024))
+		FormatBytes(latest.DiskUsed, latest.DiskTotal)))
 	builder.WriteString(fmt.Sprintf("  网络下行速度:   %.2f KB/s\n", latest.NetDownKBps))
 	builder.WriteString(fmt.Sprintf("  网络上行速度:   %.2f KB/s\n", latest.NetUpKBps))
 	builder.WriteString(fmt.Sprintf("  磁盘读取速度:   %.2f KB/s\n", latest.DiskReadKBps))
@@ -245,4 +243,14 @@ func SaveSystemReport(metrics []SystemMetric, alerts []AlertItem) (string, error
 
 	logger.Info("System report saved", zap.String("file", filePath))
 	return filePath, nil
+}
+
+func FormatBytes(used, total uint64) string {
+	const gb = 1024 * 1024 * 1024
+	const mb = 1024 * 1024
+
+	if total >= gb {
+		return fmt.Sprintf("%.1f GB / %.1f GB", float64(used)/float64(gb), float64(total)/float64(gb))
+	}
+	return fmt.Sprintf("%.1f MB / %.1f MB", float64(used)/float64(mb), float64(total)/float64(mb))
 }

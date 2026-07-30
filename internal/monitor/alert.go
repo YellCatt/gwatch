@@ -205,14 +205,12 @@ func buildStartupSystemSection() string {
 	builder.WriteString("\n🖥️ 系统资源状态\n\n")
 
 	builder.WriteString(fmt.Sprintf("  CPU 使用率:     %.2f %s\n", metric.CPUPercent, "%"))
-	builder.WriteString(fmt.Sprintf("  内存使用率:     %.2f %s (%.1f GB / %.1f GB)\n",
+	builder.WriteString(fmt.Sprintf("  内存使用率:     %.2f %s (%s)\n",
 		metric.MemoryPercent, "%",
-		float64(metric.MemoryUsed)/1024/1024/1024,
-		float64(metric.MemoryTotal)/1024/1024/1024))
-	builder.WriteString(fmt.Sprintf("  磁盘使用率:     %.2f %s (%.1f GB / %.1f GB)\n",
+		sysmon.FormatBytes(metric.MemoryUsed, metric.MemoryTotal)))
+	builder.WriteString(fmt.Sprintf("  磁盘使用率:     %.2f %s (%s)\n",
 		metric.DiskPercent, "%",
-		float64(metric.DiskUsed)/1024/1024/1024,
-		float64(metric.DiskTotal)/1024/1024/1024))
+		sysmon.FormatBytes(metric.DiskUsed, metric.DiskTotal)))
 	builder.WriteString(fmt.Sprintf("  网络下行速度:   %.2f KB/s\n", metric.NetDownKBps))
 	builder.WriteString(fmt.Sprintf("  网络上行速度:   %.2f KB/s\n", metric.NetUpKBps))
 	builder.WriteString(fmt.Sprintf("  磁盘读取速度:   %.2f KB/s\n", metric.DiskReadKBps))

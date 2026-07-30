@@ -260,14 +260,12 @@ func (r *Report) generateSystemResourceSection() string {
 	latest := r.SystemMetrics[len(r.SystemMetrics)-1]
 
 	builder.WriteString(fmt.Sprintf("  CPU 使用率:     %.2f %s\n", latest.CPUPercent, "%"))
-	builder.WriteString(fmt.Sprintf("  内存使用率:     %.2f %s (%.1f GB / %.1f GB)\n",
+	builder.WriteString(fmt.Sprintf("  内存使用率:     %.2f %s (%s)\n",
 		latest.MemoryPercent, "%",
-		float64(latest.MemoryUsed)/1024/1024/1024,
-		float64(latest.MemoryTotal)/1024/1024/1024))
-	builder.WriteString(fmt.Sprintf("  磁盘使用率:     %.2f %s (%.1f GB / %.1f GB)\n",
+		sysmon.FormatBytes(latest.MemoryUsed, latest.MemoryTotal)))
+	builder.WriteString(fmt.Sprintf("  磁盘使用率:     %.2f %s (%s)\n",
 		latest.DiskPercent, "%",
-		float64(latest.DiskUsed)/1024/1024/1024,
-		float64(latest.DiskTotal)/1024/1024/1024))
+		sysmon.FormatBytes(latest.DiskUsed, latest.DiskTotal)))
 	builder.WriteString(fmt.Sprintf("  网络下行速度:   %.2f KB/s\n", latest.NetDownKBps))
 	builder.WriteString(fmt.Sprintf("  网络上行速度:   %.2f KB/s\n", latest.NetUpKBps))
 	builder.WriteString(fmt.Sprintf("  磁盘读取速度:   %.2f KB/s\n", latest.DiskReadKBps))
