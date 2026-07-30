@@ -169,6 +169,6 @@ sys_monitor:
   cpu_threshold: 85                         # CPU使用率告警阈值（%）
   memory_threshold: 90                       # 内存使用率告警阈值（%）
   disk_usage_threshold: 90                  # 磁盘使用率告警阈值（%）
-  network_down_threshold: 10240              # 网络下行速度告警阈值（KB/s）
-  network_up_threshold: 5120                # 网络上行速度告警阈值（KB/s）
-  alert_cooldown: 300                       # 告警冷却时间（秒），同一指标在此时间内不重复告警
+  network_down_threshold: 3072               # 网络下行速度告警阈值（KB/s）
+  network_up_threshold: 1024                 # 网络上行速度告警阈值（KB/s）
+  alert_cooldown: 7200                     # 告警冷却时间（秒），同一指标在此时间内不重复告警

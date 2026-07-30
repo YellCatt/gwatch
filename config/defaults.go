@@ -136,13 +136,13 @@ func setSystemMonitorDefaults() {
 		sm.DiskUsageThreshold = 90
 	}
 	if sm.NetworkDownThreshold <= 0 {
-		sm.NetworkDownThreshold = 10240
+		sm.NetworkDownThreshold = 3072
 	}
 	if sm.NetworkUpThreshold <= 0 {
-		sm.NetworkUpThreshold = 5120
+		sm.NetworkUpThreshold = 1024
 	}
 	if sm.AlertCooldown <= 0 {
-		sm.AlertCooldown = 300
+		sm.AlertCooldown = 7200
 	}
 
 	GlobalConfig.SystemMon = sm
