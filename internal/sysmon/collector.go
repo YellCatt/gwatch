@@ -64,8 +64,12 @@ func calcNetworkSpeed() netSpeedResult {
 	var downDiff, upDiff uint64
 	for i := range io1 {
 		if i < len(io2) {
-			downDiff += io2[i].BytesRecv - io1[i].BytesRecv
-			upDiff += io2[i].BytesSent - io1[i].BytesSent
+			if io2[i].BytesRecv >= io1[i].BytesRecv {
+				downDiff += io2[i].BytesRecv - io1[i].BytesRecv
+			}
+			if io2[i].BytesSent >= io1[i].BytesSent {
+				upDiff += io2[i].BytesSent - io1[i].BytesSent
+			}
 		}
 	}
 
@@ -94,8 +98,12 @@ func calcDiskSpeed() diskSpeedResult {
 	var readDiff, writeDiff uint64
 	for name, v1 := range io1 {
 		if v2, ok := io2[name]; ok {
-			readDiff += v2.ReadBytes - v1.ReadBytes
-			writeDiff += v2.WriteBytes - v1.WriteBytes
+			if v2.ReadBytes >= v1.ReadBytes {
+				readDiff += v2.ReadBytes - v1.ReadBytes
+			}
+			if v2.WriteBytes >= v1.WriteBytes {
+				writeDiff += v2.WriteBytes - v1.WriteBytes
+			}
 		}
 	}
 

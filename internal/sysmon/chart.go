@@ -78,8 +78,8 @@ func GenerateASCIIChartWithTime(data []float64, width int, unit string, timeLabe
 	} else {
 		now := time.Now()
 		timeRange = fmt.Sprintf("  时间范围: %s → %s (过去24小时)\n",
-			now.Add(-24*time.Hour).Format("15:04"),
-			now.Format("15:04"))
+			formatHourLabel(now.Add(-24*time.Hour)),
+			formatHourLabel(now))
 	}
 	builder.WriteString(timeRange)
 
@@ -108,7 +108,7 @@ func GenerateASCIIChartWithTime(data []float64, width int, unit string, timeLabe
 		} else {
 			now := time.Now()
 			ts := now.Add(-24*time.Hour + time.Duration(binStartIdx[i])*24*time.Hour/time.Duration(len(data)))
-			timeLabel = ts.Format("15:04")
+			timeLabel = formatHourLabel(ts)
 		}
 
 		thresholdMark := ""
@@ -237,10 +237,14 @@ func generateTimeLabels(metrics []SystemMetric, width int) []string {
 			offset = 0
 		}
 		ts := startTime.Add(offset)
-		labels[i] = ts.Format("15:04")
+		labels[i] = formatHourLabel(ts)
 	}
 
 	return labels
+}
+
+func formatHourLabel(t time.Time) string {
+	return fmt.Sprintf("%02d:00", t.Hour())
 }
 
 func formatBytes(bytes uint64) string {

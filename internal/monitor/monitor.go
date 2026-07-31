@@ -85,8 +85,6 @@ func StartMonitor(testCases []psv.TestCase) {
 		startTask(tc)
 	}
 
-	go sendStartupNotification(len(monitorCases))
-
 	if config.GlobalConfig.Monitor.DailyReport ||
 		config.GlobalConfig.Monitor.WeeklyReport ||
 		config.GlobalConfig.Monitor.MonthlyReport ||
