@@ -21,6 +21,8 @@ var (
 	stopSysMon chan struct{}
 	running    bool
 	runningMu  sync.Mutex
+	hourlyAgg  hourlyAggregator
+	hourlyMu   sync.Mutex
 )
 
 func StartSystemMonitor() {
@@ -54,7 +56,6 @@ func StartSystemMonitor() {
 
 	go collectLoop(interval)
 	go dailyReportLoop()
-	go cleanupLoop()
 
 	printSystemMonitorInfo(interval)
 
@@ -89,6 +90,7 @@ func collectLoop(interval time.Duration) {
 	for {
 		select {
 		case <-stopSysMon:
+			flushHourlyAgg()
 			return
 		case <-ticker.C:
 			metric, err := CollectMetrics()
@@ -99,8 +101,27 @@ func collectLoop(interval time.Duration) {
 
 			addHistory(metric)
 
-			if err := RecordMetric(metric); err != nil {
-				logger.Warn("Failed to record system metric", zap.Error(err))
+			currentHour := metric.Timestamp.Truncate(time.Hour)
+			hourlyMu.Lock()
+			if !hourlyAgg.hour.IsZero() && !hourlyAgg.hour.Equal(currentHour) {
+				avg := hourlyAgg.toSystemMetric()
+				sampleCount := hourlyAgg.cpuCount
+				hourlyAgg.reset(currentHour)
+				hourlyAgg.add(metric)
+				hourlyMu.Unlock()
+
+				if err := RecordHourlyMetric(avg, sampleCount); err != nil {
+					logger.Warn("Failed to record hourly metric", zap.Error(err))
+				}
+				logger.Info("Hourly metric flushed",
+					zap.Time("hour", avg.Timestamp),
+					zap.Int("samples", sampleCount))
+			} else {
+				if hourlyAgg.hour.IsZero() {
+					hourlyAgg.reset(currentHour)
+				}
+				hourlyAgg.add(metric)
+				hourlyMu.Unlock()
 			}
 
 			alerts := CheckAlerts(metric)
@@ -118,6 +139,26 @@ func collectLoop(interval time.Duration) {
 			}
 		}
 	}
+}
+
+func flushHourlyAgg() {
+	hourlyMu.Lock()
+	defer hourlyMu.Unlock()
+
+	if hourlyAgg.hour.IsZero() || hourlyAgg.cpuCount == 0 {
+		return
+	}
+
+	avg := hourlyAgg.toSystemMetric()
+	sampleCount := hourlyAgg.cpuCount
+	if err := RecordHourlyMetric(avg, sampleCount); err != nil {
+		logger.Warn("Failed to flush hourly metric on shutdown", zap.Error(err))
+	} else {
+		logger.Info("Hourly metric flushed on shutdown",
+			zap.Time("hour", avg.Timestamp),
+			zap.Int("samples", sampleCount))
+	}
+	hourlyAgg.reset(time.Time{})
 }
 
 func dailyReportLoop() {
@@ -141,27 +182,6 @@ func dailyReportLoop() {
 					logger.Warn("Failed to generate system report", zap.Error(err))
 				}
 				nextReport = nextReport.Add(24 * time.Hour)
-			}
-		}
-	}
-}
-
-func cleanupLoop() {
-	interval := time.Duration(config.GlobalConfig.SystemMon.RetentionHours) * time.Hour
-	if interval <= 0 {
-		interval = 24 * time.Hour
-	}
-
-	ticker := time.NewTicker(interval)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-stopSysMon:
-			return
-		case <-ticker.C:
-			if err := CleanupOldRecords(); err != nil {
-				logger.Warn("Failed to cleanup old system metrics", zap.Error(err))
 			}
 		}
 	}
