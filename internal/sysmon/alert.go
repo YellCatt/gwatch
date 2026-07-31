@@ -179,26 +179,24 @@ func SendAlertEmail(alerts []AlertItem) error {
 	return email.SendCustomEmail(subject, body.String())
 }
 
-func sendSystemStartupNotification() {
+func SendSystemStatusEmail(metrics []SystemMetric) error {
 	if !config.GlobalConfig.SystemMon.EmailEnabled {
-		return
+		return nil
 	}
-
 	if !email.Config.Enabled {
-		logger.Info("Email is disabled globally, skipping system monitor startup notification")
-		return
+		logger.Info("Email is disabled globally, skipping system monitor email")
+		return nil
 	}
 
 	hostname, _ := GetHostInfo()
-
-	subject := "[gwatch] 系统资源监控服务已启动"
+	now := timeutil.FormatDateTime(timeutil.Now())
 
 	var bodyBuilder strings.Builder
 
-	bodyBuilder.WriteString(fmt.Sprintf(`gwatch 系统资源监控服务启动通知
+	bodyBuilder.WriteString(fmt.Sprintf(`gwatch 系统资源监控服务通知
 
 【设备名称】%s
-【启动时间】%s
+【通知时间】%s
 【采集间隔】%d 秒
 
 【监控阈值】
@@ -214,7 +212,7 @@ func sendSystemStartupNotification() {
   数据保留:   %d 小时
 
 `, hostname,
-		timeutil.FormatDateTime(timeutil.Now()),
+		now,
 		config.GlobalConfig.SystemMon.Interval,
 		config.GlobalConfig.SystemMon.CPUThreshold,
 		config.GlobalConfig.SystemMon.MemoryThreshold,
@@ -225,55 +223,40 @@ func sendSystemStartupNotification() {
 		config.GlobalConfig.SystemMon.EmailEnabled,
 		config.GlobalConfig.SystemMon.RetentionHours))
 
-	metrics, err := LoadRecentMetrics(24)
-	if err != nil {
-		logger.Warn("Failed to load recent metrics for startup notification", zap.Error(err))
-		bodyBuilder.WriteString("【历史数据】暂无历史数据（服务首次启动）\n")
-	} else if len(metrics) > 0 {
-		latest := metrics[len(metrics)-1]
+	var reportMetrics []SystemMetric
+	if len(metrics) > 0 {
+		reportMetrics = metrics
+	} else {
+		recent, err := LoadRecentMetrics(24)
+		if err != nil {
+			logger.Warn("Failed to load recent metrics for system email", zap.Error(err))
+		} else {
+			reportMetrics = recent
+		}
+	}
+
+	if len(reportMetrics) > 0 {
+		latest := reportMetrics[len(reportMetrics)-1]
 		alerts := CheckAlerts(latest)
-		report := GenerateSystemReport(metrics, alerts)
-		bodyBuilder.WriteString("【过去24小时资源趋势图表】\n\n")
+		report := GenerateSystemReport(reportMetrics, alerts)
+		bodyBuilder.WriteString("【系统状态报告】\n\n")
 		bodyBuilder.WriteString(report)
+		bodyBuilder.WriteString(fmt.Sprintf("\n设备: %s\n", hostname))
 	} else {
 		bodyBuilder.WriteString("【历史数据】暂无历史数据（服务首次启动，待采集积累数据后下次启动将显示趋势图表）\n")
 	}
 
-	bodyBuilder.WriteString("\n【状态】系统资源监控服务已成功启动，开始采集系统指标。\n\n来自 gwatch 系统监控")
+	bodyBuilder.WriteString("\n来自 gwatch 系统监控")
 
-	logger.Info("Sending system monitor startup notification email")
-	if err := email.SendCustomEmail(subject, bodyBuilder.String()); err != nil {
-		logger.Warn("Failed to send system monitor startup notification email", zap.Error(err))
-	}
-}
-
-func SendSystemStatusEmail(metrics []SystemMetric) error {
-	if !config.GlobalConfig.SystemMon.EmailEnabled {
-		return nil
-	}
-	if !email.Config.Enabled {
-		return nil
+	var subject string
+	if len(metrics) > 0 {
+		latest := metrics[len(metrics)-1]
+		subject = fmt.Sprintf("【系统状态报告】%s - CPU:%.1f%% MEM:%.1f%% DISK:%.1f%%",
+			now, latest.CPUPercent, latest.MemoryPercent, latest.DiskPercent)
+	} else {
+		subject = "[gwatch] 系统资源监控服务已启动"
 	}
 
-	if len(metrics) == 0 {
-		return nil
-	}
-
-	latest := metrics[len(metrics)-1]
-	alerts := CheckAlerts(latest)
-
-	report := GenerateSystemReport(metrics, alerts)
-
-	hostname, _ := GetHostInfo()
-
-	subject := fmt.Sprintf("【系统状态报告】%s - CPU:%.1f%% MEM:%.1f%% DISK:%.1f%%",
-		timeutil.FormatDateTime(timeutil.Now()),
-		latest.CPUPercent, latest.MemoryPercent, latest.DiskPercent)
-
-	var body strings.Builder
-	body.WriteString(report)
-	body.WriteString(fmt.Sprintf("\n设备: %s\n", hostname))
-
-	logger.Info("Sending system status email")
-	return email.SendCustomEmail(subject, body.String())
+	logger.Info("Sending system status email", zap.String("subject", subject))
+	return email.SendCustomEmail(subject, bodyBuilder.String())
 }

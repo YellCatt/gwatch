@@ -58,7 +58,7 @@ func StartSystemMonitor() {
 
 	printSystemMonitorInfo(interval)
 
-	sendSystemStartupNotification()
+	SendSystemStatusEmail(nil)
 
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
