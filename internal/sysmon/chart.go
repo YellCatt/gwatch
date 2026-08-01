@@ -194,11 +194,11 @@ func GenerateSystemReport(metrics []SystemMetric, alerts []AlertItem) string {
 	builder.WriteString("\n")
 
 	builder.WriteString("  【网络下行速度趋势】\n")
-	builder.WriteString(GenerateASCIIChartWithTime(netDownData, 20, "KB/s", timeLabels))
+	builder.WriteString(GenerateASCIIChartWithTime(netDownData, 20, "KB/s", timeLabels, cfg.NetworkDownThreshold))
 	builder.WriteString("\n")
 
 	builder.WriteString("  【网络上行速度趋势】\n")
-	builder.WriteString(GenerateASCIIChartWithTime(netUpData, 20, "KB/s", timeLabels))
+	builder.WriteString(GenerateASCIIChartWithTime(netUpData, 20, "KB/s", timeLabels, cfg.NetworkUpThreshold))
 	builder.WriteString("\n")
 
 	if len(alerts) > 0 {
