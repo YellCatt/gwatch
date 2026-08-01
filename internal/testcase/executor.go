@@ -149,6 +149,7 @@ func ExecuteTestCase(tc psv.TestCase) TestResult {
 		zap.String("JSON", tc.JSON))
 
 	processedURL := vars.Replace(tc.URL)
+	result.ProcessedURL = processedURL
 	processedHeaders := make(map[string]string)
 	for k, v := range tc.Headers {
 		processedHeaders[k] = vars.Replace(v)

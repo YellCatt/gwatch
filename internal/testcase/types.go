@@ -19,6 +19,7 @@ type TestResult struct {
 	RequestHeaders string
 	RequestBody    string
 	ExtractedVars  string
+	ProcessedURL   string
 }
 
 var (

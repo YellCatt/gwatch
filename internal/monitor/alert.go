@@ -111,7 +111,7 @@ func sendAlertEmail(result MonitorResult) {
 		map[bool]string{true: "✅ 通过", false: "❌ 失败"}[result.Result.Passed],
 		float64(result.Result.Duration.Milliseconds()),
 		result.Result.ActualStatus,
-		tc.URL,
+		result.Result.ProcessedURL,
 		tc.Method,
 		timeutil.FormatDateTime(result.Result.StartTime),
 		timeutil.FormatDateTime(result.Result.EndTime),
