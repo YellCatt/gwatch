@@ -209,7 +209,6 @@ func SendSystemStatusEmail(metrics []SystemMetric) error {
 【功能状态】
   图表生成:   %v
   邮件告警:   %v
-  数据保留:   %d 小时
 
 `, hostname,
 		now,
@@ -220,8 +219,7 @@ func SendSystemStatusEmail(metrics []SystemMetric) error {
 		formatSpeed(config.GlobalConfig.SystemMon.NetworkDownThreshold),
 		formatSpeed(config.GlobalConfig.SystemMon.NetworkUpThreshold),
 		config.GlobalConfig.SystemMon.ChartEnabled,
-		config.GlobalConfig.SystemMon.EmailEnabled,
-		config.GlobalConfig.SystemMon.RetentionHours))
+		config.GlobalConfig.SystemMon.EmailEnabled))
 
 	var reportMetrics []SystemMetric
 	if len(metrics) > 0 {

@@ -54,6 +54,8 @@ func StartSystemMonitor() {
 
 	history = make([]SystemMetric, 0, maxHistory)
 
+	backfillAggregatedMetrics()
+
 	go collectLoop(interval)
 	go dailyReportLoop()
 
@@ -106,6 +108,7 @@ func collectLoop(interval time.Duration) {
 			if !hourlyAgg.hour.IsZero() && !hourlyAgg.hour.Equal(currentHour) {
 				avg := hourlyAgg.toSystemMetric()
 				sampleCount := hourlyAgg.cpuCount
+				prevHour := hourlyAgg.hour
 				hourlyAgg.reset(currentHour)
 				hourlyAgg.add(metric)
 				hourlyMu.Unlock()
@@ -116,6 +119,8 @@ func collectLoop(interval time.Duration) {
 				logger.Info("Hourly metric flushed",
 					zap.Time("hour", avg.Timestamp),
 					zap.Int("samples", sampleCount))
+
+				aggregateUpperTiers(prevHour, currentHour)
 			} else {
 				if hourlyAgg.hour.IsZero() {
 					hourlyAgg.reset(currentHour)
@@ -138,6 +143,168 @@ func collectLoop(interval time.Duration) {
 				}
 			}
 		}
+	}
+}
+
+func aggregateUpperTiers(prevHour, currentHour time.Time) {
+	prevDay := prevHour.Truncate(24 * time.Hour)
+	currDay := currentHour.Truncate(24 * time.Hour)
+
+	if !prevDay.Equal(currDay) {
+		aggregateDay(prevDay)
+	}
+
+	prevMonth := time.Date(prevHour.Year(), prevHour.Month(), 1, 0, 0, 0, 0, prevHour.Location())
+	currMonth := time.Date(currentHour.Year(), currentHour.Month(), 1, 0, 0, 0, 0, currentHour.Location())
+
+	if !prevMonth.Equal(currMonth) {
+		aggregateMonth(prevMonth)
+	}
+
+	prevYear := time.Date(prevHour.Year(), 1, 1, 0, 0, 0, 0, prevHour.Location())
+	currYear := time.Date(currentHour.Year(), 1, 1, 0, 0, 0, 0, currentHour.Location())
+
+	if !prevYear.Equal(currYear) {
+		aggregateYear(prevYear)
+	}
+}
+
+func aggregateDay(day time.Time) {
+	dayStart := day
+	dayEnd := day.Add(24 * time.Hour)
+	metrics, err := loadMetrics(hourlyPath(), dayStart)
+	if err != nil {
+		logger.Warn("Failed to load hourly metrics for daily aggregation", zap.Error(err))
+		return
+	}
+
+	var dayMetrics []SystemMetric
+	for _, m := range metrics {
+		if m.Timestamp.Before(dayEnd) {
+			dayMetrics = append(dayMetrics, m)
+		}
+	}
+
+	if len(dayMetrics) == 0 {
+		return
+	}
+
+	if err := aggregateAndRecord(dailyPath(), dayMetrics); err != nil {
+		logger.Warn("Failed to record daily metric", zap.Error(err))
+	} else {
+		logger.Info("Daily metric aggregated",
+			zap.Time("day", day),
+			zap.Int("hourly_records", len(dayMetrics)))
+	}
+}
+
+func aggregateMonth(month time.Time) {
+	monthStart := month
+	monthEnd := month.AddDate(0, 1, 0)
+	metrics, err := loadMetrics(dailyPath(), monthStart)
+	if err != nil {
+		logger.Warn("Failed to load daily metrics for monthly aggregation", zap.Error(err))
+		return
+	}
+
+	var monthMetrics []SystemMetric
+	for _, m := range metrics {
+		if m.Timestamp.Before(monthEnd) {
+			monthMetrics = append(monthMetrics, m)
+		}
+	}
+
+	if len(monthMetrics) == 0 {
+		return
+	}
+
+	if err := aggregateAndRecord(monthlyPath(), monthMetrics); err != nil {
+		logger.Warn("Failed to record monthly metric", zap.Error(err))
+	} else {
+		logger.Info("Monthly metric aggregated",
+			zap.Time("month", month),
+			zap.Int("daily_records", len(monthMetrics)))
+	}
+}
+
+func aggregateYear(year time.Time) {
+	yearStart := year
+	yearEnd := year.AddDate(1, 0, 0)
+	metrics, err := loadMetrics(monthlyPath(), yearStart)
+	if err != nil {
+		logger.Warn("Failed to load monthly metrics for yearly aggregation", zap.Error(err))
+		return
+	}
+
+	var yearMetrics []SystemMetric
+	for _, m := range metrics {
+		if m.Timestamp.Before(yearEnd) {
+			yearMetrics = append(yearMetrics, m)
+		}
+	}
+
+	if len(yearMetrics) == 0 {
+		return
+	}
+
+	if err := aggregateAndRecord(yearlyPath(), yearMetrics); err != nil {
+		logger.Warn("Failed to record yearly metric", zap.Error(err))
+	} else {
+		logger.Info("Yearly metric aggregated",
+			zap.Time("year", year),
+			zap.Int("monthly_records", len(yearMetrics)))
+	}
+}
+
+func backfillAggregatedMetrics() {
+	now := time.Now()
+
+	backfillDays(now)
+	backfillMonths(now)
+	backfillYears(now)
+}
+
+func backfillDays(now time.Time) {
+	dailyMetrics, err := loadMetrics(dailyPath(), time.Time{})
+	if err != nil || len(dailyMetrics) == 0 {
+		return
+	}
+
+	lastDaily := dailyMetrics[len(dailyMetrics)-1].Timestamp.Truncate(24 * time.Hour)
+	today := now.Truncate(24 * time.Hour)
+
+	for d := lastDaily.Add(24 * time.Hour); d.Before(today); d = d.Add(24 * time.Hour) {
+		aggregateDay(d)
+	}
+}
+
+func backfillMonths(now time.Time) {
+	monthlyMetrics, err := loadMetrics(monthlyPath(), time.Time{})
+	if err != nil || len(monthlyMetrics) == 0 {
+		return
+	}
+
+	lastMonthly := monthlyMetrics[len(monthlyMetrics)-1].Timestamp
+	lastMonth := time.Date(lastMonthly.Year(), lastMonthly.Month(), 1, 0, 0, 0, 0, lastMonthly.Location())
+	thisMonth := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location())
+
+	for m := lastMonth.AddDate(0, 1, 0); m.Before(thisMonth); m = m.AddDate(0, 1, 0) {
+		aggregateMonth(m)
+	}
+}
+
+func backfillYears(now time.Time) {
+	yearlyMetrics, err := loadMetrics(yearlyPath(), time.Time{})
+	if err != nil || len(yearlyMetrics) == 0 {
+		return
+	}
+
+	lastYearly := yearlyMetrics[len(yearlyMetrics)-1].Timestamp
+	lastYear := time.Date(lastYearly.Year(), 1, 1, 0, 0, 0, 0, lastYearly.Location())
+	thisYear := time.Date(now.Year(), 1, 1, 0, 0, 0, 0, now.Location())
+
+	for y := lastYear.AddDate(1, 0, 0); y.Before(thisYear); y = y.AddDate(1, 0, 0) {
+		aggregateYear(y)
 	}
 }
 

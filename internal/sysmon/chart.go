@@ -135,9 +135,7 @@ func GenerateSystemReport(metrics []SystemMetric, alerts []AlertItem) string {
 	var builder strings.Builder
 
 	builder.WriteString(`
-╔══════════════════════════════════════════════════════════╗
-║           系统资源监控报告                              ║
-╚══════════════════════════════════════════════════════════╝
+系统资源监控报告
 `)
 
 	hostname, platform := GetHostInfo()

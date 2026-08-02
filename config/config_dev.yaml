@@ -165,7 +165,6 @@ sys_monitor:
   interval: 10                              # 采集间隔（秒）
   chart_enabled: true                       # 是否生成ASCII图表
   email_enabled: true                       # 是否启用邮件告警
-  retention_hours: 168                       # 数据保留时长（小时）
   cpu_threshold: 85                         # CPU使用率告警阈值（%）
   memory_threshold: 90                       # 内存使用率告警阈值（%）
   disk_usage_threshold: 90                  # 磁盘使用率告警阈值（%）

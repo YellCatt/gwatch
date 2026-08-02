@@ -123,9 +123,6 @@ func setSystemMonitorDefaults() {
 	if sm.Interval <= 0 {
 		sm.Interval = 10
 	}
-	if sm.RetentionHours <= 0 {
-		sm.RetentionHours = 168
-	}
 	if sm.CPUThreshold <= 0 {
 		sm.CPUThreshold = 85
 	}

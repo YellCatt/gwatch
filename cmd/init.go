@@ -133,7 +133,6 @@ sys_monitor:
   interval: 10
   chart_enabled: true
   email_enabled: true
-  retention_hours: 168
   cpu_threshold: 85
   memory_threshold: 90
   disk_usage_threshold: 90

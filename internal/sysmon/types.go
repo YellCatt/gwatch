@@ -18,13 +18,13 @@ type SystemMetric struct {
 }
 
 type AlertItem struct {
-	Metric     string
-	Value      float64
-	Threshold  float64
-	Unit       string
-	Message    string
-	Level      string
-	Timestamp  time.Time
+	Metric    string
+	Value     float64
+	Threshold float64
+	Unit      string
+	Message   string
+	Level     string
+	Timestamp time.Time
 }
 
 type ChartData struct {
@@ -46,20 +46,20 @@ type MetricRecord struct {
 }
 
 type hourlyAggregator struct {
-	hour          time.Time
-	cpuSum        float64
-	cpuCount      int
-	memSum        float64
-	memCount      int
-	diskSum       float64
-	diskCount     int
-	netDownSum    float64
-	netDownCount  int
-	netUpSum      float64
-	netUpCount    int
-	diskReadSum   float64
-	diskReadCount int
-	diskWriteSum  float64
+	hour           time.Time
+	cpuSum         float64
+	cpuCount       int
+	memSum         float64
+	memCount       int
+	diskSum        float64
+	diskCount      int
+	netDownSum     float64
+	netDownCount   int
+	netUpSum       float64
+	netUpCount     int
+	diskReadSum    float64
+	diskReadCount  int
+	diskWriteSum   float64
 	diskWriteCount int
 }
 
