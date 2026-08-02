@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"go.uber.org/zap"
@@ -67,6 +68,12 @@ func sendAlertEmail(result MonitorResult) {
 	}
 
 	subject := fmt.Sprintf("[%s] gwatch 接口监控告警 - %s", alertLevel, tc.ID)
+
+	requestParams := formatMap(tc.Params)
+	requestHeaders := result.Result.RequestHeaders
+	requestBody := truncateStr(result.Result.RequestBody, 2000)
+	responseBody := truncateStr(result.Result.ResponseBody, 2000)
+
 	body := fmt.Sprintf(`%s ===== 接口监控告警 ===== %s
 
 【告警级别】%s
@@ -92,7 +99,12 @@ func sendAlertEmail(result MonitorResult) {
 【请求信息】
   URL:        %s
   方法:       %s
+  URL参数:    %s
+  请求头:     %s
+  请求体:     %s
 
+【响应信息】
+  响应体:     %s
 
 【时间信息】
   开始时间:   %s
@@ -113,6 +125,10 @@ func sendAlertEmail(result MonitorResult) {
 		result.Result.ActualStatus,
 		result.Result.ProcessedURL,
 		tc.Method,
+		requestParams,
+		requestHeaders,
+		requestBody,
+		responseBody,
 		timeutil.FormatDateTime(result.Result.StartTime),
 		timeutil.FormatDateTime(result.Result.EndTime),
 	)
@@ -153,4 +169,25 @@ func getDeviceName() string {
 		return "Unknown"
 	}
 	return name
+}
+
+func formatMap(m map[string]string) string {
+	if len(m) == 0 {
+		return "(无)"
+	}
+	var parts []string
+	for k, v := range m {
+		parts = append(parts, fmt.Sprintf("%s=%s", k, v))
+	}
+	return strings.Join(parts, "&")
+}
+
+func truncateStr(s string, maxLen int) string {
+	if s == "" {
+		return "(无)"
+	}
+	if len(s) <= maxLen {
+		return s
+	}
+	return s[:maxLen] + "...(已截断)"
 }
