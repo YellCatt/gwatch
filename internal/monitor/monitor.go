@@ -183,7 +183,7 @@ func persistMonitorResult(tc psv.TestCase, result testcase.TestResult, monitorRe
 	record := storage.MonitorResultRecord{
 		TestCaseID:     tc.ID,
 		TestCaseDesc:   tc.Desc,
-		URL:            tc.URL,
+		URL:            result.ProcessedURL,
 		Method:         tc.Method,
 		ExpectedStatus: tc.ExpectedStatus,
 		ActualStatus:   result.ActualStatus,
