@@ -296,33 +296,12 @@ func alertLevelDisplay(level string) (string, string) {
 	}
 }
 
-func GenerateDailyReportFromStorage(date time.Time) *Report {
-	startDate := time.Date(date.Year(), date.Month(), date.Day(), 0, 0, 0, 0, date.Location())
-	endDate := startDate.Add(24 * time.Hour)
-	return GenerateReportFromStorage(PeriodDaily, startDate, endDate)
-}
-
-func GenerateWeeklyReportFromStorage(date time.Time) *Report {
-	weekday := date.Weekday()
-	daysToMonday := int(weekday - time.Monday)
-	if daysToMonday < 0 {
-		daysToMonday += 7
+func getDeviceName() string {
+	name, err := os.Hostname()
+	if err != nil {
+		return "Unknown"
 	}
-	startDate := time.Date(date.Year(), date.Month(), date.Day(), 0, 0, 0, 0, date.Location()).AddDate(0, 0, -daysToMonday)
-	endDate := startDate.AddDate(0, 0, 7)
-	return GenerateReportFromStorage(PeriodWeekly, startDate, endDate)
-}
-
-func GenerateMonthlyReportFromStorage(date time.Time) *Report {
-	startDate := time.Date(date.Year(), date.Month(), 1, 0, 0, 0, 0, date.Location())
-	endDate := startDate.AddDate(0, 1, 0)
-	return GenerateReportFromStorage(PeriodMonthly, startDate, endDate)
-}
-
-func GenerateYearlyReportFromStorage(date time.Time) *Report {
-	startDate := time.Date(date.Year(), 1, 1, 0, 0, 0, 0, date.Location())
-	endDate := startDate.AddDate(1, 0, 0)
-	return GenerateReportFromStorage(PeriodYearly, startDate, endDate)
+	return name
 }
 
 func (r *Report) SaveReport() (string, error) {
@@ -336,17 +315,10 @@ func (r *Report) SaveReport() (string, error) {
 		return "", err
 	}
 
-	periodNames := map[ReportPeriod]string{
-		PeriodDaily:   "daily",
-		PeriodWeekly:  "weekly",
-		PeriodMonthly: "monthly",
-		PeriodYearly:  "yearly",
-	}
-
-	filename := fmt.Sprintf("%s_report_%s_%s.txt", periodNames[r.Period], r.StartDate, r.EndDate)
+	filename := fmt.Sprintf("%s_report_%s_%s.txt", PeriodNamesEn[r.Period], r.StartDate, r.EndDate)
 	filePath := filepath.Join(reportDir, filename)
 
-	content := r.GenerateReportContent()
+	content := r.GenerateContent()
 	if err := os.WriteFile(filePath, []byte(content), 0644); err != nil {
 		logger.Error("Failed to save report", zap.String("file", filePath), zap.Error(err))
 		return "", err
@@ -362,32 +334,34 @@ func (r *Report) SendReportEmail() error {
 		return nil
 	}
 
-	periodNames := map[ReportPeriod]string{
-		PeriodDaily:   "每日",
-		PeriodWeekly:  "每周",
-		PeriodMonthly: "每月",
-		PeriodYearly:  "年度",
-	}
-
 	totalAlerts := 0
 	for _, e := range r.AggregatedErrors {
 		totalAlerts += e.AlertCount
 	}
 
-	subject := fmt.Sprintf("[gwatch] %s运维报告 - %s ~ %s", periodNames[r.Period], r.StartDate, r.EndDate)
+	subject := fmt.Sprintf("[gwatch] %s运维报告 - %s ~ %s", PeriodNames[r.Period], r.StartDate, r.EndDate)
 	if totalAlerts > 0 {
-		subject = fmt.Sprintf("[gwatch] %s运维报告 - %s ~ %s（告警 %d 次）", periodNames[r.Period], r.StartDate, r.EndDate, totalAlerts)
+		subject = fmt.Sprintf("[gwatch] %s运维报告 - %s ~ %s（告警 %d 次）", PeriodNames[r.Period], r.StartDate, r.EndDate, totalAlerts)
 	}
-	body := r.GenerateReportContent()
+	body := r.GenerateContent()
 
 	logger.Info("Sending report email", zap.String("period", string(r.Period)))
 	return email.SendCustomEmail(subject, body)
 }
 
-func getDeviceName() string {
-	name, err := os.Hostname()
-	if err != nil {
-		return "Unknown"
+func (r *Report) GenerateContent() string {
+	switch r.Period {
+	case PeriodStartup:
+		return r.GenerateStartupContent()
+	case PeriodDaily:
+		return r.GenerateDailyContent()
+	case PeriodWeekly:
+		return r.GenerateWeeklyContent()
+	case PeriodMonthly:
+		return r.GenerateMonthlyContent()
+	case PeriodYearly:
+		return r.GenerateYearlyContent()
+	default:
+		return executeTemplate("base", buildBaseData(r))
 	}
-	return name
 }

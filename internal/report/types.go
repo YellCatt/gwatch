@@ -5,11 +5,28 @@ import "time"
 type ReportPeriod string
 
 const (
+	PeriodStartup ReportPeriod = "startup"
 	PeriodDaily   ReportPeriod = "daily"
 	PeriodWeekly  ReportPeriod = "weekly"
 	PeriodMonthly ReportPeriod = "monthly"
 	PeriodYearly  ReportPeriod = "yearly"
 )
+
+var PeriodNames = map[ReportPeriod]string{
+	PeriodStartup: "启动",
+	PeriodDaily:   "每日",
+	PeriodWeekly:  "每周",
+	PeriodMonthly: "每月",
+	PeriodYearly:  "年度",
+}
+
+var PeriodNamesEn = map[ReportPeriod]string{
+	PeriodStartup: "startup",
+	PeriodDaily:   "daily",
+	PeriodWeekly:  "weekly",
+	PeriodMonthly: "monthly",
+	PeriodYearly:  "yearly",
+}
 
 type Report struct {
 	Period           ReportPeriod
@@ -62,9 +79,9 @@ type DailyData struct {
 }
 
 type MonthlyData struct {
-	Month     int
+	Month      int
 	MonthLabel string
-	AvgValue  float64
+	AvgValue   float64
 }
 
 type InterfaceStat struct {

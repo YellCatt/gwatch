@@ -1,0 +1,56 @@
+{{/* 启动报告模板 */}}
+{{define "startup"}}
+╔════════════════════════════════════════════════════════╗
+║              gwatch 接口监控系统 - 启动报告              ║
+╚════════════════════════════════════════════════════════╝
+
+  【启动时间】{{.GeneratedAt}}
+  【监控设备】{{.DeviceName}}
+
+📋 系统配置概览
+  数据目录:      {{.DataDir}}
+  报告目录:      {{.ReportDir}}
+  用例目录:      {{.CaseDir}}
+
+📡 监控配置
+  监控模式:      {{.MonitorEnabled}}
+  默认间隔:      {{.DefaultInterval}} 秒
+  最大并发:      {{.MaxWorkers}}
+  失败告警:      {{.AlertOnFailure}}
+  慢响应告警:    {{.AlertOnSlow}}
+  告警间隔:      {{.AlertInterval}} 秒
+
+📊 报告计划
+  每日报告:      {{.DailyReport}}{{if .HasDailyReport}}  (每天 {{.ReportTime}}){{end}}
+  每周报告:      {{.WeeklyReport}}
+  每月报告:      {{.MonthlyReport}}
+  年度报告:      {{.YearlyReport}}
+
+📧 邮件通知
+  邮件功能:      {{.EmailEnabled}}
+{{- if .HasEmail}}
+  发件人:        {{.EmailFrom}}
+  收件人:        {{.EmailTo}}
+  SMTP服务器:    {{.SMTPServer}}:{{.SMTPPort}}
+{{end}}
+
+🔧 资源采集 (Scraper)
+  采集功能:      {{.ScraperEnabled}}
+{{- if .HasScraper}}
+  采集目标数:    {{.ScraperTargetCount}}
+{{range .ScraperTargets}}    - {{.Name}} ({{.URL}})
+{{end}}{{end}}
+
+🖥️ 系统监控
+  系统监控:      {{.SystemMonEnabled}}
+{{- if .HasSystemMon}}
+  采集间隔:      {{.SystemMonInterval}} 秒
+  CPU阈值:       {{.CPUThreshold}}%
+  内存阈值:      {{.MemoryThreshold}}%
+  磁盘阈值:      {{.DiskThreshold}}%
+{{end}}
+
+  【启动完成】{{.Now}}
+
+来自 gwatch 接口监控系统
+{{end}}

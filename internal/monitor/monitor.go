@@ -85,6 +85,8 @@ func StartMonitor(testCases []psv.TestCase) {
 		startTask(tc)
 	}
 
+	go generateAndSendStartupReport()
+
 	if config.GlobalConfig.Monitor.DailyReport ||
 		config.GlobalConfig.Monitor.WeeklyReport ||
 		config.GlobalConfig.Monitor.MonthlyReport ||
@@ -291,4 +293,19 @@ func generateAndSendReport(period report.ReportPeriod, date time.Time) {
 
 func generateAndSendDailyReport(date time.Time) {
 	generateAndSendReport(report.PeriodDaily, date)
+}
+
+func generateAndSendStartupReport() {
+	r := report.GenerateStartup()
+
+	_, err := r.SaveReport()
+	if err != nil {
+		logger.Error("Failed to save startup report", zap.Error(err))
+		return
+	}
+
+	err = r.SendReportEmail()
+	if err != nil {
+		logger.Error("Failed to send startup report email", zap.Error(err))
+	}
 }

@@ -1,0 +1,43 @@
+{{/* 基础报告模板 */}}
+{{define "base"}}
+gwatch {{.Period}}运维报告
+
+
+  【报告周期】{{.StartDate}} ~ {{.EndDate}}
+  【生成时间】{{formatDateTime .GeneratedAt}}
+  【监控设备】{{deviceName}}
+
+📊 执行概览
+  总执行次数:  {{.TotalTasks}} 次
+  成功次数:    {{.SuccessTasks}} 次
+  失败次数:    {{.FailedTasks}} 次
+  成功率:      {{printf "%.2f" .SuccessRate}}%
+  平均响应时间: {{.AvgDuration}}
+
+🔧 接口状态详情
+
+{{- if .InterfaceStats}}
+{{printf "%-32s %-8s %-8s %-8s %-12s %-10s" "接口ID" "总次数" "成功" "失败" "平均耗时" "最大耗时"}}
+------------------------------------------------------------------------------------------
+{{range .InterfaceStats}}{{if .HasFailure}}⚠️{{else}}✅{{end}} {{printf "%-30s %-8d %-8d %-8d %-12s %-10s" .TaskID .TotalCount .SuccessCount .FailedCount .AvgDuration .MaxDuration}}
+{{end}}{{else}}
+  暂无接口数据
+{{end}}
+
+📢 告警汇总
+
+{{- if .AggregatedErrors}}
+{{range .AggregatedErrors}}{{.Icon}} 【{{.Level}}】{{.TaskID}} - {{.TaskDesc}}
+   URL: {{.Method}} {{.URL}}
+   期望状态码: {{.ExpectedStatus}}
+   告警次数: {{.AlertCount}} 次
+   首次告警: {{.FirstOccurrence}}
+   最近告警: {{.LastOccurrence}}
+   错误信息: {{.ErrorMsg}}
+
+{{end}}  合计: CRITICAL {{.CriticalAlertCount}} 项, WARNING {{.WarningAlertCount}} 项, 共 {{.TotalAlertCount}} 项告警
+{{else}}  ✅ 无告警
+{{end}}
+
+来自 gwatch 接口监控系统
+{{end}}

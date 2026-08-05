@@ -1,0 +1,69 @@
+{{/* 资源指标模板 */}}
+
+{{/* 每小时资源指标 */}}
+{{define "hourly_resource"}}
+  📈 每日报表 - 每小时资源指标趋势
+
+  【报告周期】{{.StartDate}} ~ {{.EndDate}}
+{{- if .Metrics}}
+{{range .Metrics}}  🖥️ {{.TargetName}} - {{.MetricAlias}} ({{.Unit}})
+     时刻   00:00 01:00 02:00 03:00 04:00 05:00 06:00 07:00 08:00 09:00 10:00 11:00 12:00 13:00 14:00 15:00 16:00 17:00 18:00 19:00 20:00 21:00 22:00 23:00
+     ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+     {{range .Values}}{{.}}{{end}}
+
+{{end}}{{else}}  （无小时级别指标数据）
+{{end}}{{end}}
+
+{{/* 每日资源指标 */}}
+{{define "daily_resource"}}
+  📈 {{.Title}} - 每日资源指标趋势
+
+  【报告周期】{{.StartDate}} ~ {{.EndDate}}
+{{- if .Metrics}}
+{{range .Metrics}}  🖥️ {{.TargetName}} - {{.MetricAlias}} ({{.Unit}})
+     日期   {{range .Labels}}{{.}} {{end}}
+     {{range .Values}}{{.}} {{end}}
+
+{{end}}{{else}}  （无日级别指标数据）
+{{end}}{{end}}
+
+{{/* 月度资源指标 */}}
+{{define "monthly_resource"}}
+  📈 年度报表 - 月度资源指标趋势
+
+  【报告周期】{{.StartDate}} ~ {{.EndDate}}
+{{- if .Metrics}}
+{{range .Metrics}}  🖥️ {{.TargetName}} - {{.MetricAlias}} ({{.Unit}})
+     月份   {{range .Labels}}{{.}} {{end}}
+     {{range .Values}}{{.}} {{end}}
+
+{{end}}{{else}}  （无月级别指标数据）
+{{end}}{{end}}
+
+{{/* 每日报告完整模板 */}}
+{{define "daily"}}
+{{template "base" .Base}}
+{{if .HasHourly}}
+{{template "hourly_resource" .Hourly}}
+{{end}}{{end}}
+
+{{/* 每周报告完整模板 */}}
+{{define "weekly"}}
+{{template "base" .Base}}
+{{if .HasDaily}}
+{{template "daily_resource" .Daily}}
+{{end}}{{end}}
+
+{{/* 每月报告完整模板 */}}
+{{define "monthly"}}
+{{template "base" .Base}}
+{{if .HasDaily}}
+{{template "daily_resource" .Daily}}
+{{end}}{{end}}
+
+{{/* 年度报告完整模板 */}}
+{{define "yearly"}}
+{{template "base" .Base}}
+{{if .HasMonthly}}
+{{template "monthly_resource" .Monthly}}
+{{end}}{{end}}
