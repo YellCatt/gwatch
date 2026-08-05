@@ -28,6 +28,19 @@ var PeriodNamesEn = map[ReportPeriod]string{
 	PeriodYearly:  "yearly",
 }
 
+type StartupTaskInfo struct {
+	ID       string
+	Desc     string
+	Method   string
+	URL      string
+	Interval int
+}
+
+type StartupInfo struct {
+	Tasks      []StartupTaskInfo
+	MaxWorkers int
+}
+
 type Report struct {
 	Period           ReportPeriod
 	StartDate        string
@@ -41,6 +54,7 @@ type Report struct {
 	DailyMetrics     []DailyResourceMetric
 	MonthlyMetrics   []MonthlyResourceMetric
 	GeneratedAt      time.Time
+	startupInfo      *StartupInfo
 }
 
 type HourlyResourceMetric struct {

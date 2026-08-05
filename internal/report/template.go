@@ -114,6 +114,18 @@ type startupReportData struct {
 	CPUThreshold       string
 	MemoryThreshold    string
 	DiskThreshold      string
+	TaskCount          int
+	HasTasks           bool
+	TaskList           []startupTaskRow
+	ActualMaxWorkers   int
+}
+
+type startupTaskRow struct {
+	ID       string
+	Desc     string
+	Method   string
+	URL      string
+	Interval int
 }
 
 type scraperTargetRow struct {
@@ -226,9 +238,9 @@ func buildBaseData(r *Report) baseReportData {
 	}
 }
 
-func buildStartupData(r *Report) startupReportData {
+func buildStartupData(r *Report, info *StartupInfo) startupReportData {
 	cfg := config.GlobalConfig
-	return startupReportData{
+	data := startupReportData{
 		GeneratedAt:        timeutil.FormatDateTime(r.GeneratedAt),
 		DeviceName:         getDeviceName(),
 		Now:                timeutil.FormatDateTime(time.Now()),
@@ -264,6 +276,24 @@ func buildStartupData(r *Report) startupReportData {
 		MemoryThreshold:    fmt.Sprintf("%.0f", cfg.SystemMon.MemoryThreshold),
 		DiskThreshold:      fmt.Sprintf("%.0f", cfg.SystemMon.DiskUsageThreshold),
 	}
+
+	if info != nil && len(info.Tasks) > 0 {
+		data.TaskCount = len(info.Tasks)
+		data.HasTasks = true
+		data.ActualMaxWorkers = info.MaxWorkers
+		data.TaskList = make([]startupTaskRow, 0, len(info.Tasks))
+		for _, t := range info.Tasks {
+			data.TaskList = append(data.TaskList, startupTaskRow{
+				ID:       t.ID,
+				Desc:     t.Desc,
+				Method:   t.Method,
+				URL:      t.URL,
+				Interval: t.Interval,
+			})
+		}
+	}
+
+	return data
 }
 
 func buildScraperTargets(targets []config.ScraperTargetConfig) []scraperTargetRow {

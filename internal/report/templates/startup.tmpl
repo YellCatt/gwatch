@@ -14,6 +14,8 @@
 
 📡 监控配置
   监控模式:      {{.MonitorEnabled}}
+  监控接口数:    {{if .HasTasks}}{{.TaskCount}} 个{{else}}0{{end}}
+  实际并发:      {{if .HasTasks}}{{.ActualMaxWorkers}}{{else}}{{.MaxWorkers}}{{end}}
   默认间隔:      {{.DefaultInterval}} 秒
   最大并发:      {{.MaxWorkers}}
   失败告警:      {{.AlertOnFailure}}
@@ -50,6 +52,13 @@
   磁盘阈值:      {{.DiskThreshold}}%
 {{end}}
 
+🔍 监控接口清单
+{{- if .HasTasks}}
+  共 {{.TaskCount}} 个监控接口
+{{range .TaskList}}    [{{.ID}}] {{.Method}} {{.URL}}
+       描述: {{.Desc}}  |  间隔: {{.Interval}}s
+{{end}}{{else}}  暂无监控接口
+{{end}}
   【启动完成】{{.Now}}
 
 来自 gwatch 接口监控系统

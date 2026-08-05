@@ -85,7 +85,7 @@ func StartMonitor(testCases []psv.TestCase) {
 		startTask(tc)
 	}
 
-	go generateAndSendStartupReport()
+	go generateAndSendStartupReport(monitorCases, maxWorkers)
 
 	if config.GlobalConfig.Monitor.DailyReport ||
 		config.GlobalConfig.Monitor.WeeklyReport ||
@@ -295,8 +295,9 @@ func generateAndSendDailyReport(date time.Time) {
 	generateAndSendReport(report.PeriodDaily, date)
 }
 
-func generateAndSendStartupReport() {
-	r := report.GenerateStartup()
+func generateAndSendStartupReport(cases []psv.TestCase, maxWorkers int) {
+	info := buildStartupInfo(cases, maxWorkers)
+	r := report.GenerateStartup(info)
 
 	_, err := r.SaveReport()
 	if err != nil {
@@ -308,4 +309,25 @@ func generateAndSendStartupReport() {
 	if err != nil {
 		logger.Error("Failed to send startup report email", zap.Error(err))
 	}
+}
+
+func buildStartupInfo(cases []psv.TestCase, maxWorkers int) *report.StartupInfo {
+	info := &report.StartupInfo{
+		MaxWorkers: maxWorkers,
+		Tasks:      make([]report.StartupTaskInfo, 0, len(cases)),
+	}
+	for _, tc := range cases {
+		interval := tc.MonitorInterval
+		if interval <= 0 {
+			interval = config.GlobalConfig.Monitor.DefaultInterval
+		}
+		info.Tasks = append(info.Tasks, report.StartupTaskInfo{
+			ID:       tc.ID,
+			Desc:     tc.Desc,
+			Method:   tc.Method,
+			URL:      tc.URL,
+			Interval: interval,
+		})
+	}
+	return info
 }

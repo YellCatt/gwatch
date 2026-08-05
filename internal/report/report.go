@@ -22,6 +22,6 @@ func GenerateYearly(date time.Time) *Report {
 	return GenerateYearlyReportFromStorage(date)
 }
 
-func GenerateStartup() *Report {
-	return GenerateStartupReport()
+func GenerateStartup(info *StartupInfo) *Report {
+	return GenerateStartupReport(info)
 }
