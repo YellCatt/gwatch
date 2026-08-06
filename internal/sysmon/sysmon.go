@@ -57,11 +57,8 @@ func StartSystemMonitor() {
 	backfillAggregatedMetrics()
 
 	go collectLoop(interval)
-	go dailyReportLoop()
 
 	printSystemMonitorInfo(interval)
-
-	SendSystemStatusEmail(nil)
 
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
@@ -328,32 +325,6 @@ func flushHourlyAgg() {
 	hourlyAgg.reset(time.Time{})
 }
 
-func dailyReportLoop() {
-	now := time.Now()
-	nextReport := time.Date(now.Year(), now.Month(), now.Day(), 7, 0, 0, 0, now.Location())
-	if now.After(nextReport) {
-		nextReport = nextReport.Add(24 * time.Hour)
-	}
-
-	ticker := time.NewTicker(time.Minute)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-stopSysMon:
-			return
-		case <-ticker.C:
-			now := time.Now()
-			if now.After(nextReport) {
-				if err := generateAndSendSystemReport(); err != nil {
-					logger.Warn("Failed to generate system report", zap.Error(err))
-				}
-				nextReport = nextReport.Add(24 * time.Hour)
-			}
-		}
-	}
-}
-
 func addHistory(metric SystemMetric) {
 	historyMu.Lock()
 	defer historyMu.Unlock()
@@ -370,38 +341,6 @@ func GetHistory() []SystemMetric {
 	result := make([]SystemMetric, len(history))
 	copy(result, history)
 	return result
-}
-
-func generateAndSendSystemReport() error {
-	metrics, err := LoadRecentMetrics(24)
-	if err != nil {
-		return err
-	}
-
-	if len(metrics) == 0 {
-		logger.Info("No system metrics data for report")
-		return nil
-	}
-
-	latest := metrics[len(metrics)-1]
-	alerts := CheckAlerts(latest)
-
-	if config.GlobalConfig.SystemMon.ChartEnabled {
-		reportPath, err := SaveSystemReport(metrics, alerts)
-		if err != nil {
-			logger.Warn("Failed to save system report", zap.Error(err))
-		} else {
-			logger.Info("System report saved", zap.String("path", reportPath))
-		}
-	}
-
-	if config.GlobalConfig.SystemMon.EmailEnabled {
-		if err := SendSystemStatusEmail(metrics); err != nil {
-			logger.Warn("Failed to send system status email", zap.Error(err))
-		}
-	}
-
-	return nil
 }
 
 func printSystemMonitorInfo(interval time.Duration) {

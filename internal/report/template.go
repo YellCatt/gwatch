@@ -21,6 +21,7 @@ func init() {
 	funcMap := template.FuncMap{
 		"formatDuration": formatDuration,
 		"formatDateTime": timeutil.FormatDateTime,
+		"formatBytes":    formatBytes,
 		"boolEnabled":    boolToEnabled,
 		"join":           strings.Join,
 		"deviceName":     getDeviceName,

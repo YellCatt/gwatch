@@ -30,9 +30,24 @@
 {{end}}{{else}}  （无月级别指标数据）
 {{end}}{{end}}
 
+{{/* 系统资源状态 */}}
+{{define "system_status"}}
+  🖥️ 系统资源状态
+
+  CPU 使用率:     {{printf "%.2f" .CPUPercent}}%
+  内存使用率:     {{printf "%.2f" .MemoryPercent}}% ({{formatBytes .MemUsedBytes}} / {{formatBytes .MemTotalBytes}})
+  磁盘使用率:     {{printf "%.2f" .DiskPercent}}% ({{formatBytes .DiskUsedBytes}} / {{formatBytes .DiskTotalBytes}})
+  网络下行速度:   {{printf "%.2f" .NetDownKBps}} KB/s
+  网络上行速度:   {{printf "%.2f" .NetUpKBps}} KB/s
+
+{{end}}
+
 {{/* 每日报告完整模板 */}}
 {{define "daily"}}
 {{template "base" .Base}}
+{{if .HasSystemStatus}}
+{{template "system_status" .SystemStatus}}
+{{end}}
 {{if .HasHourly}}
 {{template "hourly_resource" .Hourly}}
 {{end}}{{end}}

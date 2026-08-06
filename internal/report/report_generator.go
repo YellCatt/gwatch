@@ -14,6 +14,7 @@ import (
 	"gwatch/internal/email"
 	"gwatch/internal/logger"
 	"gwatch/internal/storage"
+	"gwatch/internal/sysmon"
 	"gwatch/internal/timeutil"
 )
 
@@ -82,6 +83,10 @@ func GenerateReportFromStorage(period ReportPeriod, startDate, endDate time.Time
 
 	if config.GlobalConfig.Scraper.Enabled && len(config.GlobalConfig.Scraper.Targets) > 0 {
 		loadResourceMetricsByPeriod(report, period, startDate, endDate)
+	}
+
+	if period == PeriodDaily && config.GlobalConfig.SystemMon.Enabled {
+		report.SystemMetrics = loadSystemMetrics()
 	}
 
 	return report
@@ -363,5 +368,24 @@ func (r *Report) GenerateContent() string {
 		return r.GenerateYearlyContent()
 	default:
 		return executeTemplate("base", buildBaseData(r))
+	}
+}
+
+func loadSystemMetrics() *SystemMetricsSnapshot {
+	metric, err := sysmon.CollectMetrics()
+	if err != nil {
+		logger.Warn("Failed to collect system metrics for report", zap.Error(err))
+		return nil
+	}
+	return &SystemMetricsSnapshot{
+		CPUPercent:     metric.CPUPercent,
+		MemoryPercent:  metric.MemoryPercent,
+		DiskPercent:    metric.DiskPercent,
+		NetDownKBps:    metric.NetDownKBps,
+		NetUpKBps:      metric.NetUpKBps,
+		MemUsedBytes:   metric.MemoryUsed,
+		MemTotalBytes:  metric.MemoryTotal,
+		DiskUsedBytes:  metric.DiskUsed,
+		DiskTotalBytes: metric.DiskTotal,
 	}
 }

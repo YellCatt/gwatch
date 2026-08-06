@@ -53,6 +53,7 @@ type Report struct {
 	HourlyMetrics    []HourlyResourceMetric
 	DailyMetrics     []DailyResourceMetric
 	MonthlyMetrics   []MonthlyResourceMetric
+	SystemMetrics    *SystemMetricsSnapshot
 	GeneratedAt      time.Time
 	startupInfo      *StartupInfo
 }
@@ -122,4 +123,16 @@ type AggregatedError struct {
 	FirstOccurrence time.Time
 	LastOccurrence  time.Time
 	ErrorMsg        string
+}
+
+type SystemMetricsSnapshot struct {
+	CPUPercent    float64
+	MemoryPercent float64
+	DiskPercent   float64
+	NetDownKBps   float64
+	NetUpKBps     float64
+	MemUsedBytes  uint64
+	MemTotalBytes uint64
+	DiskUsedBytes uint64
+	DiskTotalBytes uint64
 }

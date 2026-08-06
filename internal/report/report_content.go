@@ -37,6 +37,14 @@ func boolToEnabled(b bool) string {
 	return "❌ 已禁用"
 }
 
+func formatBytes(bytes uint64) string {
+	mb := float64(bytes) / 1024 / 1024
+	if mb >= 1024 {
+		return fmt.Sprintf("%.2f GB", mb/1024)
+	}
+	return fmt.Sprintf("%.1f MB", mb)
+}
+
 func DisplayReport(report *Report) {
 	fmt.Println(report.GenerateContent())
 }
