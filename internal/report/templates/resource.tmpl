@@ -5,12 +5,8 @@
   📈 每日报表 - 每小时资源指标趋势
 
   【报告周期】{{.StartDate}} ~ {{.EndDate}}
-{{- if .Metrics}}
-{{range .Metrics}}  🖥️ {{.TargetName}} - {{.MetricAlias}} ({{.Unit}})
-     时刻   00:00 01:00 02:00 03:00 04:00 05:00 06:00 07:00 08:00 09:00 10:00 11:00 12:00 13:00 14:00 15:00 16:00 17:00 18:00 19:00 20:00 21:00 22:00 23:00
-     ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-     {{range .Values}}{{.}}{{end}}
-
+{{- if .Charts}}
+{{range .Charts}}{{.}}
 {{end}}{{else}}  （无小时级别指标数据）
 {{end}}{{end}}
 
@@ -19,11 +15,8 @@
   📈 {{.Title}} - 每日资源指标趋势
 
   【报告周期】{{.StartDate}} ~ {{.EndDate}}
-{{- if .Metrics}}
-{{range .Metrics}}  🖥️ {{.TargetName}} - {{.MetricAlias}} ({{.Unit}})
-     日期   {{range .Labels}}{{.}} {{end}}
-     {{range .Values}}{{.}} {{end}}
-
+{{- if .Charts}}
+{{range .Charts}}{{.}}
 {{end}}{{else}}  （无日级别指标数据）
 {{end}}{{end}}
 
@@ -32,11 +25,8 @@
   📈 年度报表 - 月度资源指标趋势
 
   【报告周期】{{.StartDate}} ~ {{.EndDate}}
-{{- if .Metrics}}
-{{range .Metrics}}  🖥️ {{.TargetName}} - {{.MetricAlias}} ({{.Unit}})
-     月份   {{range .Labels}}{{.}} {{end}}
-     {{range .Values}}{{.}} {{end}}
-
+{{- if .Charts}}
+{{range .Charts}}{{.}}
 {{end}}{{else}}  （无月级别指标数据）
 {{end}}{{end}}
 

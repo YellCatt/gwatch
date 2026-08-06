@@ -137,6 +137,7 @@ type hourlyResourceData struct {
 	StartDate string
 	EndDate   string
 	Metrics   []hourlyMetricRow
+	Charts    []string
 }
 
 type hourlyMetricRow struct {
@@ -151,6 +152,7 @@ type dailyResourceData struct {
 	EndDate   string
 	Title     string
 	Metrics   []dailyMetricRow
+	Charts    []string
 }
 
 type dailyMetricRow struct {
@@ -165,6 +167,7 @@ type monthlyResourceData struct {
 	StartDate string
 	EndDate   string
 	Metrics   []monthlyMetricRow
+	Charts    []string
 }
 
 type monthlyMetricRow struct {
@@ -326,6 +329,7 @@ func buildHourlyResourceData(r *Report) hourlyResourceData {
 		StartDate: r.StartDate,
 		EndDate:   r.EndDate,
 		Metrics:   metrics,
+		Charts:    buildHourlyChartData(r),
 	}
 }
 
@@ -355,6 +359,7 @@ func buildDailyResourceData(r *Report, title string) dailyResourceData {
 		EndDate:   r.EndDate,
 		Title:     title,
 		Metrics:   metrics,
+		Charts:    buildDailyChartData(r),
 	}
 }
 
@@ -383,5 +388,6 @@ func buildMonthlyResourceData(r *Report) monthlyResourceData {
 		StartDate: r.StartDate,
 		EndDate:   r.EndDate,
 		Metrics:   metrics,
+		Charts:    buildMonthlyChartData(r),
 	}
 }
