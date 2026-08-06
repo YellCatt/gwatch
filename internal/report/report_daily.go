@@ -10,13 +10,17 @@ func GenerateDailyReportFromStorage(date time.Time) *Report {
 
 func (r *Report) GenerateDailyContent() string {
 	data := struct {
-		Base      baseReportData
-		HasHourly bool
-		Hourly    hourlyResourceData
+		Base            baseReportData
+		HasHourly       bool
+		Hourly          hourlyResourceData
+		HasSystemStatus bool
+		SystemStatus    *SystemMetricsSnapshot
 	}{
-		Base:      buildBaseData(r),
-		HasHourly: len(r.HourlyMetrics) > 0,
-		Hourly:    buildHourlyResourceData(r),
+		Base:            buildBaseData(r),
+		HasHourly:       len(r.HourlyMetrics) > 0,
+		Hourly:          buildHourlyResourceData(r),
+		HasSystemStatus: r.SystemMetrics != nil,
+		SystemStatus:    r.SystemMetrics,
 	}
 	return executeTemplate("daily", data)
 }
