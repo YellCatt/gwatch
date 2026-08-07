@@ -1,10 +1,12 @@
-{{/* 资源指标模板 */}}
+{{/* 资源指标模板 - 手机适配版 */}}
 
 {{/* 每小时资源指标 */}}
 {{define "hourly_resource"}}
-  📈 每日报表 - 每小时资源指标趋势
+━━━━━━━━━━━━━━━━━━━━━━━━
 
-  【报告周期】{{.StartDate}} ~ {{.EndDate}}
+📈 每小时资源指标趋势
+
+【周期】{{.StartDate}} ~ {{.EndDate}}
 {{- if .Charts}}
 {{range .Charts}}{{.}}
 {{end}}{{else}}  （无小时级别指标数据）
@@ -12,9 +14,11 @@
 
 {{/* 每日资源指标 */}}
 {{define "daily_resource"}}
-  📈 {{.Title}} - 每日资源指标趋势
+━━━━━━━━━━━━━━━━━━━━━━━━
 
-  【报告周期】{{.StartDate}} ~ {{.EndDate}}
+📈 {{.Title}} - 每日资源指标趋势
+
+【周期】{{.StartDate}} ~ {{.EndDate}}
 {{- if .Charts}}
 {{range .Charts}}{{.}}
 {{end}}{{else}}  （无日级别指标数据）
@@ -22,9 +26,11 @@
 
 {{/* 月度资源指标 */}}
 {{define "monthly_resource"}}
-  📈 年度报表 - 月度资源指标趋势
+━━━━━━━━━━━━━━━━━━━━━━━━
 
-  【报告周期】{{.StartDate}} ~ {{.EndDate}}
+📈 年度报表 - 月度资源指标趋势
+
+【周期】{{.StartDate}} ~ {{.EndDate}}
 {{- if .Charts}}
 {{range .Charts}}{{.}}
 {{end}}{{else}}  （无月级别指标数据）
@@ -32,13 +38,14 @@
 
 {{/* 系统资源状态 */}}
 {{define "system_status"}}
-  🖥️ 系统资源状态
+━━━━━━━━━━━━━━━━━━━━━━━━
 
-  CPU 使用率:     {{printf "%.2f" .CPUPercent}}%
-  内存使用率:     {{printf "%.2f" .MemoryPercent}}% ({{formatBytes .MemUsedBytes}} / {{formatBytes .MemTotalBytes}})
-  磁盘使用率:     {{printf "%.2f" .DiskPercent}}% ({{formatBytes .DiskUsedBytes}} / {{formatBytes .DiskTotalBytes}})
-  网络下行速度:   {{printf "%.2f" .NetDownKBps}} KB/s
-  网络上行速度:   {{printf "%.2f" .NetUpKBps}} KB/s
+🖥️ 系统资源状态
+
+  CPU:  {{printf "%.2f" .CPUPercent}}%
+  内存: {{printf "%.2f" .MemoryPercent}}% ({{formatBytes .MemUsedBytes}} / {{formatBytes .MemTotalBytes}})
+  磁盘: {{printf "%.2f" .DiskPercent}}% ({{formatBytes .DiskUsedBytes}} / {{formatBytes .DiskTotalBytes}})
+  网络: ↓{{printf "%.2f" .NetDownKBps}} KB/s  ↑{{printf "%.2f" .NetUpKBps}} KB/s
 
 {{end}}
 
