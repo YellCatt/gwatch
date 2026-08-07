@@ -7,6 +7,8 @@ import (
 	"time"
 )
 
+// UpdateAlertSummary 根据监控执行结果更新或创建告警每日汇总记录。
+// 失败为 CRITICAL 级别，慢响应为 WARNING 级别。
 func UpdateAlertSummary(record MonitorResultRecord) error {
 	if record.Success && record.AlertType == "" {
 		return nil
@@ -114,6 +116,7 @@ func UpdateAlertSummary(record MonitorResultRecord) error {
 	return writeRecords(alertSummaryCSVPath(), alertSummaryHeader, records)
 }
 
+// upgradeAlertSummaryRecords 将旧版告警汇总记录升级为新版（增加 alert_level 字段）。
 func upgradeAlertSummaryRecords(header []string, records [][]string) [][]string {
 	for _, h := range header {
 		if strings.TrimSpace(h) == "alert_level" {
@@ -134,6 +137,7 @@ func upgradeAlertSummaryRecords(header []string, records [][]string) [][]string 
 	return upgraded
 }
 
+// GetAlertSummaryByDate 获取指定日期的告警汇总记录。
 func GetAlertSummaryByDate(date time.Time) ([]AlertSummaryRecord, error) {
 	mu.RLock()
 	defer mu.RUnlock()
@@ -186,6 +190,7 @@ func GetAlertSummaryByDate(date time.Time) ([]AlertSummaryRecord, error) {
 	return results, nil
 }
 
+// GetAlertSummaryByPeriod 获取指定时间区间的告警汇总记录，并按任务 ID + URL 进行跨天聚合。
 func GetAlertSummaryByPeriod(startDate, endDate time.Time) ([]AlertSummaryRecord, error) {
 	mu.RLock()
 	defer mu.RUnlock()

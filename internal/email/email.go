@@ -12,6 +12,7 @@ import (
 	"gwatch/internal/timeutil"
 )
 
+// EmailConfig 邮件配置结构体
 type EmailConfig struct {
 	Enabled      bool
 	FromEmail    string
@@ -25,6 +26,7 @@ type EmailConfig struct {
 
 var Config EmailConfig
 
+// InitEmail 初始化邮件模块配置。
 func InitEmail(cfg EmailConfig) {
 	Config = cfg
 }
@@ -41,14 +43,17 @@ func getDeviceName() string {
 	return hostname
 }
 
+// formatSubject 格式化邮件主题（预留扩展点）。
 func formatSubject(subject string) string {
 	return subject
 }
 
+// formatBody 格式化邮件正文（预留扩展点）。
 func formatBody(body string) string {
 	return body
 }
 
+// SendEmail 通过 TLS 加密连接 SMTP 服务器发送纯文本邮件。
 func SendEmail(subject, body string) error {
 	subject = formatSubject(subject)
 	body = formatBody(body)

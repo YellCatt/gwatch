@@ -15,6 +15,7 @@ var CfgFile string
 
 var GlobalConfig Config
 
+// InitConfig 初始化应用配置：读取 YAML 配置文件、解析到 GlobalConfig 结构体、设置默认值和加载变量。
 func InitConfig() {
 	if CfgFile != "" {
 		viper.SetConfigFile(CfgFile)
@@ -40,6 +41,7 @@ func InitConfig() {
 	GlobalConfig.Vars = loadRawVars()
 }
 
+// ReloadConfig 重新加载配置文件并返回日志级别是否发生了变化。
 func ReloadConfig() bool {
 	oldLogLevel := GlobalConfig.Log.Level
 
@@ -63,6 +65,7 @@ func ReloadConfig() bool {
 	return oldLogLevel != GlobalConfig.Log.Level
 }
 
+// loadRawVars 从配置文件直接读取 vars 变量映射，优先使用原生 YAML 解析以保留变量名大小写。
 func loadRawVars() map[string]string {
 	result := make(map[string]string)
 

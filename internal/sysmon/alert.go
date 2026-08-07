@@ -19,6 +19,7 @@ var (
 	lastAlertMu    sync.Mutex
 )
 
+// CheckAlerts 根据系统指标与配置阈值对比，返回触发的告警列表。
 func CheckAlerts(metric SystemMetric) []AlertItem {
 	cfg := config.GlobalConfig.SystemMon
 	var alerts []AlertItem
@@ -86,6 +87,7 @@ func CheckAlerts(metric SystemMetric) []AlertItem {
 	return alerts
 }
 
+// ShouldSendAlert 检查指定告警是否应发送（基于冷却时间进行抑制），并更新上次告警时间。
 func ShouldSendAlert(alert AlertItem) bool {
 	lastAlertMu.Lock()
 	defer lastAlertMu.Unlock()
@@ -104,12 +106,14 @@ func ShouldSendAlert(alert AlertItem) bool {
 	return true
 }
 
+// ClearAlertCooldown 清除指定指标的告警冷却时间记录，使其下次告警可立即发送。
 func ClearAlertCooldown(metric string) {
 	lastAlertMu.Lock()
 	defer lastAlertMu.Unlock()
 	delete(lastAlertTimes, metric)
 }
 
+// SendAlertEmail 发送系统告警邮件：过滤冷却期内的告警项，汇总后通过邮件发送。
 func SendAlertEmail(alerts []AlertItem) error {
 	if !config.GlobalConfig.SystemMon.EmailEnabled {
 		logger.Info("System monitor email alerts disabled")
@@ -179,6 +183,7 @@ func SendAlertEmail(alerts []AlertItem) error {
 	return email.SendCustomEmail(subject, body.String())
 }
 
+// SendSystemStatusEmail 发送系统状态邮件：汇总最新指标并生成状态报告通过邮件发送。
 func SendSystemStatusEmail(metrics []SystemMetric) error {
 	if !config.GlobalConfig.SystemMon.EmailEnabled {
 		return nil

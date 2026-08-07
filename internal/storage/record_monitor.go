@@ -11,6 +11,7 @@ import (
 	"gwatch/internal/logger"
 )
 
+// RecordMonitorResult 记录一次监控执行的详细结果到 CSV 存储中。
 func RecordMonitorResult(record MonitorResultRecord) error {
 	mu.Lock()
 	defer mu.Unlock()
@@ -41,6 +42,7 @@ func RecordMonitorResult(record MonitorResultRecord) error {
 	return nil
 }
 
+// GetMonitorResultsByDate 获取指定日期的所有监控执行结果明细。
 func GetMonitorResultsByDate(date time.Time) ([]MonitorResultRecord, error) {
 	mu.RLock()
 	defer mu.RUnlock()
@@ -102,6 +104,7 @@ func GetMonitorResultsByDate(date time.Time) ([]MonitorResultRecord, error) {
 	return results, nil
 }
 
+// UpdateMonitorSummary 更新或创建指定监控任务的每日汇总记录（增量聚合）。
 func UpdateMonitorSummary(record MonitorResultRecord) error {
 	mu.Lock()
 	defer mu.Unlock()
@@ -210,6 +213,7 @@ func UpdateMonitorSummary(record MonitorResultRecord) error {
 	return writeRecords(monitorSummaryCSVPath(), monitorSummaryHeader, records)
 }
 
+// GetMonitorSummaryByDate 获取指定日期的监控汇总记录。
 func GetMonitorSummaryByDate(date time.Time) ([]MonitorSummaryRecord, error) {
 	mu.RLock()
 	defer mu.RUnlock()
@@ -264,6 +268,7 @@ func GetMonitorSummaryByDate(date time.Time) ([]MonitorSummaryRecord, error) {
 	return results, nil
 }
 
+// GetMonitorSummaryByPeriod 获取指定时间区间的监控汇总记录，并按任务 ID + URL 进行跨天聚合。
 func GetMonitorSummaryByPeriod(startDate, endDate time.Time) ([]MonitorSummaryRecord, error) {
 	mu.RLock()
 	defer mu.RUnlock()

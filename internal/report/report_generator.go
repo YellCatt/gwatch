@@ -18,6 +18,8 @@ import (
 	"gwatch/internal/timeutil"
 )
 
+// GenerateReportFromStorage 根据指定周期与时间区间，从存储中加载告警汇总、监控汇总、
+// 资源指标（采集器）和系统指标，构建完整的 Report 对象。
 func GenerateReportFromStorage(period ReportPeriod, startDate, endDate time.Time) *Report {
 	report := &Report{
 		Period:      period,
@@ -92,6 +94,7 @@ func GenerateReportFromStorage(period ReportPeriod, startDate, endDate time.Time
 	return report
 }
 
+// loadResourceMetricsByPeriod 根据报告周期加载对应类型的采集器资源指标数据。
 func loadResourceMetricsByPeriod(report *Report, period ReportPeriod, startDate, endDate time.Time) {
 	switch period {
 	case PeriodDaily:
@@ -105,6 +108,7 @@ func loadResourceMetricsByPeriod(report *Report, period ReportPeriod, startDate,
 	}
 }
 
+// loadHourlyResourceMetrics 加载指定时间区间的每小时采集器资源指标平均值。
 func loadHourlyResourceMetrics(startDate, endDate time.Time) []HourlyResourceMetric {
 	hourlyAvgs, err := storage.GetScraperMetricsHourlyAvg(startDate, endDate)
 	if err != nil {
@@ -154,6 +158,7 @@ func loadHourlyResourceMetrics(startDate, endDate time.Time) []HourlyResourceMet
 	return results
 }
 
+// loadDailyResourceMetrics 加载指定时间区间的每日采集器资源指标平均值。
 func loadDailyResourceMetrics(startDate, endDate time.Time) []DailyResourceMetric {
 	dailyAvgs, err := storage.GetScraperMetricsDailyAvg(startDate, endDate)
 	if err != nil {
@@ -208,6 +213,7 @@ func loadDailyResourceMetrics(startDate, endDate time.Time) []DailyResourceMetri
 	return results
 }
 
+// loadMonthlyResourceMetrics 加载指定时间区间的每月采集器资源指标平均值。
 func loadMonthlyResourceMetrics(startDate, endDate time.Time) []MonthlyResourceMetric {
 	monthlyAvgs, err := storage.GetScraperMetricsMonthlyAvg(startDate, endDate)
 	if err != nil {
@@ -260,6 +266,7 @@ func loadMonthlyResourceMetrics(startDate, endDate time.Time) []MonthlyResourceM
 	return results
 }
 
+// sortAggregatedErrors 按告警级别和告警次数降序排列聚合错误列表。
 func sortAggregatedErrors(errs []AggregatedError) {
 	sort.SliceStable(errs, func(i, j int) bool {
 		ri, rj := alertLevelRank(errs[i].AlertLevel), alertLevelRank(errs[j].AlertLevel)
@@ -270,6 +277,7 @@ func sortAggregatedErrors(errs []AggregatedError) {
 	})
 }
 
+// sortInterfaceStats 按失败次数和总次数降序排列接口统计列表。
 func sortInterfaceStats(stats []InterfaceStat) {
 	sort.SliceStable(stats, func(i, j int) bool {
 		if stats[i].FailedCount != stats[j].FailedCount {
@@ -279,6 +287,7 @@ func sortInterfaceStats(stats []InterfaceStat) {
 	})
 }
 
+// alertLevelRank 返回告警级别的权重（CRITICAL=2, WARNING=1, 其他=0）。
 func alertLevelRank(level string) int {
 	switch strings.ToUpper(strings.TrimSpace(level)) {
 	case storage.AlertLevelCritical:
@@ -290,6 +299,7 @@ func alertLevelRank(level string) int {
 	}
 }
 
+// alertLevelDisplay 返回告警级别的图标和显示文本。
 func alertLevelDisplay(level string) (string, string) {
 	switch strings.ToUpper(strings.TrimSpace(level)) {
 	case storage.AlertLevelCritical:
@@ -301,6 +311,7 @@ func alertLevelDisplay(level string) (string, string) {
 	}
 }
 
+// getDeviceName 获取当前主机名，用于报告中标识设备。
 func getDeviceName() string {
 	name, err := os.Hostname()
 	if err != nil {
@@ -309,6 +320,7 @@ func getDeviceName() string {
 	return name
 }
 
+// SaveReport 生成报告内容并保存为文本文件，返回保存路径。
 func (r *Report) SaveReport() (string, error) {
 	reportDir := config.GlobalConfig.App.ReportDir
 	if reportDir == "" {
@@ -333,6 +345,7 @@ func (r *Report) SaveReport() (string, error) {
 	return filePath, nil
 }
 
+// SendReportEmail 发送报告邮件，邮件主题包含周期和告警次数信息。
 func (r *Report) SendReportEmail() error {
 	if !email.Config.Enabled {
 		logger.Info("Email is disabled, skipping report email")
@@ -354,6 +367,7 @@ func (r *Report) SendReportEmail() error {
 	return email.SendCustomEmail(subject, body)
 }
 
+// GenerateContent 根据报告周期分发到对应的内容生成方法。
 func (r *Report) GenerateContent() string {
 	switch r.Period {
 	case PeriodStartup:
@@ -371,6 +385,7 @@ func (r *Report) GenerateContent() string {
 	}
 }
 
+// loadSystemMetrics 采集当前系统指标，生成 SystemMetricsSnapshot 用于日报中的系统状态展示。
 func loadSystemMetrics() *SystemMetricsSnapshot {
 	metric, err := sysmon.CollectMetrics()
 	if err != nil {

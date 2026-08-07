@@ -44,6 +44,7 @@ func init() {
 	rootCmd.AddCommand(probeCmd)
 }
 
+// runScraper 启动通用指标采集器，循环采集配置的目标指标并检查阈值告警。
 func runScraper() {
 	cfg := config.GlobalConfig.Scraper
 
@@ -194,6 +195,7 @@ func runScraper() {
 	}
 }
 
+// probeURL 探测目标 URL 并打印 JSON 结构树，用于调试 JSONPath。
 func probeURL(targetURL string) {
 	// 解析 URL
 	parsedURL, err := url.Parse(targetURL)
@@ -256,6 +258,7 @@ func probeURL(targetURL string) {
 	printMetricSuggestions(jsonData, "$")
 }
 
+// printMetricSuggestions 递归遍历 JSON 数据，输出简单叶子节点的配置建议。
 func printMetricSuggestions(data interface{}, path string) {
 	switch v := data.(type) {
 	case map[string]interface{}:

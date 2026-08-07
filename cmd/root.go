@@ -31,6 +31,7 @@ var (
 	testFlag bool
 )
 
+// Execute 执行根命令，启动 Cobra 命令行程序。
 func Execute() {
 	if err := rootCmd.Execute(); err != nil {
 		logger.Error("Failed to execute command", zap.Error(err))

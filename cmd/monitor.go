@@ -18,6 +18,7 @@ import (
 	"gwatch/internal/testcase"
 )
 
+// startMonitor 启动监控模式：初始化存储、系统监控、解析 PSV 文件、过滤标签并启动监控。
 func startMonitor(paths []string) {
 	httpclient.InitClient()
 

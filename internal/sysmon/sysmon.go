@@ -25,6 +25,8 @@ var (
 	hourlyMu   sync.Mutex
 )
 
+// StartSystemMonitor 启动系统资源监控（若配置启用），周期性采集指标、检测阈值、
+// 写入存储、聚合上层指标（日/月/年），并阻塞等待停止信号。
 func StartSystemMonitor() {
 	cfg := config.GlobalConfig.SystemMon
 	if !cfg.Enabled {
@@ -72,6 +74,7 @@ func StartSystemMonitor() {
 	logger.Info("System monitor stopped")
 }
 
+// StopSystemMonitor 发送停止信号终止系统监控采集循环。
 func StopSystemMonitor() {
 	runningMu.Lock()
 	defer runningMu.Unlock()
@@ -80,6 +83,8 @@ func StopSystemMonitor() {
 	}
 }
 
+// collectLoop 按指定间隔循环采集系统指标，维护小时聚合器，跨小时时将上一小时聚合结果落盘，
+// 并触发日/月/年的上层聚合，同时执行阈值告警。
 func collectLoop(interval time.Duration) {
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
@@ -143,6 +148,7 @@ func collectLoop(interval time.Duration) {
 	}
 }
 
+// aggregateUpperTiers 当小时发生变化时，根据跨日/跨月/跨年的情况触发更高层的聚合。
 func aggregateUpperTiers(prevHour, currentHour time.Time) {
 	prevDay := prevHour.Truncate(24 * time.Hour)
 	currDay := currentHour.Truncate(24 * time.Hour)
@@ -166,6 +172,7 @@ func aggregateUpperTiers(prevHour, currentHour time.Time) {
 	}
 }
 
+// aggregateDay 按日聚合系统指标：读取当天所有小时记录并计算平均值写入日存储。
 func aggregateDay(day time.Time) {
 	dayStart := day
 	dayEnd := day.Add(24 * time.Hour)
@@ -195,6 +202,7 @@ func aggregateDay(day time.Time) {
 	}
 }
 
+// aggregateMonth 按月聚合系统指标：读取当月所有日记录并计算平均值写入月存储。
 func aggregateMonth(month time.Time) {
 	monthStart := month
 	monthEnd := month.AddDate(0, 1, 0)
@@ -224,6 +232,7 @@ func aggregateMonth(month time.Time) {
 	}
 }
 
+// aggregateYear 按年聚合系统指标：读取当年所有月记录并计算平均值写入年存储。
 func aggregateYear(year time.Time) {
 	yearStart := year
 	yearEnd := year.AddDate(1, 0, 0)
@@ -253,6 +262,7 @@ func aggregateYear(year time.Time) {
 	}
 }
 
+// backfillAggregatedMetrics 系统启动时回填历史缺失的日/月/年聚合记录。
 func backfillAggregatedMetrics() {
 	now := time.Now()
 
@@ -261,6 +271,7 @@ func backfillAggregatedMetrics() {
 	backfillYears(now)
 }
 
+// backfillDays 回填缺失的日聚合记录，从最后一条日记录的下一天一直补到今天之前。
 func backfillDays(now time.Time) {
 	dailyMetrics, err := loadMetrics(dailyPath(), time.Time{})
 	if err != nil || len(dailyMetrics) == 0 {
@@ -275,6 +286,7 @@ func backfillDays(now time.Time) {
 	}
 }
 
+// backfillMonths 回填缺失的月聚合记录。
 func backfillMonths(now time.Time) {
 	monthlyMetrics, err := loadMetrics(monthlyPath(), time.Time{})
 	if err != nil || len(monthlyMetrics) == 0 {
@@ -290,6 +302,7 @@ func backfillMonths(now time.Time) {
 	}
 }
 
+// backfillYears 回填缺失的年聚合记录。
 func backfillYears(now time.Time) {
 	yearlyMetrics, err := loadMetrics(yearlyPath(), time.Time{})
 	if err != nil || len(yearlyMetrics) == 0 {
@@ -305,6 +318,7 @@ func backfillYears(now time.Time) {
 	}
 }
 
+// flushHourlyAgg 停止时将当前小时的聚合数据落盘，避免丢失采样数据。
 func flushHourlyAgg() {
 	hourlyMu.Lock()
 	defer hourlyMu.Unlock()
@@ -325,6 +339,7 @@ func flushHourlyAgg() {
 	hourlyAgg.reset(time.Time{})
 }
 
+// addHistory 将新采集的指标追加到历史记录中，超过 maxHistory 时截断最旧数据。
 func addHistory(metric SystemMetric) {
 	historyMu.Lock()
 	defer historyMu.Unlock()
@@ -335,6 +350,7 @@ func addHistory(metric SystemMetric) {
 	}
 }
 
+// GetHistory 获取历史指标记录的线程安全副本。
 func GetHistory() []SystemMetric {
 	historyMu.RLock()
 	defer historyMu.RUnlock()
@@ -343,6 +359,7 @@ func GetHistory() []SystemMetric {
 	return result
 }
 
+// printSystemMonitorInfo 打印系统监控启动时的配置摘要信息。
 func printSystemMonitorInfo(interval time.Duration) {
 	fmt.Printf("\n╔══════════════════════════════════════════════════════════╗\n")
 	fmt.Printf("║           系统资源监控已启动                            ║\n")
@@ -358,6 +375,7 @@ func printSystemMonitorInfo(interval time.Duration) {
 	fmt.Printf("╚══════════════════════════════════════════════════════════╝\n\n")
 }
 
+// PrintCurrentStatus 立即采集一次系统指标并打印当前状态快照。
 func PrintCurrentStatus() {
 	metric, err := CollectMetrics()
 	if err != nil {
@@ -374,6 +392,7 @@ func PrintCurrentStatus() {
 	fmt.Printf("╚══════════════════╝\n")
 }
 
+// GenerateAndSaveReport 基于最近 24 小时指标生成系统报告并保存到本地，返回报告文件路径。
 func GenerateAndSaveReport() (string, error) {
 	metrics, err := LoadRecentMetrics(24)
 	if err != nil {

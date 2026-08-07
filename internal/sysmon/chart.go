@@ -14,10 +14,15 @@ import (
 	"gwatch/internal/timeutil"
 )
 
+// GenerateASCIIChart 生成一个简单的 ASCII 柱状图（无时间标签版本）。
+// 内部委托给 GenerateASCIIChartWithTime 处理。
 func GenerateASCIIChart(data []float64, width int, unit string, thresholds ...float64) string {
 	return GenerateASCIIChartWithTime(data, width, unit, nil, thresholds...)
 }
 
+// GenerateASCIIChartWithTime 生成带时间标签的 ASCII 柱状图。
+// 将数据按宽度分桶求平均值，绘制为 █/░ 组合的柱状图，
+// 并在超过阈值时添加 ⚠️ 标记。
 func GenerateASCIIChartWithTime(data []float64, width int, unit string, timeLabels []string, thresholds ...float64) string {
 	if len(data) == 0 {
 		return "(无数据)"
@@ -131,6 +136,8 @@ func GenerateASCIIChartWithTime(data []float64, width int, unit string, timeLabe
 	return builder.String()
 }
 
+// GenerateSystemReport 根据系统指标和告警列表生成完整的系统状态报告文本。
+// 包含当前状态概览、CPU/内存/磁盘/网络的历史趋势 ASCII 图表以及告警摘要。
 func GenerateSystemReport(metrics []SystemMetric, alerts []AlertItem) string {
 	var builder strings.Builder
 
@@ -220,6 +227,8 @@ func GenerateSystemReport(metrics []SystemMetric, alerts []AlertItem) string {
 	return builder.String()
 }
 
+// generateTimeLabels 生成一组时间标签，用于图表的横轴。
+// 从当前时间往前推 24 小时，均匀分为 width 个时间点。
 func generateTimeLabels(metrics []SystemMetric, width int) []string {
 	if len(metrics) == 0 {
 		return nil
@@ -241,10 +250,12 @@ func generateTimeLabels(metrics []SystemMetric, width int) []string {
 	return labels
 }
 
+// formatHourLabel 将时间格式化为 "HH:00" 形式的小时标签。
 func formatHourLabel(t time.Time) string {
 	return fmt.Sprintf("%02d:00", t.Hour())
 }
 
+// formatBytes 将字节数格式化为易读形式（MB/GB）。
 func formatBytes(bytes uint64) string {
 	mb := float64(bytes) / 1024 / 1024
 	if mb >= 1024 {
@@ -253,6 +264,7 @@ func formatBytes(bytes uint64) string {
 	return fmt.Sprintf("%.1f MB", mb)
 }
 
+// formatSpeed 将速度（KB/s）格式化为易读形式（KB/s 或 MB/s）。
 func formatSpeed(kbps float64) string {
 	if kbps >= 1024 {
 		return fmt.Sprintf("%.2f MB/s", kbps/1024)
@@ -260,6 +272,7 @@ func formatSpeed(kbps float64) string {
 	return fmt.Sprintf("%.2f KB/s", kbps)
 }
 
+// extractField 从系统指标列表中提取指定字段值，返回一个 float64 切片。
 func extractField(metrics []SystemMetric, fn func(SystemMetric) float64) []float64 {
 	result := make([]float64, len(metrics))
 	for i, m := range metrics {
@@ -268,6 +281,7 @@ func extractField(metrics []SystemMetric, fn func(SystemMetric) float64) []float
 	return result
 }
 
+// SaveSystemReport 生成系统报告并保存到 reports/system/ 目录下，返回生成的文件路径。
 func SaveSystemReport(metrics []SystemMetric, alerts []AlertItem) (string, error) {
 	reportDir := config.GlobalConfig.App.ReportDir
 	if reportDir == "" {

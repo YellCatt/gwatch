@@ -15,6 +15,8 @@ import (
 	"gwatch/internal/timeutil"
 )
 
+// checkAlerts 根据测试用例配置和执行结果检测是否触发告警，
+// 包括失败告警和慢响应告警两种类型。
 func checkAlerts(result *MonitorResult) {
 	tc := result.TestCase
 
@@ -33,6 +35,8 @@ func checkAlerts(result *MonitorResult) {
 	}
 }
 
+// sendAlertEmail 发送告警邮件，支持告警间隔抑制（同一用例在间隔内不重复告警），
+// 并将告警内容写入本地告警文件。
 func sendAlertEmail(result MonitorResult) {
 	if !email.Config.Enabled {
 		return
@@ -140,6 +144,7 @@ func sendAlertEmail(result MonitorResult) {
 	}
 }
 
+// saveAlertRecord 将告警内容以日志文件形式保存到 reports/alerts/<date>/ 目录。
 func saveAlertRecord(content, testCaseID string) {
 	reportDir := config.GlobalConfig.App.ReportDir
 	if reportDir == "" {
@@ -163,6 +168,7 @@ func saveAlertRecord(content, testCaseID string) {
 	}
 }
 
+// getDeviceName 获取当前主机名，用于在告警邮件中标识监控设备。
 func getDeviceName() string {
 	name, err := os.Hostname()
 	if err != nil {
@@ -171,6 +177,7 @@ func getDeviceName() string {
 	return name
 }
 
+// formatMap 将 map[string]string 格式化为 "k1=v1&k2=v2" 形式的字符串，空 map 返回 "(无)"。
 func formatMap(m map[string]string) string {
 	if len(m) == 0 {
 		return "(无)"
@@ -182,6 +189,7 @@ func formatMap(m map[string]string) string {
 	return strings.Join(parts, "&")
 }
 
+// truncateStr 截断字符串，超过 maxLen 的部分以 "...(已截断)" 结尾。空字符串返回 "(无)"。
 func truncateStr(s string, maxLen int) string {
 	if s == "" {
 		return "(无)"

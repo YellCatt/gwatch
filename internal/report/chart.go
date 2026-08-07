@@ -5,6 +5,7 @@ import (
 	"strings"
 )
 
+// generateASCIIChart 根据数据数组和标签生成 ASCII 柱状图。
 func generateASCIIChart(data []float64, labels []string, unit string, barWidth int) string {
 	if len(data) == 0 {
 		return "  (无数据)\n"
@@ -78,6 +79,7 @@ func generateASCIIChart(data []float64, labels []string, unit string, barWidth i
 	return builder.String()
 }
 
+// padRight 将字符串右填充空格到指定长度。
 func padRight(s string, length int) string {
 	if len(s) >= length {
 		return s
@@ -85,6 +87,7 @@ func padRight(s string, length int) string {
 	return s + strings.Repeat(" ", length-len(s))
 }
 
+// buildHourlyChartData 从 Report 构建每小时资源指标的 ASCII 图表列表。
 func buildHourlyChartData(r *Report) []string {
 	charts := make([]string, 0, len(r.HourlyMetrics))
 	for _, m := range r.HourlyMetrics {
@@ -102,6 +105,7 @@ func buildHourlyChartData(r *Report) []string {
 	return charts
 }
 
+// buildDailyChartData 从 Report 构建每日资源指标的 ASCII 图表列表。
 func buildDailyChartData(r *Report) []string {
 	charts := make([]string, 0, len(r.DailyMetrics))
 	for _, m := range r.DailyMetrics {
@@ -119,6 +123,7 @@ func buildDailyChartData(r *Report) []string {
 	return charts
 }
 
+// buildMonthlyChartData 从 Report 构建每月资源指标的 ASCII 图表列表。
 func buildMonthlyChartData(r *Report) []string {
 	charts := make([]string, 0, len(r.MonthlyMetrics))
 	for _, m := range r.MonthlyMetrics {

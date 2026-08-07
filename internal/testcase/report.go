@@ -14,6 +14,7 @@ import (
 	"gwatch/internal/vars"
 )
 
+// GenerateReport 根据测试执行结果生成全量报告和错误报告（CSV 格式，管道分隔）。
 func GenerateReport(results []TestResult) (string, string) {
 	var allReport strings.Builder
 	var errorReport strings.Builder
@@ -83,6 +84,7 @@ func GenerateReport(results []TestResult) (string, string) {
 	return allReport.String(), errorReport.String()
 }
 
+// SaveReports 将报告内容保存到文件系统，返回全量报告路径和错误报告路径。
 func SaveReports(allReport, errorReport string, timestamp ...string) (string, string) {
 	ts := timeutil.FormatCompact(timeutil.Now())
 	if len(timestamp) > 0 && timestamp[0] != "" {
@@ -113,6 +115,7 @@ func SaveReports(allReport, errorReport string, timestamp ...string) (string, st
 	return allPath, errorPath
 }
 
+// PrintSummary 打印测试执行摘要到控制台，包括通过/失败/跳过统计和耗时。
 func PrintSummary(results []TestResult) {
 	var passed, failed, skipped int
 	var setupPassed, setupFailed int

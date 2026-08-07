@@ -12,6 +12,7 @@ import (
 	"gwatch/internal/logger"
 )
 
+// RecordScraperMetric 记录一条采集器指标到 CSV 存储中。
 func RecordScraperMetric(record ScraperMetricRecord) error {
 	mu.Lock()
 	defer mu.Unlock()
@@ -38,6 +39,7 @@ func RecordScraperMetric(record ScraperMetricRecord) error {
 	return nil
 }
 
+// GetScraperMetricsByPeriod 获取指定时间区间内的所有采集器指标记录。
 func GetScraperMetricsByPeriod(startDate, endDate time.Time) ([]ScraperMetricRecord, error) {
 	mu.RLock()
 	defer mu.RUnlock()
@@ -92,6 +94,7 @@ func GetScraperMetricsByPeriod(startDate, endDate time.Time) ([]ScraperMetricRec
 	return results, nil
 }
 
+// GetScraperMetricsHourlyAvg 获取指定时间区间内每小时采集器指标的平均值。
 func GetScraperMetricsHourlyAvg(startDate, endDate time.Time) ([]ScraperMetricHourlyAvg, error) {
 	metrics, err := GetScraperMetricsByPeriod(startDate, endDate)
 	if err != nil {
@@ -161,6 +164,7 @@ func GetScraperMetricsHourlyAvg(startDate, endDate time.Time) ([]ScraperMetricHo
 	return results, nil
 }
 
+// GetScraperMetricsDailyAvg 获取指定时间区间内每日采集器指标的平均值。
 func GetScraperMetricsDailyAvg(startDate, endDate time.Time) ([]ScraperMetricDailyAvg, error) {
 	metrics, err := GetScraperMetricsByPeriod(startDate, endDate)
 	if err != nil {
@@ -236,6 +240,7 @@ func GetScraperMetricsDailyAvg(startDate, endDate time.Time) ([]ScraperMetricDai
 	return results, nil
 }
 
+// GetScraperMetricsMonthlyAvg 获取指定时间区间内每月采集器指标的平均值。
 func GetScraperMetricsMonthlyAvg(startDate, endDate time.Time) ([]ScraperMetricMonthlyAvg, error) {
 	metrics, err := GetScraperMetricsByPeriod(startDate, endDate)
 	if err != nil {

@@ -10,6 +10,7 @@ import (
 	"github.com/shirou/gopsutil/v3/net"
 )
 
+// CollectMetrics 采集一次系统指标快照，包括 CPU、内存、磁盘使用率以及网络/磁盘的读写速度。
 func CollectMetrics() (SystemMetric, error) {
 	metric := SystemMetric{
 		Timestamp: time.Now(),
@@ -50,6 +51,7 @@ type netSpeedResult struct {
 	Up   float64
 }
 
+// calcNetworkSpeed 通过两次间隔 1 秒的网络 I/O 计数器差值计算当前网络上/下行速度（KB/s）。
 func calcNetworkSpeed() netSpeedResult {
 	io1, err := net.IOCounters(false)
 	if err != nil || len(io1) == 0 {
@@ -84,6 +86,7 @@ type diskSpeedResult struct {
 	Write float64
 }
 
+// calcDiskSpeed 通过两次间隔 1 秒的磁盘 I/O 计数器差值计算当前磁盘读/写速度（KB/s）。
 func calcDiskSpeed() diskSpeedResult {
 	io1, err := disk.IOCounters()
 	if err != nil {
@@ -113,6 +116,7 @@ func calcDiskSpeed() diskSpeedResult {
 	}
 }
 
+// GetHostInfo 获取主机名和操作系统平台信息。
 func GetHostInfo() (string, string) {
 	info, err := host.Info()
 	if err != nil {

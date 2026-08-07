@@ -18,6 +18,7 @@ import (
 	"gwatch/internal/vars"
 )
 
+// runTests 运行测试模式：初始化存储、解析 PSV 文件、过滤标签、执行测试用例、生成报告并清理资源。
 func runTests(paths []string) {
 	if err := storage.InitDB(config.GlobalConfig.App.DataDir); err != nil {
 		logger.Warn("CSV 存储初始化失败", zap.Error(err))
@@ -135,6 +136,7 @@ func runTests(paths []string) {
 	}
 }
 
+// printTaskSummary 打印任务统计信息表格到控制台。
 func printTaskSummary(totalTestCaseCount, totalChainCount, totalIndependentCount int, tags []string, executedCount, executedChainCount, executedIndependentCount int, estimatedDurationStr string) {
 	fmt.Printf("\n════════════════════════════════════════════════════════╗\n")
 	fmt.Printf("║ 任务统计信息                                           ║\n")
@@ -158,6 +160,7 @@ func printTaskSummary(totalTestCaseCount, totalChainCount, totalIndependentCount
 	fmt.Printf("╚════════════════════════════════════════════════════════╝\n\n")
 }
 
+// executeGlobalPreConditions 执行全局前置条件中指定的测试用例。
 func executeGlobalPreConditions(testCases []psv.TestCase) {
 	fmt.Printf("\n════════════════════════════════════════════════════════╗\n")
 	fmt.Printf("║ 执行全局前置条件                                       ║\n")
@@ -190,6 +193,7 @@ func executeGlobalPreConditions(testCases []psv.TestCase) {
 	fmt.Println()
 }
 
+// executeGlobalPostConditions 执行全局后置条件中指定的测试用例。
 func executeGlobalPostConditions(testCases []psv.TestCase) {
 	fmt.Printf("\n════════════════════════════════════════════════════════╗\n")
 	fmt.Printf("║ 执行全局后置条件                                       ║\n")
@@ -217,6 +221,7 @@ func executeGlobalPostConditions(testCases []psv.TestCase) {
 	fmt.Println()
 }
 
+// calculateEstimatedDuration 根据历史平均执行时间估算所有测试用例的总执行时长。
 func calculateEstimatedDuration(testCases []psv.TestCase) time.Duration {
 	averages, err := storage.GetAllAverageDurations()
 	if err != nil {
@@ -256,6 +261,7 @@ func calculateEstimatedDuration(testCases []psv.TestCase) time.Duration {
 	return total
 }
 
+// formatDuration 将时长格式化为易读形式（ms、s、m、h）。
 func formatDuration(d time.Duration) string {
 	if d < time.Second {
 		return fmt.Sprintf("%dms", d.Milliseconds())

@@ -15,6 +15,7 @@ import (
 	"gwatch/internal/timeutil"
 )
 
+// initSystemReportCommand 注册系统报告子命令到根命令。
 func initSystemReportCommand() {
 	sysMonReportCmd := &cobra.Command{
 		Use:   "sys-report",
@@ -27,6 +28,7 @@ func initSystemReportCommand() {
 	rootCmd.AddCommand(sysMonReportCmd)
 }
 
+// runSystemReport 运行系统报告命令：加载最近的系统指标、检查告警、生成并输出报告。
 func runSystemReport() {
 	if err := storage.InitDB(config.GlobalConfig.App.DataDir); err != nil {
 		logger.Warn("Storage init failed", zap.Error(err))

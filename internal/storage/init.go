@@ -106,6 +106,7 @@ var (
 	}
 )
 
+// alertLevelRank 返回告警级别的权重值。
 func alertLevelRank(level string) int {
 	switch strings.ToUpper(strings.TrimSpace(level)) {
 	case AlertLevelCritical:
@@ -117,6 +118,7 @@ func alertLevelRank(level string) int {
 	}
 }
 
+// parseAlertLevel 解析告警级别字符串，空值默认为 CRITICAL。
 func parseAlertLevel(level string) string {
 	level = strings.ToUpper(strings.TrimSpace(level))
 	if level == "" {
@@ -125,6 +127,7 @@ func parseAlertLevel(level string) string {
 	return level
 }
 
+// InitDB 初始化 CSV 存储，使用 sync.Once 确保只初始化一次。
 func InitDB(dir string) error {
 	var initErr error
 	once.Do(func() {
@@ -133,6 +136,7 @@ func InitDB(dir string) error {
 	return initErr
 }
 
+// initCSVInternal 内部初始化 CSV 存储：创建目录、初始化各 CSV 文件、生成索引表。
 func initCSVInternal(dir string) error {
 	logger.Info("========== 开始初始化 CSV 存储 ==========")
 	logger.Info("数据目录参数值", zap.String("dataDir", dir))
@@ -202,6 +206,7 @@ type csvFileMeta struct {
 	header      []string
 }
 
+// csvFileMetas 返回所有 CSV 文件的元数据列表（文件名、描述、写入模式、表头）。
 func csvFileMetas() []csvFileMeta {
 	return []csvFileMeta{
 		{
@@ -249,6 +254,7 @@ func csvFileMetas() []csvFileMeta {
 	}
 }
 
+// writeIndexCSV 生成 CSV 数据总表文件，列出所有数据表的信息。
 func writeIndexCSV() error {
 	now := time.Now().Format("2006-01-02 15:04:05")
 
@@ -284,34 +290,42 @@ func writeIndexCSV() error {
 	return w.Error()
 }
 
+// executionCSVPath 返回执行时间明细 CSV 文件路径。
 func executionCSVPath() string {
 	return filepath.Join(dataDir, "monitor_execution_times.csv")
 }
 
+// averageCSVPath 返回平均执行时间 CSV 文件路径。
 func averageCSVPath() string {
 	return filepath.Join(dataDir, "monitor_average_times.csv")
 }
 
+// monitorCSVPath 返回监控结果明细 CSV 文件路径。
 func monitorCSVPath() string {
 	return filepath.Join(dataDir, "monitor_results.csv")
 }
 
+// monitorSummaryCSVPath 返回监控每日汇总 CSV 文件路径。
 func monitorSummaryCSVPath() string {
 	return filepath.Join(dataDir, "monitor_summary.csv")
 }
 
+// alertSummaryCSVPath 返回告警每日汇总 CSV 文件路径。
 func alertSummaryCSVPath() string {
 	return filepath.Join(dataDir, "alert_summary.csv")
 }
 
+// scraperMetricCSVPath 返回采集器指标 CSV 文件路径。
 func scraperMetricCSVPath() string {
 	return filepath.Join(dataDir, "scraper_metrics.csv")
 }
 
+// indexCSVPath 返回 CSV 数据总表文件路径。
 func indexCSVPath() string {
 	return filepath.Join(dataDir, "csv_index.csv")
 }
 
+// ensureCSV 确保指定路径的 CSV 文件存在且有表头。
 func ensureCSV(path string, header []string) error {
 	info, err := os.Stat(path)
 	if err == nil && info.Size() > 0 {
@@ -332,6 +346,7 @@ func ensureCSV(path string, header []string) error {
 	return w.Error()
 }
 
+// readRecords 读取 CSV 文件，返回表头和所有记录。
 func readRecords(path string) ([]string, [][]string, error) {
 	file, err := os.Open(path)
 	if err != nil {
@@ -351,6 +366,7 @@ func readRecords(path string) ([]string, [][]string, error) {
 	return all[0], all[1:], nil
 }
 
+// appendRecord 向 CSV 文件追加一条记录。
 func appendRecord(path string, record []string) error {
 	if err := ensureCSV(path, executionHeader); err != nil {
 		return err
@@ -370,6 +386,7 @@ func appendRecord(path string, record []string) error {
 	return w.Error()
 }
 
+// writeRecords 覆盖写入整个 CSV 文件（包含表头和所有记录）。
 func writeRecords(path string, header []string, records [][]string) error {
 	file, err := os.Create(path)
 	if err != nil {
@@ -388,16 +405,19 @@ func writeRecords(path string, header []string, records [][]string) error {
 	return w.Error()
 }
 
+// parseSuccess 将字符串解析为布尔值（"true"/"1" 为 true）。
 func parseSuccess(s string) bool {
 	s = strings.ToLower(strings.TrimSpace(s))
 	return s == "true" || s == "1"
 }
 
+// parseInt64 将字符串解析为 int64，解析失败返回 0。
 func parseInt64(s string) int64 {
 	n, _ := strconv.ParseInt(strings.TrimSpace(s), 10, 64)
 	return n
 }
 
+// parseFloat64 将字符串解析为 float64，解析失败返回 0。
 func parseFloat64(s string) float64 {
 	n, _ := strconv.ParseFloat(strings.TrimSpace(s), 64)
 	return n

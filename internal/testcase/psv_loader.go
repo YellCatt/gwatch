@@ -11,6 +11,7 @@ import (
 	"gwatch/internal/psv"
 )
 
+// LoadFromPSV 从 PSV 文件加载测试用例并注册到全局测试列表。
 func LoadFromPSV(filePath string) error {
 	testCases, err := psv.ParseFile(filePath)
 	if err != nil {
@@ -32,6 +33,7 @@ func LoadFromPSV(filePath string) error {
 	return nil
 }
 
+// runPSVTestCase 执行单个 PSV 测试用例（发送 HTTP 请求并校验状态码）。
 func runPSVTestCase(tc *psv.TestCase) error {
 	logger.Info("Running PSV test", zap.String("name", tc.Name), zap.String("endpoint", tc.Endpoint))
 
@@ -80,22 +82,27 @@ func runPSVTestCase(tc *psv.TestCase) error {
 	return nil
 }
 
+// ErrInvalidMethod 创建无效 HTTP 方法错误。
 func ErrInvalidMethod(method string) error {
 	return &TestError{Message: "invalid HTTP method: " + method}
 }
 
+// ErrUnexpectedStatus 创建状态码不匹配错误。
 func ErrUnexpectedStatus(expected, actual int) error {
 	return &TestError{Message: "expected status " + string(rune(expected+'0')) + ", got " + string(rune(actual+'0'))}
 }
 
+// TestError 测试错误类型，实现 error 接口。
 type TestError struct {
 	Message string
 }
 
+// Error 返回错误消息字符串。
 func (e *TestError) Error() string {
 	return e.Message
 }
 
+// PrettyPrintBody 将任意格式的响应体格式化为缩进 JSON 字符串。
 func PrettyPrintBody(body interface{}) string {
 	jsonBytes, err := json.MarshalIndent(body, "", "  ")
 	if err != nil {

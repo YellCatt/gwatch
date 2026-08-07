@@ -63,6 +63,7 @@ type hourlyAggregator struct {
 	diskWriteCount int
 }
 
+// add 将一条系统指标累加进小时聚合器的对应字段。
 func (a *hourlyAggregator) add(metric SystemMetric) {
 	a.cpuSum += metric.CPUPercent
 	a.cpuCount++
@@ -80,6 +81,7 @@ func (a *hourlyAggregator) add(metric SystemMetric) {
 	a.diskWriteCount++
 }
 
+// toSystemMetric 基于累加结果计算各字段的平均值，生成聚合后的 SystemMetric。
 func (a *hourlyAggregator) toSystemMetric() SystemMetric {
 	return SystemMetric{
 		CPUPercent:    safeAvg(a.cpuSum, a.cpuCount),
@@ -93,10 +95,12 @@ func (a *hourlyAggregator) toSystemMetric() SystemMetric {
 	}
 }
 
+// reset 重置小时聚合器到指定小时，清空所有累加数据。
 func (a *hourlyAggregator) reset(hour time.Time) {
 	*a = hourlyAggregator{hour: hour}
 }
 
+// safeAvg 安全计算平均值，count 为 0 时返回 0，避免除零错误。
 func safeAvg(sum float64, count int) float64 {
 	if count == 0 {
 		return 0

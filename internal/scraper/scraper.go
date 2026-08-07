@@ -360,6 +360,7 @@ func PrintJSONTree(jsonData interface{}) string {
 	return formatJSONTree(jsonData, "")
 }
 
+// formatJSONTree 递归遍历 JSON 数据，生成带 JSONPath 的树形结构字符串。
 func formatJSONTree(data interface{}, prefix string) string {
 	var result string
 

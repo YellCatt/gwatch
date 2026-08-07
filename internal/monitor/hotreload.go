@@ -11,6 +11,8 @@ import (
 	"gwatch/internal/psv"
 )
 
+// startHotReload 启动热加载协程：按 hotReloadInterval 周期扫描配置和测试用例变更，
+// 直到收到停止信号。
 func startHotReload() {
 	ticker := time.NewTicker(hotReloadInterval)
 	defer ticker.Stop()
@@ -26,6 +28,8 @@ func startHotReload() {
 	}
 }
 
+// hotReload 执行一次热加载流程：重载配置、重新解析 PSV 文件、添加新用例、
+// 重启已修改用例、移除已删除用例。
 func hotReload() {
 	logger.Debug("Checking for hot reload changes")
 
@@ -85,6 +89,7 @@ func hotReload() {
 	_ = modifiedCount
 }
 
+// isTestCaseModified 比较两个测试用例的关键属性，判断其是否发生变化（用于热加载时重启任务）。
 func isTestCaseModified(old, new psv.TestCase) bool {
 	if old.URL != new.URL {
 		return true
@@ -149,6 +154,7 @@ func isTestCaseModified(old, new psv.TestCase) bool {
 	return false
 }
 
+// removeDeletedTestCases 移除已从活跃用例列表中删除的监控任务。
 func removeDeletedTestCases(activeCases []psv.TestCase) {
 	activeIDs := make(map[string]bool)
 	for _, tc := range activeCases {

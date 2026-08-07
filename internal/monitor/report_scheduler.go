@@ -1,7 +1,6 @@
 package monitor
 
 import (
-	"fmt"
 	"time"
 
 	"go.uber.org/zap"
@@ -12,59 +11,49 @@ import (
 	"gwatch/internal/timeutil"
 )
 
+// scheduleReports 创建并启动一个周期调度器，用于按配置时间触发定期报告（日/周/月/年）。
 func scheduleReports() {
-	for {
-		now := timeutil.Now()
-		reportTimeStr := config.GlobalConfig.Monitor.ReportTime
-		if reportTimeStr == "" {
-			reportTimeStr = "07:00"
+	scheduler := NewPeriodicScheduler(
+		WithReportTime(config.GlobalConfig.Monitor.ReportTime),
+		WithTriggerCallback(generateAllReports),
+	)
+	scheduler.Start()
+}
+
+// generateAllReports 根据当前时间触发所有已启用的报告（日/周/月/年）。
+// 周、月、年报告只在对应周期的第一天才会生成。
+func generateAllReports() {
+	now := timeutil.Now()
+
+	if config.GlobalConfig.Monitor.DailyReport {
+		yesterday := now.Add(-24 * time.Hour)
+		logger.Info("Generating daily report for", zap.String("date", yesterday.Format("2006-01-02")))
+		generateAndSendReport(report.PeriodDaily, yesterday)
+	}
+
+	if config.GlobalConfig.Monitor.WeeklyReport {
+		if ShouldTriggerWeekly(now) {
+			logger.Info("Generating weekly report for week starting", zap.String("date", getWeekStart(now).Format("2006-01-02")))
+			generateAndSendReport(report.PeriodWeekly, now)
 		}
+	}
 
-		var reportHour, reportMinute int
-		fmt.Sscanf(reportTimeStr, "%d:%d", &reportHour, &reportMinute)
-
-		nextReportTime := time.Date(now.Year(), now.Month(), now.Day(), reportHour, reportMinute, 0, 0, now.Location())
-		if now.After(nextReportTime) {
-			nextReportTime = nextReportTime.Add(24 * time.Hour)
+	if config.GlobalConfig.Monitor.MonthlyReport {
+		if ShouldTriggerMonthly(now) {
+			logger.Info("Generating monthly report for", zap.String("month", now.Format("2006-01")))
+			generateAndSendReport(report.PeriodMonthly, now)
 		}
+	}
 
-		duration := nextReportTime.Sub(now)
-		logger.Info("Scheduling reports", zap.Time("next_run", nextReportTime))
-
-		time.Sleep(duration)
-
-		if config.GlobalConfig.Monitor.DailyReport {
-			yesterday := timeutil.Now().Add(-24 * time.Hour)
-			logger.Info("Generating daily report for", zap.String("date", yesterday.Format("2006-01-02")))
-			generateAndSendReport(report.PeriodDaily, yesterday)
-		}
-
-		if config.GlobalConfig.Monitor.WeeklyReport {
-			today := timeutil.Now()
-			if today.Weekday() == time.Monday {
-				logger.Info("Generating weekly report for week starting", zap.String("date", getWeekStart(today).Format("2006-01-02")))
-				generateAndSendReport(report.PeriodWeekly, today)
-			}
-		}
-
-		if config.GlobalConfig.Monitor.MonthlyReport {
-			today := timeutil.Now()
-			if today.Day() == 1 {
-				logger.Info("Generating monthly report for", zap.String("month", today.Format("2006-01")))
-				generateAndSendReport(report.PeriodMonthly, today)
-			}
-		}
-
-		if config.GlobalConfig.Monitor.YearlyReport {
-			today := timeutil.Now()
-			if today.Month() == time.January && today.Day() == 1 {
-				logger.Info("Generating yearly report for", zap.String("year", today.Format("2006")))
-				generateAndSendReport(report.PeriodYearly, today)
-			}
+	if config.GlobalConfig.Monitor.YearlyReport {
+		if ShouldTriggerYearly(now) {
+			logger.Info("Generating yearly report for", zap.String("year", now.Format("2006")))
+			generateAndSendReport(report.PeriodYearly, now)
 		}
 	}
 }
 
+// getWeekStart 获取给定日期所在周的周一（作为一周的起始日期）。
 func getWeekStart(date time.Time) time.Time {
 	weekday := date.Weekday()
 	daysToMonday := int(weekday - time.Monday)

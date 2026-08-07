@@ -20,6 +20,7 @@ import (
 	"gwatch/internal/vars"
 )
 
+// executePreConditions 按顺序执行前置条件测试用例，任一失败则返回错误。
 func executePreConditions(preIDs []string) (TestResult, error) {
 	for _, preID := range preIDs {
 		preTC := findTestCaseByID(preID)
@@ -41,6 +42,7 @@ func executePreConditions(preIDs []string) (TestResult, error) {
 	return TestResult{}, nil
 }
 
+// executePostConditions 按顺序执行后置条件测试用例，失败仅记录警告不中断。
 func executePostConditions(postIDs []string) {
 	for _, postID := range postIDs {
 		postTC := findTestCaseByID(postID)
@@ -60,6 +62,7 @@ func executePostConditions(postIDs []string) {
 	}
 }
 
+// finishTestCase 完成测试用例执行：计算耗时、记录执行时间、执行后置条件、清理变量、等待延迟。
 func finishTestCase(tc psv.TestCase, result TestResult, startTime time.Time) TestResult {
 	result.EndTime = timeutil.Now()
 	result.Duration = result.EndTime.Sub(startTime)
@@ -106,6 +109,7 @@ func finishTestCase(tc psv.TestCase, result TestResult, startTime time.Time) Tes
 	return result
 }
 
+// ExecuteTestCase 执行单个测试用例：处理前置条件、发送 HTTP 请求、校验响应、提取变量、调用 finishTestCase。
 func ExecuteTestCase(tc psv.TestCase) TestResult {
 	startTime := timeutil.Now()
 
@@ -301,6 +305,7 @@ func ExecuteTestCase(tc psv.TestCase) TestResult {
 	return finishTestCase(tc, result, startTime)
 }
 
+// executeStreamAssert 执行流式断言：解析 SSE 响应中的数据块，聚合内容后进行断言匹配。
 func executeStreamAssert(tc psv.TestCase, resp *resty.Response, startTime time.Time) TestResult {
 	result := TestResult{
 		TestCase:  tc,

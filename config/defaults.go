@@ -6,6 +6,7 @@ import (
 	"github.com/spf13/viper"
 )
 
+// setCleanerDefaults 设置清理模块的默认配置（保留天数、日志目录、清理间隔等）。
 func setCleanerDefaults() {
 	hasCleanerConfig := viper.IsSet("cleaner")
 
@@ -32,6 +33,7 @@ func setCleanerDefaults() {
 	}
 }
 
+// setScraperDefaults 设置采集器模块的默认配置（目标超时、间隔、启用状态等）。
 func setScraperDefaults() {
 	hasScraperConfig := viper.IsSet("scraper")
 
@@ -65,6 +67,7 @@ func setScraperDefaults() {
 	}
 }
 
+// setMonitorDefaults 设置监控模块的默认配置（告警间隔、各类报告启用状态、报告时间等）。
 func setMonitorDefaults() {
 	if GlobalConfig.Monitor.AlertInterval <= 0 {
 		GlobalConfig.Monitor.AlertInterval = 6 * 60 * 60
@@ -99,6 +102,7 @@ func setMonitorDefaults() {
 	}
 }
 
+// setSystemMonitorDefaults 设置系统监控模块的默认配置（采集间隔、各指标阈值、告警冷却时间等）。
 func setSystemMonitorDefaults() {
 	sm := GlobalConfig.SystemMon
 

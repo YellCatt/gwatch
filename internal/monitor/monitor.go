@@ -48,6 +48,9 @@ var (
 	lastAlertMu   sync.Mutex
 )
 
+// StartMonitor 启动监控模式：执行全局前置条件、过滤启用监控的测试用例、
+// 启动 worker 协程池、为每个用例开启定时监控、启动报告调度与热加载，
+// 并阻塞等待系统退出信号。
 func StartMonitor(testCases []psv.TestCase) {
 	logger.Info("Starting monitor mode")
 
@@ -109,6 +112,8 @@ func StartMonitor(testCases []psv.TestCase) {
 	fmt.Println("监控任务已全部停止")
 }
 
+// executeGlobalPreConditions 按配置顺序执行全局前置条件测试用例，
+// 若任一前置条件失败则发送错误邮件并终止进程。
 func executeGlobalPreConditions(testCases []psv.TestCase) {
 	fmt.Printf("\n════════════════════════════════════════════════════════╗\n")
 	fmt.Printf("║ 执行全局前置条件                                       ║\n")
@@ -141,6 +146,7 @@ func executeGlobalPreConditions(testCases []psv.TestCase) {
 	fmt.Println()
 }
 
+// worker 监控 worker 协程：从 taskChan 接收任务并执行，直到从 stopChan 收到停止信号。
 func worker(id int) {
 	logger.Info("Worker started", zap.Int("id", id))
 	for {
@@ -154,6 +160,8 @@ func worker(id int) {
 	}
 }
 
+// executeAndMonitorTask 执行单个监控任务：调用 testcase 执行、告警检查、结果记录，
+// 并异步持久化存储。失败或慢响应时按用例配置触发告警邮件。
 func executeAndMonitorTask(tc psv.TestCase) {
 	logger.Info("Executing monitor task", zap.String("id", tc.ID))
 
@@ -181,6 +189,8 @@ func executeAndMonitorTask(tc psv.TestCase) {
 	}
 }
 
+// persistMonitorResult 将单次监控结果持久化到 CSV，包括原始结果、
+// 监控汇总与告警汇总三个维度的存储更新。
 func persistMonitorResult(tc psv.TestCase, result testcase.TestResult, monitorResult MonitorResult) {
 	record := storage.MonitorResultRecord{
 		TestCaseID:     tc.ID,
@@ -211,6 +221,7 @@ func persistMonitorResult(tc psv.TestCase, result testcase.TestResult, monitorRe
 	}
 }
 
+// filterMonitorCases 从所有测试用例中筛选出启用了监控（MonitorEnabled=true）的用例。
 func filterMonitorCases(testCases []psv.TestCase) []psv.TestCase {
 	var result []psv.TestCase
 	for _, tc := range testCases {
@@ -221,6 +232,8 @@ func filterMonitorCases(testCases []psv.TestCase) []psv.TestCase {
 	return result
 }
 
+// StopAllTasks 停止所有监控任务：关闭各任务的 Ticker 与 StopChan，并关闭全局 stopChan，
+// 释放 worker 协程池。
 func StopAllTasks() {
 	tasksMu.Lock()
 	for id, task := range tasks {
@@ -240,18 +253,21 @@ func StopAllTasks() {
 	stopChan = nil
 }
 
+// GetResults 获取当前监控结果列表的一份副本（线程安全）。
 func GetResults() []MonitorResult {
 	resultsMu.Lock()
 	defer resultsMu.Unlock()
 	return append([]MonitorResult{}, results...)
 }
 
+// GetTaskCount 获取当前正在运行的监控任务数量（线程安全）。
 func GetTaskCount() int {
 	tasksMu.Lock()
 	defer tasksMu.Unlock()
 	return len(tasks)
 }
 
+// generateAndSendReport 根据指定周期与日期计算时间区间，生成报告并保存、发送邮件。
 func generateAndSendReport(period report.ReportPeriod, date time.Time) {
 	var startDate, endDate time.Time
 	switch period {
@@ -291,10 +307,12 @@ func generateAndSendReport(period report.ReportPeriod, date time.Time) {
 	}
 }
 
+// generateAndSendDailyReport 便捷函数：生成并发送指定日期的每日报告。
 func generateAndSendDailyReport(date time.Time) {
 	generateAndSendReport(report.PeriodDaily, date)
 }
 
+// generateAndSendStartupReport 生成并发送启动报告（包含任务列表与最大并发数等信息）。
 func generateAndSendStartupReport(cases []psv.TestCase, maxWorkers int) {
 	info := buildStartupInfo(cases, maxWorkers)
 	r := report.GenerateStartup(info)
@@ -311,6 +329,7 @@ func generateAndSendStartupReport(cases []psv.TestCase, maxWorkers int) {
 	}
 }
 
+// buildStartupInfo 根据测试用例列表构建启动报告所需的 StartupInfo 数据结构。
 func buildStartupInfo(cases []psv.TestCase, maxWorkers int) *report.StartupInfo {
 	info := &report.StartupInfo{
 		MaxWorkers: maxWorkers,

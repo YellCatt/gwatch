@@ -12,6 +12,7 @@ import (
 	"gwatch/internal/logger"
 )
 
+// RecordExecutionTime 记录一次测试/监控执行的耗时到 CSV 存储中。
 func RecordExecutionTime(testCaseID, testCaseDesc, fileName, url string, duration time.Duration, success bool) error {
 	mu.Lock()
 	defer mu.Unlock()
@@ -37,6 +38,7 @@ func RecordExecutionTime(testCaseID, testCaseDesc, fileName, url string, duratio
 	return nil
 }
 
+// GetAverageDuration 获取指定 URL 的历史平均执行耗时（仅统计成功执行）。
 func GetAverageDuration(url string) (time.Duration, error) {
 	mu.RLock()
 	defer mu.RUnlock()
@@ -72,6 +74,7 @@ func GetAverageDuration(url string) (time.Duration, error) {
 	return time.Duration(sum/count) * time.Millisecond, nil
 }
 
+// GetAllAverageDurations 获取所有 URL 的历史平均执行耗时映射。
 func GetAllAverageDurations() (map[string]time.Duration, error) {
 	mu.RLock()
 	defer mu.RUnlock()
@@ -122,6 +125,7 @@ func GetAllAverageDurations() (map[string]time.Duration, error) {
 	return averages, nil
 }
 
+// GetExecutionCount 获取指定 URL 的成功执行次数。
 func GetExecutionCount(url string) (int, error) {
 	mu.RLock()
 	defer mu.RUnlock()
@@ -147,6 +151,7 @@ func GetExecutionCount(url string) (int, error) {
 	return count, nil
 }
 
+// GetTotalExecutionCount 获取所有成功执行的总次数。
 func GetTotalExecutionCount() (int, error) {
 	mu.RLock()
 	defer mu.RUnlock()
@@ -172,6 +177,7 @@ func GetTotalExecutionCount() (int, error) {
 	return count, nil
 }
 
+// CalculateAndStoreAverages 从执行记录中聚合计算每个接口的平均耗时，并写入平均耗时 CSV 文件。
 func CalculateAndStoreAverages() error {
 	mu.Lock()
 	defer mu.Unlock()
@@ -261,6 +267,7 @@ func CalculateAndStoreAverages() error {
 	return nil
 }
 
+// GetAllStoredAverages 获取所有已存储的平均耗时记录，返回 map 列表。
 func GetAllStoredAverages() ([]map[string]interface{}, error) {
 	mu.RLock()
 	defer mu.RUnlock()

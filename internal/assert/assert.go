@@ -12,7 +12,7 @@ import (
 	"gwatch/internal/logger"
 )
 
-
+// BodyRegexMatch 使用正则表达式匹配响应体内容，支持 "!" 前缀取反。
 func BodyRegexMatch(body string, pattern string) (bool, string) {
 	if pattern == "" {
 		return true, ""
@@ -43,6 +43,7 @@ func BodyRegexMatch(body string, pattern string) (bool, string) {
 	return true, ""
 }
 
+// JSONMatch 比较期望 JSON 与实际响应 JSON，支持 exact 和 subset 两种匹配模式。
 func JSONMatch(expected, actual string, matchMode string) (bool, string) {
 	if expected == "" {
 		return true, ""
@@ -58,6 +59,7 @@ func JSONMatch(expected, actual string, matchMode string) (bool, string) {
 	return jsonExactMatch(expectedData, actualData)
 }
 
+// jsonExactMatch 精确比较两个 JSON 对象（键数和值必须完全一致）。
 func jsonExactMatch(expected, actual gjson.Result) (bool, string) {
 	if !expected.IsObject() || !actual.IsObject() {
 		return compareValues(expected, actual)
@@ -84,6 +86,7 @@ func jsonExactMatch(expected, actual gjson.Result) (bool, string) {
 	return true, ""
 }
 
+// jsonSubsetMatch 子集匹配比较：期望 JSON 的所有键都必须存在于实际 JSON 中，但允许实际 JSON 有额外键。
 func jsonSubsetMatch(expected, actual gjson.Result) (bool, string) {
 	if !expected.IsObject() || !actual.IsObject() {
 		return compareValues(expected, actual)
@@ -114,6 +117,7 @@ func jsonSubsetMatch(expected, actual gjson.Result) (bool, string) {
 	return true, ""
 }
 
+// compareValues 比较两个 gjson 值，支持特殊指令（{{skip}}、{{regex:...}}、{{not_regex:...}}、{{not_exists}}）。
 func compareValues(expected, actual gjson.Result) (bool, string) {
 	expectedStr := expected.Str
 	expectedRaw := expected.Raw
@@ -210,6 +214,7 @@ func compareValues(expected, actual gjson.Result) (bool, string) {
 	return true, ""
 }
 
+// StreamAssert 执行流式断言，只要有一个断言匹配成功即返回 true。
 func StreamAssert(aggregatedContent string, chunkCount int, asserts []StreamAssertConfig) (bool, string) {
 	for _, sa := range asserts {
 		if ok, _ := checkStreamAssert(aggregatedContent, chunkCount, sa); ok {
@@ -219,6 +224,7 @@ func StreamAssert(aggregatedContent string, chunkCount int, asserts []StreamAsse
 	return false, "no stream assertion matched"
 }
 
+// StreamAssertConfig 流式断言配置结构体。
 type StreamAssertConfig struct {
 	Kind      string `json:"kind"`
 	Pattern   string `json:"pattern"`
@@ -226,6 +232,7 @@ type StreamAssertConfig struct {
 	MinChunks int    `json:"min_chunks"`
 }
 
+// checkStreamAssert 检查单条流式断言规则是否匹配，支持 contains、regex、json_path 三种类型。
 func checkStreamAssert(aggregatedContent string, chunkCount int, sa StreamAssertConfig) (bool, string) {
 	if chunkCount < sa.MinChunks {
 		return false, fmt.Sprintf("need at least %d chunks, got %d", sa.MinChunks, chunkCount)
@@ -260,6 +267,7 @@ func checkStreamAssert(aggregatedContent string, chunkCount int, sa StreamAssert
 	}
 }
 
+// ExtractVariables 从响应体中提取变量，支持格式 "key=jsonpath"，多个变量用逗号分隔。
 func ExtractVariables(responseBody string, extractExpr string) (map[string]string, error) {
 	if extractExpr == "" {
 		return nil, nil
@@ -303,6 +311,7 @@ func maskValue(s string) string {
 	return s[:6] + "***" + s[len(s)-6:]
 }
 
+// BuildAggregatedResult 构建包含聚合内容和块数的 JSON 结果字符串。
 func BuildAggregatedResult(aggregatedContent string, chunkCount int) string {
 	result := map[string]interface{}{
 		"aggregated_content": aggregatedContent,

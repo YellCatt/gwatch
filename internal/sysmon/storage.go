@@ -36,22 +36,27 @@ var metricsHeader = []string{
 	"sample_count",
 }
 
+// hourlyPath 返回小时级指标 CSV 文件路径。
 func hourlyPath() string {
 	return filepath.Join(config.GlobalConfig.App.DataDir, "system_metrics_hourly.csv")
 }
 
+// dailyPath 返回日级指标 CSV 文件路径。
 func dailyPath() string {
 	return filepath.Join(config.GlobalConfig.App.DataDir, "system_metrics_daily.csv")
 }
 
+// monthlyPath 返回月级指标 CSV 文件路径。
 func monthlyPath() string {
 	return filepath.Join(config.GlobalConfig.App.DataDir, "system_metrics_monthly.csv")
 }
 
+// yearlyPath 返回年级指标 CSV 文件路径。
 func yearlyPath() string {
 	return filepath.Join(config.GlobalConfig.App.DataDir, "system_metrics_yearly.csv")
 }
 
+// InitStorage 初始化系统指标存储，确保各级 CSV 文件存在且包含表头。
 func InitStorage() {
 	paths := []string{hourlyPath(), dailyPath(), monthlyPath(), yearlyPath()}
 	for _, p := range paths {
@@ -61,6 +66,7 @@ func InitStorage() {
 	}
 }
 
+// ensureCSV 确保指定路径的 CSV 文件存在且非空；若不存在则创建并写入表头。
 func ensureCSV(path string) error {
 	info, err := os.Stat(path)
 	if err == nil && info.Size() > 0 {
@@ -81,6 +87,7 @@ func ensureCSV(path string) error {
 	return w.Error()
 }
 
+// recordMetric 将一条系统指标记录追加写入到指定 CSV 文件（线程安全）。
 func recordMetric(path string, metric SystemMetric, sampleCount int) error {
 	storageMu.Lock()
 	defer storageMu.Unlock()
@@ -119,22 +126,27 @@ func recordMetric(path string, metric SystemMetric, sampleCount int) error {
 	return w.Error()
 }
 
+// RecordHourlyMetric 将小时级指标记录写入小时 CSV 文件。
 func RecordHourlyMetric(metric SystemMetric, sampleCount int) error {
 	return recordMetric(hourlyPath(), metric, sampleCount)
 }
 
+// RecordDailyMetric 将日级指标记录写入日 CSV 文件。
 func RecordDailyMetric(metric SystemMetric, sampleCount int) error {
 	return recordMetric(dailyPath(), metric, sampleCount)
 }
 
+// RecordMonthlyMetric 将月级指标记录写入月 CSV 文件。
 func RecordMonthlyMetric(metric SystemMetric, sampleCount int) error {
 	return recordMetric(monthlyPath(), metric, sampleCount)
 }
 
+// RecordYearlyMetric 将年级指标记录写入年 CSV 文件。
 func RecordYearlyMetric(metric SystemMetric, sampleCount int) error {
 	return recordMetric(yearlyPath(), metric, sampleCount)
 }
 
+// loadMetrics 从指定 CSV 文件加载系统指标列表，支持按 since 时间过滤。
 func loadMetrics(path string, since time.Time) ([]SystemMetric, error) {
 	storageMu.Lock()
 	defer storageMu.Unlock()
@@ -192,6 +204,7 @@ func loadMetrics(path string, since time.Time) ([]SystemMetric, error) {
 	return results, nil
 }
 
+// LoadRecentMetrics 加载最近 N 小时内的小时级指标记录。
 func LoadRecentMetrics(hours int) ([]SystemMetric, error) {
 	if hours <= 0 {
 		hours = 24
@@ -200,18 +213,22 @@ func LoadRecentMetrics(hours int) ([]SystemMetric, error) {
 	return loadMetrics(hourlyPath(), cutoff)
 }
 
+// LoadDailyMetrics 加载自指定时间以来的日级指标记录。
 func LoadDailyMetrics(since time.Time) ([]SystemMetric, error) {
 	return loadMetrics(dailyPath(), since)
 }
 
+// LoadMonthlyMetrics 加载自指定时间以来的月级指标记录。
 func LoadMonthlyMetrics(since time.Time) ([]SystemMetric, error) {
 	return loadMetrics(monthlyPath(), since)
 }
 
+// LoadYearlyMetrics 加载自指定时间以来的年级指标记录。
 func LoadYearlyMetrics(since time.Time) ([]SystemMetric, error) {
 	return loadMetrics(yearlyPath(), since)
 }
 
+// aggregateMetrics 聚合一组系统指标，返回平均值指标与样本数量。
 func aggregateMetrics(metrics []SystemMetric) (SystemMetric, int) {
 	if len(metrics) == 0 {
 		return SystemMetric{}, 0
@@ -225,6 +242,7 @@ func aggregateMetrics(metrics []SystemMetric) (SystemMetric, int) {
 	return agg.toSystemMetric(), len(metrics)
 }
 
+// aggregateAndRecord 聚合一组指标并将结果写入指定 CSV 文件。
 func aggregateAndRecord(path string, metrics []SystemMetric) error {
 	if len(metrics) == 0 {
 		return nil
@@ -233,6 +251,7 @@ func aggregateAndRecord(path string, metrics []SystemMetric) error {
 	return recordMetric(path, avg, count)
 }
 
+// getCol 从 CSV 记录中按列名获取对应字段值。
 func getCol(rec []string, colIndex map[string]int, name string) string {
 	if idx, ok := colIndex[name]; ok && idx < len(rec) {
 		return rec[idx]
@@ -240,20 +259,24 @@ func getCol(rec []string, colIndex map[string]int, name string) string {
 	return ""
 }
 
+// parseFloat 将字符串解析为 float64，解析失败返回 0。
 func parseFloat(s string) float64 {
 	v, _ := strconv.ParseFloat(strings.TrimSpace(s), 64)
 	return v
 }
 
+// parseUint64 将字符串解析为 uint64，解析失败返回 0。
 func parseUint64(s string) uint64 {
 	v, _ := strconv.ParseUint(strings.TrimSpace(s), 10, 64)
 	return v
 }
 
+// GetStoragePath 返回小时级指标存储文件路径。
 func GetStoragePath() string {
 	return hourlyPath()
 }
 
+// EnsureStorage 确保指标存储目录存在，并初始化小时级 CSV 文件。
 func EnsureStorage() error {
 	path := hourlyPath()
 	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {

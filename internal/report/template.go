@@ -31,6 +31,7 @@ func init() {
 	tmpl = template.Must(template.New("").Funcs(funcMap).ParseFS(templateFS, "templates/*.tmpl"))
 }
 
+// executeTemplate 使用指定名称渲染模板，返回渲染后的字符串。
 func executeTemplate(name string, data any) string {
 	var buf bytes.Buffer
 	if err := tmpl.ExecuteTemplate(&buf, name, data); err != nil {
@@ -179,6 +180,7 @@ type monthlyMetricRow struct {
 	Values      []string
 }
 
+// buildBaseData 从 Report 对象构建基础报告数据结构，包含接口统计、告警汇总等。
 func buildBaseData(r *Report) baseReportData {
 	successRate := 0.0
 	if r.TotalTasks > 0 {
@@ -242,6 +244,7 @@ func buildBaseData(r *Report) baseReportData {
 	}
 }
 
+// buildStartupData 从 Report 和 StartupInfo 构建启动报告数据结构，包含配置信息和任务列表。
 func buildStartupData(r *Report, info *StartupInfo) startupReportData {
 	cfg := config.GlobalConfig
 	data := startupReportData{
@@ -300,6 +303,7 @@ func buildStartupData(r *Report, info *StartupInfo) startupReportData {
 	return data
 }
 
+// buildScraperTargets 将采集器目标配置列表转换为模板行数据。
 func buildScraperTargets(targets []config.ScraperTargetConfig) []scraperTargetRow {
 	rows := make([]scraperTargetRow, 0, len(targets))
 	for _, t := range targets {
@@ -308,6 +312,7 @@ func buildScraperTargets(targets []config.ScraperTargetConfig) []scraperTargetRo
 	return rows
 }
 
+// buildHourlyResourceData 从 Report 构建每小时资源指标的模板数据。
 func buildHourlyResourceData(r *Report) hourlyResourceData {
 	metrics := make([]hourlyMetricRow, 0, len(r.HourlyMetrics))
 	for _, m := range r.HourlyMetrics {
@@ -334,6 +339,7 @@ func buildHourlyResourceData(r *Report) hourlyResourceData {
 	}
 }
 
+// buildDailyResourceData 从 Report 构建每日资源指标的模板数据。
 func buildDailyResourceData(r *Report, title string) dailyResourceData {
 	metrics := make([]dailyMetricRow, 0, len(r.DailyMetrics))
 	for _, m := range r.DailyMetrics {
@@ -364,6 +370,7 @@ func buildDailyResourceData(r *Report, title string) dailyResourceData {
 	}
 }
 
+// buildMonthlyResourceData 从 Report 构建每月资源指标的模板数据。
 func buildMonthlyResourceData(r *Report) monthlyResourceData {
 	metrics := make([]monthlyMetricRow, 0, len(r.MonthlyMetrics))
 	for _, m := range r.MonthlyMetrics {
