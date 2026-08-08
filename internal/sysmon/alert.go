@@ -11,6 +11,7 @@ import (
 	"gwatch/internal/logger"
 	"gwatch/internal/storage"
 	"gwatch/internal/timeutil"
+	"gwatch/internal/util"
 )
 
 // CheckAlerts 根据系统指标与配置阈值对比，返回触发的告警列表。
@@ -201,4 +202,8 @@ func SendSystemStatusEmail(metrics []SystemMetric) error {
 
 	logger.Info("Sending system status email", zap.String("subject", subject))
 	return email.SendCustomEmail(subject, bodyBuilder.String())
+}
+
+func formatSpeed(kbps float64) string {
+	return util.FormatSpeed(kbps)
 }

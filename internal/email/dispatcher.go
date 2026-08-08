@@ -9,7 +9,6 @@ import (
 	"go.uber.org/zap"
 
 	"gwatch/internal/logger"
-	"gwatch/internal/report"
 	"gwatch/internal/timeutil"
 	"gwatch/internal/util"
 )
@@ -163,12 +162,12 @@ func sendUnifiedAlertEmail(alerts []UnifiedAlert) error {
 
 	grouped := groupBySource(alerts)
 
-	var groups []report.AlertGroupData
-	var allRows []report.AlertRowData
+	var groups []AlertGroupData
+	var allRows []AlertRowData
 	for _, g := range grouped {
-		var groupRows []report.AlertRowData
+		var groupRows []AlertRowData
 		for _, a := range g.alerts {
-			row := report.AlertRowData{
+			row := AlertRowData{
 				TargetName:  a.TargetName,
 				MetricAlias: a.MetricAlias,
 				Level:       a.AlertLevel,
@@ -180,13 +179,13 @@ func sendUnifiedAlertEmail(alerts []UnifiedAlert) error {
 			groupRows = append(groupRows, row)
 			allRows = append(allRows, row)
 		}
-		groups = append(groups, report.AlertGroupData{
+		groups = append(groups, AlertGroupData{
 			SourceName: g.sourceName,
 			Alerts:     groupRows,
 		})
 	}
 
-	data := report.UnifiedAlertEmailData{
+	data := UnifiedAlertEmailData{
 		Timestamp:     timeutil.FormatDateTime(timeutil.Now()),
 		DeviceName:    util.GetDeviceName(),
 		TotalCount:    len(alerts),
@@ -195,8 +194,8 @@ func sendUnifiedAlertEmail(alerts []UnifiedAlert) error {
 		Groups:        groups,
 	}
 
-	body := report.RenderUnifiedAlertBody(data)
-	subject := report.BuildUnifiedAlertSubject(allRows, criticalCount, warningCount)
+	body := RenderUnifiedAlertBody(data)
+	subject := BuildUnifiedAlertSubject(allRows, criticalCount, warningCount)
 
 	logger.Info("Sending unified alert email", zap.Int("alerts", len(alerts)))
 	return SendEmail(subject, body)
