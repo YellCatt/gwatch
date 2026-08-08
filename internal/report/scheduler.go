@@ -7,10 +7,11 @@ import (
 	"go.uber.org/zap"
 
 	"gwatch/config"
-	"gwatch/internal/email"
 	"gwatch/internal/logger"
 	"gwatch/internal/timeutil"
 )
+
+type EmailSender func(subject, body string) error
 
 type PeriodicScheduler struct {
 	reportHour   int
@@ -118,10 +119,11 @@ func getWeekStart(date time.Time) time.Time {
 
 type ReportScheduler struct {
 	scheduler *PeriodicScheduler
+	sender    EmailSender
 }
 
-func NewReportScheduler() *ReportScheduler {
-	return &ReportScheduler{}
+func NewReportScheduler(sender EmailSender) *ReportScheduler {
+	return &ReportScheduler{sender: sender}
 }
 
 func (rs *ReportScheduler) Start() {
@@ -138,32 +140,32 @@ func (rs *ReportScheduler) generateAllReports() {
 	if config.GlobalConfig.Monitor.DailyReport {
 		yesterday := now.Add(-24 * time.Hour)
 		logger.Info("Generating daily report for", zap.String("date", yesterday.Format("2006-01-02")))
-		generateAndSendReport(PeriodDaily, yesterday)
+		generateAndSendReport(PeriodDaily, yesterday, rs.sender)
 	}
 
 	if config.GlobalConfig.Monitor.WeeklyReport {
 		if ShouldTriggerWeekly(now) {
 			logger.Info("Generating weekly report for week starting", zap.String("date", getWeekStart(now).Format("2006-01-02")))
-			generateAndSendReport(PeriodWeekly, now)
+			generateAndSendReport(PeriodWeekly, now, rs.sender)
 		}
 	}
 
 	if config.GlobalConfig.Monitor.MonthlyReport {
 		if ShouldTriggerMonthly(now) {
 			logger.Info("Generating monthly report for", zap.String("month", now.Format("2006-01")))
-			generateAndSendReport(PeriodMonthly, now)
+			generateAndSendReport(PeriodMonthly, now, rs.sender)
 		}
 	}
 
 	if config.GlobalConfig.Monitor.YearlyReport {
 		if ShouldTriggerYearly(now) {
 			logger.Info("Generating yearly report for", zap.String("year", now.Format("2006")))
-			generateAndSendReport(PeriodYearly, now)
+			generateAndSendReport(PeriodYearly, now, rs.sender)
 		}
 	}
 }
 
-func generateAndSendReport(period ReportPeriod, date time.Time) {
+func generateAndSendReport(period ReportPeriod, date time.Time, sender EmailSender) {
 	var startDate, endDate time.Time
 	switch period {
 	case PeriodDaily:
@@ -197,8 +199,10 @@ func generateAndSendReport(period ReportPeriod, date time.Time) {
 	}
 
 	subject, body := r.PrepareReportEmail()
-	err = email.SendCustomEmail(subject, body)
-	if err != nil {
-		logger.Error("Failed to send report email", zap.Error(err))
+	if sender != nil {
+		err = sender(subject, body)
+		if err != nil {
+			logger.Error("Failed to send report email", zap.Error(err))
+		}
 	}
 }

@@ -94,7 +94,7 @@ func startMonitor(paths []string) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			report.NewReportScheduler().Start()
+			report.NewReportScheduler(email.SendCustomEmail).Start()
 		}()
 		started = append(started, "定期报告")
 	}
