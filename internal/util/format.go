@@ -19,9 +19,9 @@ func FormatSpeed(kbps float64) string {
 // 如果单位无法识别，返回原始值，保持向后兼容。
 func NormalizeSpeed(threshold float64, unit string) float64 {
 	switch unit {
-	case "MB/s", "MBPS", "mb/s", "mbps":
+	case "MB/s", "MBPS", "mb/s":
 		return threshold * 1024
-	case "GB/s", "GBPS", "gb/s", "gbps":
+	case "GB/s", "GBPS", "gb/s":
 		return threshold * 1024 * 1024
 	case "Mbps", "mbps":
 		return threshold * 1024 / 8
@@ -29,7 +29,7 @@ func NormalizeSpeed(threshold float64, unit string) float64 {
 		return threshold * 1024 / 8
 	case "Gbps", "gbps":
 		return threshold * 1024 * 1024 / 8
-	case "KB/s", "KBPS", "kb/s", "kbps":
+	case "KB/s", "KBPS", "kb/s":
 		return threshold
 	case "B/s", "bps", "b/s":
 		return threshold / 1024
