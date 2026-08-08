@@ -6,10 +6,10 @@ import (
 	"fmt"
 	"log"
 	"net/smtp"
-	"os"
 	"strings"
 
 	"gwatch/internal/timeutil"
+	"gwatch/internal/util"
 )
 
 // EmailConfig 邮件配置结构体
@@ -29,18 +29,6 @@ var Config EmailConfig
 // InitEmail 初始化邮件模块配置。
 func InitEmail(cfg EmailConfig) {
 	Config = cfg
-}
-
-// getDeviceName 获取设备名称，优先使用配置值，未配置时自动获取主机名
-func getDeviceName() string {
-	if Config.DeviceName != "" {
-		return Config.DeviceName
-	}
-	hostname, err := os.Hostname()
-	if err != nil {
-		return "未知设备"
-	}
-	return hostname
 }
 
 // formatSubject 格式化邮件主题（预留扩展点）。
@@ -137,11 +125,11 @@ func SendEmail(subject, body string) error {
 // buildErrorSubject 构建异常报告邮件标题
 func buildErrorSubject() string {
 	if Config.ErrorSubject != "" {
-		subject := strings.ReplaceAll(Config.ErrorSubject, "{{device}}", getDeviceName())
+		subject := strings.ReplaceAll(Config.ErrorSubject, "{{device}}", util.GetDeviceName())
 		subject = strings.ReplaceAll(subject, "{{time}}", timeutil.FormatDateTime(timeutil.Now()))
 		return subject
 	}
-	return fmt.Sprintf("【测试异常】gwatch - %s - %s", getDeviceName(), timeutil.FormatDateTime(timeutil.Now()))
+	return fmt.Sprintf("【测试异常】gwatch - %s - %s", util.GetDeviceName(), timeutil.FormatDateTime(timeutil.Now()))
 }
 
 // SendErrorReportEmail 发送异常退出报告邮件
@@ -160,7 +148,7 @@ func SendErrorReportEmail(errorMessage string) error {
 	var body strings.Builder
 	body.WriteString("===== 测试异常报告 =====\n\n")
 	body.WriteString(fmt.Sprintf("发生时间: %s\n", timeutil.FormatDateTime(timeutil.Now())))
-	body.WriteString(fmt.Sprintf("测试设备: %s\n", getDeviceName()))
+	body.WriteString(fmt.Sprintf("测试设备: %s\n", util.GetDeviceName()))
 	body.WriteString(fmt.Sprintf("\n异常信息:\n"))
 	body.WriteString(fmt.Sprintf("  %s\n", errorMessage))
 	body.WriteString("\n===== 报告结束 =====\n")

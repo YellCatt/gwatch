@@ -352,15 +352,6 @@ func alertLevelDisplay(level string) (string, string) {
 	}
 }
 
-// getDeviceName 获取当前主机名，用于报告中标识设备。
-func getDeviceName() string {
-	name, err := os.Hostname()
-	if err != nil {
-		return "Unknown"
-	}
-	return name
-}
-
 // SaveReport 生成报告内容并保存为文本文件，返回保存路径。
 func (r *Report) SaveReport() (string, error) {
 	reportDir := config.GlobalConfig.App.ReportDir

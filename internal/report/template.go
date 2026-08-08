@@ -10,6 +10,7 @@ import (
 
 	"gwatch/config"
 	"gwatch/internal/timeutil"
+	"gwatch/internal/util"
 )
 
 //go:embed templates/*.tmpl
@@ -21,11 +22,11 @@ func init() {
 	funcMap := template.FuncMap{
 		"formatDuration": formatDuration,
 		"formatDateTime": timeutil.FormatDateTime,
-		"formatBytes":    formatBytes,
-		"formatSpeed":    formatSpeed,
+		"formatBytes":    util.FormatBytes,
+		"formatSpeed":    util.FormatSpeed,
 		"boolEnabled":    boolToEnabled,
 		"join":           strings.Join,
-		"deviceName":     getDeviceName,
+		"deviceName":     util.GetDeviceName,
 		"periodName":     func(p ReportPeriod) string { return PeriodNames[p] },
 		"now":            timeutil.Now,
 	}
@@ -350,7 +351,7 @@ func buildStartupData(r *Report, info *StartupInfo) startupReportData {
 	cfg := config.GlobalConfig
 	data := startupReportData{
 		GeneratedAt:        timeutil.FormatDateTime(r.GeneratedAt),
-		DeviceName:         getDeviceName(),
+		DeviceName:         util.GetDeviceName(),
 		Now:                timeutil.FormatDateTime(time.Now()),
 		DataDir:            cfg.App.DataDir,
 		ReportDir:          cfg.App.ReportDir,

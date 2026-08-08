@@ -40,23 +40,6 @@ func boolToEnabled(b bool) string {
 	return "❌ 已禁用"
 }
 
-// formatBytes 将字节数格式化为 MB 或 GB 形式。
-func formatBytes(bytes uint64) string {
-	mb := float64(bytes) / 1024 / 1024
-	if mb >= 1024 {
-		return fmt.Sprintf("%.2f GB", mb/1024)
-	}
-	return fmt.Sprintf("%.1f MB", mb)
-}
-
-// formatSpeed 将 KB/s 速度格式化为 MB/s 或 KB/s 形式。
-func formatSpeed(kbps float64) string {
-	if kbps >= 1024 {
-		return fmt.Sprintf("%.2f MB/s", kbps/1024)
-	}
-	return fmt.Sprintf("%.2f KB/s", kbps)
-}
-
 // DisplayReport 在控制台打印报告内容。
 func DisplayReport(report *Report) {
 	fmt.Println(report.GenerateContent())

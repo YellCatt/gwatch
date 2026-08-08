@@ -11,6 +11,7 @@ import (
 	"gwatch/internal/logger"
 	"gwatch/internal/report"
 	"gwatch/internal/timeutil"
+	"gwatch/internal/util"
 )
 
 type AlertSource string
@@ -187,7 +188,7 @@ func sendUnifiedAlertEmail(alerts []UnifiedAlert) error {
 
 	data := report.UnifiedAlertEmailData{
 		Timestamp:     timeutil.FormatDateTime(timeutil.Now()),
-		DeviceName:    getDeviceName(),
+		DeviceName:    util.GetDeviceName(),
 		TotalCount:    len(alerts),
 		CriticalCount: criticalCount,
 		WarningCount:  warningCount,

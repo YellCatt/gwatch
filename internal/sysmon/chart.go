@@ -12,6 +12,7 @@ import (
 	"gwatch/config"
 	"gwatch/internal/logger"
 	"gwatch/internal/timeutil"
+	"gwatch/internal/util"
 )
 
 // GenerateASCIIChart 生成一个简单的 ASCII 柱状图（无时间标签版本）。
@@ -162,16 +163,16 @@ func GenerateSystemReport(metrics []SystemMetric, alerts []AlertItem) string {
 	builder.WriteString(fmt.Sprintf("  CPU 使用率:     %.2f %s\n", latest.CPUPercent, "%"))
 	builder.WriteString(fmt.Sprintf("  内存使用率:     %.2f %s (%s / %s)\n",
 		latest.MemoryPercent, "%",
-		formatBytes(latest.MemoryUsed),
-		formatBytes(latest.MemoryTotal)))
+		util.FormatBytes(latest.MemoryUsed),
+		util.FormatBytes(latest.MemoryTotal)))
 	builder.WriteString(fmt.Sprintf("  磁盘使用率:     %.2f %s (%s / %s)\n",
 		latest.DiskPercent, "%",
-		formatBytes(latest.DiskUsed),
-		formatBytes(latest.DiskTotal)))
-	builder.WriteString(fmt.Sprintf("  网络下行速度:   %s\n", formatSpeed(latest.NetDownKBps)))
-	builder.WriteString(fmt.Sprintf("  网络上行速度:   %s\n", formatSpeed(latest.NetUpKBps)))
-	builder.WriteString(fmt.Sprintf("  磁盘读取速度:   %s\n", formatSpeed(latest.DiskReadKBps)))
-	builder.WriteString(fmt.Sprintf("  磁盘写入速度:   %s\n", formatSpeed(latest.DiskWriteKBps)))
+		util.FormatBytes(latest.DiskUsed),
+		util.FormatBytes(latest.DiskTotal)))
+	builder.WriteString(fmt.Sprintf("  网络下行速度:   %s\n", util.FormatSpeed(latest.NetDownKBps)))
+	builder.WriteString(fmt.Sprintf("  网络上行速度:   %s\n", util.FormatSpeed(latest.NetUpKBps)))
+	builder.WriteString(fmt.Sprintf("  磁盘读取速度:   %s\n", util.FormatSpeed(latest.DiskReadKBps)))
+	builder.WriteString(fmt.Sprintf("  磁盘写入速度:   %s\n", util.FormatSpeed(latest.DiskWriteKBps)))
 	builder.WriteString("\n")
 
 	builder.WriteString("  📈 历史趋势 (时间 + 进度 + 百分比)\n\n")
@@ -211,7 +212,7 @@ func GenerateSystemReport(metrics []SystemMetric, alerts []AlertItem) string {
 		for _, a := range alerts {
 			if a.Unit == "KB/s" {
 				builder.WriteString(fmt.Sprintf("  [%s] %s: %s (阈值: %s)\n",
-					a.Level, a.Metric, formatSpeed(a.Value), formatSpeed(a.Threshold)))
+					a.Level, a.Metric, util.FormatSpeed(a.Value), util.FormatSpeed(a.Threshold)))
 			} else {
 				builder.WriteString(fmt.Sprintf("  [%s] %s: %.2f %s (阈值: %.2f %s)\n",
 					a.Level, a.Metric, a.Value, a.Unit, a.Threshold, a.Unit))
@@ -253,23 +254,6 @@ func generateTimeLabels(metrics []SystemMetric, width int) []string {
 // formatHourLabel 将时间格式化为 "HH:00" 形式的小时标签。
 func formatHourLabel(t time.Time) string {
 	return fmt.Sprintf("%02d:00", t.Hour())
-}
-
-// formatBytes 将字节数格式化为易读形式（MB/GB）。
-func formatBytes(bytes uint64) string {
-	mb := float64(bytes) / 1024 / 1024
-	if mb >= 1024 {
-		return fmt.Sprintf("%.2f GB", mb/1024)
-	}
-	return fmt.Sprintf("%.1f MB", mb)
-}
-
-// formatSpeed 将速度（KB/s）格式化为易读形式（KB/s 或 MB/s）。
-func formatSpeed(kbps float64) string {
-	if kbps >= 1024 {
-		return fmt.Sprintf("%.2f MB/s", kbps/1024)
-	}
-	return fmt.Sprintf("%.2f KB/s", kbps)
 }
 
 // extractField 从系统指标列表中提取指定字段值，返回一个 float64 切片。
