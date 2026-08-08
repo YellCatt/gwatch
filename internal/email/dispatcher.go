@@ -159,7 +159,7 @@ func sendUnifiedAlertEmail(alerts []UnifiedAlert) error {
 		}
 	}
 
-	subject := buildAlertSubject(alerts)
+	subject := buildAlertSubject(alerts, criticalCount, warningCount)
 
 	var body strings.Builder
 	body.WriteString("╔══════════════════════════════════════════════════════════╗\n")
@@ -243,7 +243,11 @@ func groupBySource(alerts []UnifiedAlert) []alertGroup {
 	return result
 }
 
-func buildAlertSubject(alerts []UnifiedAlert) string {
+func buildAlertSubject(alerts []UnifiedAlert, criticalCount, warningCount int) string {
+	icon := "⚠️"
+	if criticalCount > 0 {
+		icon = "🚨"
+	}
 	sourceCounts := make(map[AlertSource]int)
 	for _, a := range alerts {
 		sourceCounts[a.Source]++
@@ -285,7 +289,7 @@ func buildAlertSubject(alerts []UnifiedAlert) string {
 	alertsText := strings.Join(alertNames, ", ")
 	sources := strings.Join(sourceParts, "·")
 
-	subject := fmt.Sprintf("%s | %s", alertsText, sources)
+	subject := fmt.Sprintf("%s %s | %s", icon, alertsText, sources)
 
 	if len([]rune(subject)) > 40 {
 		runes := []rune(subject)
