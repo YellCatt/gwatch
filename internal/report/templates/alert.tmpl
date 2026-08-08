@@ -1,12 +1,10 @@
 {{/* 统一告警邮件模板 */}}
 {{define "unified_alert"}}
-╔══════════════════════════════════════════════════════════╗
-║              gwatch 统一告警通知                         ║
-╠══════════════════════════════════════════════════════════╣
-║ 告警时间: {{.Timestamp}}
-║ 监控设备: {{.DeviceName}}
-║ 告警数量: {{.TotalCount}} (严重:{{.CriticalCount}} 警告:{{.WarningCount}})
-╚══════════════════════════════════════════════════════════╝
+
+告警时间: {{.Timestamp}}
+监控设备: {{.DeviceName}}
+告警数量: {{.TotalCount}} (严重:{{.CriticalCount}} 警告:{{.WarningCount}})
+
 {{range .Groups}}
 ━━━ {{.SourceName}} ━━━
 {{range .Alerts}}{{if eq .Level "CRITICAL"}}🚨{{else}}⚠️{{end}} [{{.Level}}] {{.MetricAlias}}
@@ -26,5 +24,5 @@
 {{- end}}
 
 {{end}}{{end}}
-────── 来自 gwatch 统一监控系统 ──────
+
 {{end}}
