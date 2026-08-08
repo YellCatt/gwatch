@@ -18,6 +18,7 @@ import (
 	"gwatch/internal/logger"
 	"gwatch/internal/scraper"
 	"gwatch/internal/storage"
+	"gwatch/internal/util"
 )
 
 var scraperCmd = &cobra.Command{
@@ -146,12 +147,25 @@ func ScraperLoop() {
 				}
 
 				if metric.Success {
-					fmt.Printf("  %s %s: %.2f %s", status, name, metric.Value, metric.Unit)
+					isSpeed := util.IsSpeedUnit(metric.Unit)
+					valueStr := fmt.Sprintf("%.2f %s", metric.Value, metric.Unit)
+					if isSpeed {
+						valueStr = util.FormatSpeed(metric.Value)
+					}
+					fmt.Printf("  %s %s: %s", status, name, valueStr)
 					if metric.WarningThreshold > 0 {
-						fmt.Printf(" (警告阈值: %.2f)", metric.WarningThreshold)
+						if isSpeed {
+							fmt.Printf(" (警告阈值: %s)", util.FormatSpeed(metric.WarningThreshold))
+						} else {
+							fmt.Printf(" (警告阈值: %.2f %s)", metric.WarningThreshold, metric.Unit)
+						}
 					}
 					if metric.Threshold > 0 {
-						fmt.Printf(" (严重阈值: %.2f)", metric.Threshold)
+						if isSpeed {
+							fmt.Printf(" (严重阈值: %s)", util.FormatSpeed(metric.Threshold))
+						} else {
+							fmt.Printf(" (严重阈值: %.2f %s)", metric.Threshold, metric.Unit)
+						}
 					}
 					if metric.OverThreshold {
 						fmt.Printf(" 🔴 严重告警")
@@ -171,7 +185,7 @@ func ScraperLoop() {
 							Unit:        metric.Unit,
 							Threshold:   metric.Threshold,
 							AlertLevel:  alertLevel,
-							Message:     fmt.Sprintf("%s: %.2f %s 超过阈值 %.2f %s", name, metric.Value, metric.Unit, metric.Threshold, metric.Unit),
+							Message:     buildAlertMessage(name, metric, isSpeed),
 							Timestamp:   result.Timestamp,
 						})
 
@@ -186,7 +200,7 @@ func ScraperLoop() {
 							Threshold:   metric.Threshold,
 							Unit:        metric.Unit,
 							AlertLevel:  alertLevel,
-							Message:     fmt.Sprintf("%s: %.2f %s 超过阈值 %.2f %s", name, metric.Value, metric.Unit, metric.Threshold, metric.Unit),
+							Message:     buildAlertMessage(name, metric, util.IsSpeedUnit(metric.Unit)),
 						})
 					}
 				} else {
@@ -305,4 +319,13 @@ func printMetricSuggestions(data interface{}, path string) {
 			printMetricSuggestions(val, newPath)
 		}
 	}
+}
+
+// buildAlertMessage 构建统一的告警消息文本。
+// 速度类指标使用 FormatSpeed 格式化，其它指标使用通用的 %.2f %s 格式。
+func buildAlertMessage(name string, metric scraper.MetricResult, isSpeed bool) string {
+	if isSpeed {
+		return fmt.Sprintf("%s: %s 超过阈值 %s", name, util.FormatSpeed(metric.Value), util.FormatSpeed(metric.Threshold))
+	}
+	return fmt.Sprintf("%s: %.2f %s 超过阈值 %.2f %s", name, metric.Value, metric.Unit, metric.Threshold, metric.Unit)
 }

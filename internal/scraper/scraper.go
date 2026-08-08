@@ -6,7 +6,6 @@ import (
 	"crypto/tls"
 	"fmt"
 	"strconv"
-	"strings"
 	"sync"
 	"time"
 
@@ -227,11 +226,19 @@ func extractMetrics(jsonStr string, metrics []MetricConfig) []MetricResult {
 
 		result.Value = floatVal
 		result.Success = true
-		result.Threshold = metric.Threshold
-		result.WarningThreshold = metric.WarningThreshold
 
-		// 检查告警条件
-		checkAlertConditions(metric, floatVal, &result)
+		// 速度类指标归一化：采集值保持原始值（已是 KB/s），仅将阈值从配置单位换算为 KB/s
+		if util.IsSpeedUnit(metric.Unit) {
+			result.Unit = "KB/s"
+			result.Threshold = util.NormalizeSpeed(metric.Threshold, metric.Unit)
+			result.WarningThreshold = util.NormalizeSpeed(metric.WarningThreshold, metric.Unit)
+		} else {
+			result.Threshold = metric.Threshold
+			result.WarningThreshold = metric.WarningThreshold
+		}
+
+		// 检查告警条件（使用归一化后的值进行比较）
+		checkAlertConditions(metric, result.Value, &result)
 
 		results = append(results, result)
 	}
@@ -242,6 +249,7 @@ func extractMetrics(jsonStr string, metrics []MetricConfig) []MetricResult {
 // checkAlertConditions 检查告警条件
 // 对于 gt/ge 操作符：先检查严重阈值（值更高），再检查警告阈值
 // 对于 lt/le 操作符：先检查警告阈值（值更高），再检查严重阈值（值更低，代表更严重的情况）
+// 速度类指标的值和阈值已在 extractMetrics 中统一归一化到 KB/s，直接使用 result 中的值即可。
 func checkAlertConditions(metric MetricConfig, value float64, result *MetricResult) {
 	if (metric.Threshold <= 0 && metric.WarningThreshold <= 0) || !metric.Alert {
 		return
@@ -260,34 +268,33 @@ func checkAlertConditions(metric MetricConfig, value float64, result *MetricResu
 	result.Alert = true
 	result.AlertLevel = alertLevel
 
-	unit := strings.ToLower(strings.TrimSpace(metric.Unit))
-
-	normalizedThreshold := util.NormalizeSpeed(metric.Threshold, unit)
-	normalizedWarning := util.NormalizeSpeed(metric.WarningThreshold, unit)
-
 	isLess := compareOp == "lt" || compareOp == "le"
 
+	// 使用 result 中的归一化值/阈值进行比较（速度类指标已换算为 KB/s）
+	threshold := result.Threshold
+	warningThreshold := result.WarningThreshold
+
 	if isLess {
-		if metric.WarningThreshold > 0 && compare(compareOp, value, normalizedWarning) {
+		if metric.WarningThreshold > 0 && compare(compareOp, value, warningThreshold) {
 			result.IsWarning = true
-			logAlert("warn", metric, value, metric.WarningThreshold, "警告")
+			logAlert("warn", metric, value, warningThreshold, "警告")
 		}
-		if metric.Threshold > 0 && compare(compareOp, value, normalizedThreshold) {
+		if metric.Threshold > 0 && compare(compareOp, value, threshold) {
 			result.OverThreshold = true
 			result.IsWarning = false
-			logAlert("error", metric, value, metric.Threshold, "严重")
+			logAlert("error", metric, value, threshold, "严重")
 		}
 		return
 	}
 
-	if metric.Threshold > 0 && compare(compareOp, value, normalizedThreshold) {
+	if metric.Threshold > 0 && compare(compareOp, value, threshold) {
 		result.OverThreshold = true
-		logAlert("error", metric, value, metric.Threshold, "严重")
+		logAlert("error", metric, value, threshold, "严重")
 		return
 	}
-	if metric.WarningThreshold > 0 && compare(compareOp, value, normalizedWarning) {
+	if metric.WarningThreshold > 0 && compare(compareOp, value, warningThreshold) {
 		result.IsWarning = true
-		logAlert("warn", metric, value, metric.WarningThreshold, "警告")
+		logAlert("warn", metric, value, warningThreshold, "警告")
 	}
 }
 

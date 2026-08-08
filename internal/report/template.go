@@ -418,10 +418,15 @@ func buildScraperTargets(targets []config.ScraperTargetConfig) []scraperTargetRo
 func buildHourlyResourceData(r *Report) hourlyResourceData {
 	metrics := make([]hourlyMetricRow, 0, len(r.HourlyMetrics))
 	for _, m := range r.HourlyMetrics {
+		isSpeed := util.IsSpeedUnit(m.Unit)
 		values := make([]string, 24)
 		for i, d := range m.HourlyData {
 			if d.AvgValue >= 0 {
-				values[i] = fmt.Sprintf("%7.1f", d.AvgValue)
+				if isSpeed {
+					values[i] = fmt.Sprintf("%11s", util.FormatSpeed(d.AvgValue))
+				} else {
+					values[i] = fmt.Sprintf("%7.1f", d.AvgValue)
+				}
 			} else {
 				values[i] = fmt.Sprintf("%7s", "-")
 			}
@@ -445,12 +450,17 @@ func buildHourlyResourceData(r *Report) hourlyResourceData {
 func buildDailyResourceData(r *Report, title string) dailyResourceData {
 	metrics := make([]dailyMetricRow, 0, len(r.DailyMetrics))
 	for _, m := range r.DailyMetrics {
+		isSpeed := util.IsSpeedUnit(m.Unit)
 		labels := make([]string, len(m.DailyData))
 		values := make([]string, len(m.DailyData))
 		for i, d := range m.DailyData {
 			labels[i] = d.DayLabel
 			if d.AvgValue >= 0 {
-				values[i] = fmt.Sprintf("%-10.1f", d.AvgValue)
+				if isSpeed {
+					values[i] = fmt.Sprintf("%-14s", util.FormatSpeed(d.AvgValue))
+				} else {
+					values[i] = fmt.Sprintf("%-10.1f", d.AvgValue)
+				}
 			} else {
 				values[i] = fmt.Sprintf("%-10s", "-")
 			}
@@ -476,12 +486,17 @@ func buildDailyResourceData(r *Report, title string) dailyResourceData {
 func buildMonthlyResourceData(r *Report) monthlyResourceData {
 	metrics := make([]monthlyMetricRow, 0, len(r.MonthlyMetrics))
 	for _, m := range r.MonthlyMetrics {
+		isSpeed := util.IsSpeedUnit(m.Unit)
 		labels := make([]string, len(m.MonthlyData))
 		values := make([]string, len(m.MonthlyData))
 		for i, d := range m.MonthlyData {
 			labels[i] = d.MonthLabel
 			if d.AvgValue >= 0 {
-				values[i] = fmt.Sprintf("%-8.1f", d.AvgValue)
+				if isSpeed {
+					values[i] = fmt.Sprintf("%-12s", util.FormatSpeed(d.AvgValue))
+				} else {
+					values[i] = fmt.Sprintf("%-8.1f", d.AvgValue)
+				}
 			} else {
 				values[i] = fmt.Sprintf("%-8s", "-")
 			}
