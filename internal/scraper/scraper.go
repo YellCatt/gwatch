@@ -107,6 +107,19 @@ func Scrape(target TargetConfig) (ScrapeResult, error) {
 		}
 	}
 
+	logger.Debug("开始采集目标",
+		zap.String("target", target.Name),
+		zap.String("url", target.URL),
+		zap.String("method", target.Method),
+		zap.Duration("timeout", timeout),
+		zap.Int("metrics_count", len(target.Metrics)))
+
+	if target.Body != "" {
+		logger.Debug("请求体内容",
+			zap.String("target", target.Name),
+			zap.String("body", target.Body))
+	}
+
 	// 创建 HTTP 客户端
 	client := resty.New()
 	client.SetTimeout(timeout)
@@ -132,17 +145,31 @@ func Scrape(target TargetConfig) (ScrapeResult, error) {
 
 	if err != nil {
 		result.Error = fmt.Sprintf("请求失败: %v", err)
-		logger.Error(result.Error, zap.String("target", target.Name))
+		logger.Error(result.Error,
+			zap.String("target", target.Name),
+			zap.Duration("duration", result.Duration))
 		return result, fmt.Errorf(result.Error)
 	}
 
 	result.StatusCode = resp.StatusCode()
 
+	logger.Debug("收到响应",
+		zap.String("target", target.Name),
+		zap.Int("status_code", resp.StatusCode()),
+		zap.Duration("duration", result.Duration),
+		zap.Int("body_length", len(resp.Body())))
+
 	if resp.StatusCode() < 200 || resp.StatusCode() >= 300 {
 		result.Error = fmt.Sprintf("HTTP 状态码异常: %d", resp.StatusCode())
-		logger.Error(result.Error, zap.String("target", target.Name))
+		logger.Error(result.Error,
+			zap.String("target", target.Name),
+			zap.String("response_body", string(resp.Body())))
 		return result, fmt.Errorf(result.Error)
 	}
+
+	logger.Debug("响应内容",
+		zap.String("target", target.Name),
+		zap.String("response_body", string(resp.Body())))
 
 	// 使用 gjson 提取指标（直接使用字符串，无需先解析为 interface{}）
 	result.Metrics = extractMetrics(string(resp.Body()), target.Metrics)
@@ -152,6 +179,7 @@ func Scrape(target TargetConfig) (ScrapeResult, error) {
 
 	logger.Info("采集完成",
 		zap.String("target", target.Name),
+		zap.Int("status_code", result.StatusCode),
 		zap.Int("metrics", len(result.Metrics)),
 		zap.Duration("duration", result.Duration))
 
@@ -232,10 +260,24 @@ func extractMetrics(jsonStr string, metrics []MetricConfig) []MetricResult {
 			result.Unit = "KB/s"
 			result.Threshold = util.NormalizeSpeed(metric.Threshold, metric.Unit)
 			result.WarningThreshold = util.NormalizeSpeed(metric.WarningThreshold, metric.Unit)
+			logger.Debug("速度类指标归一化",
+				zap.String("metric", metric.Name),
+				zap.String("original_unit", metric.Unit),
+				zap.Float64("value_kbps", floatVal),
+				zap.Float64("threshold_kbps", result.Threshold),
+				zap.Float64("warning_threshold_kbps", result.WarningThreshold))
 		} else {
 			result.Threshold = metric.Threshold
 			result.WarningThreshold = metric.WarningThreshold
 		}
+
+		logger.Debug("指标提取成功",
+			zap.String("metric", metric.Name),
+			zap.String("path", metric.Path),
+			zap.String("unit", result.Unit),
+			zap.Float64("value", result.Value),
+			zap.Float64("threshold", result.Threshold),
+			zap.Float64("warning_threshold", result.WarningThreshold))
 
 		// 检查告警条件（使用归一化后的值进行比较）
 		checkAlertConditions(metric, result.Value, &result)
@@ -273,28 +315,29 @@ func checkAlertConditions(metric MetricConfig, value float64, result *MetricResu
 	// 使用 result 中的归一化值/阈值进行比较（速度类指标已换算为 KB/s）
 	threshold := result.Threshold
 	warningThreshold := result.WarningThreshold
+	unit := result.Unit
 
 	if isLess {
 		if metric.WarningThreshold > 0 && compare(compareOp, value, warningThreshold) {
 			result.IsWarning = true
-			logAlert("warn", metric, value, warningThreshold, "警告")
+			logAlert("warn", metric, value, warningThreshold, unit, "警告")
 		}
 		if metric.Threshold > 0 && compare(compareOp, value, threshold) {
 			result.OverThreshold = true
 			result.IsWarning = false
-			logAlert("error", metric, value, threshold, "严重")
+			logAlert("error", metric, value, threshold, unit, "严重")
 		}
 		return
 	}
 
 	if metric.Threshold > 0 && compare(compareOp, value, threshold) {
 		result.OverThreshold = true
-		logAlert("error", metric, value, threshold, "严重")
+		logAlert("error", metric, value, threshold, unit, "严重")
 		return
 	}
 	if metric.WarningThreshold > 0 && compare(compareOp, value, warningThreshold) {
 		result.IsWarning = true
-		logAlert("warn", metric, value, warningThreshold, "警告")
+		logAlert("warn", metric, value, warningThreshold, unit, "警告")
 	}
 }
 
@@ -317,9 +360,17 @@ func compare(op string, value float64, threshold float64) bool {
 }
 
 // logAlert 记录告警日志
-func logAlert(level string, metric MetricConfig, value float64, threshold float64, levelDesc string) {
-	msg := fmt.Sprintf("[%s] %s (%s): %.2f %s %s 阈值 %.2f",
-		levelDesc, metric.Name, metric.Alias, value, metric.Unit, getOpDesc(metric.CompareOp), threshold)
+func logAlert(level string, metric MetricConfig, value float64, threshold float64, unit string, levelDesc string) {
+	var msg string
+	if util.IsSpeedUnit(unit) {
+		msg = fmt.Sprintf("[%s] %s (%s): %s %s %s %s",
+			levelDesc, metric.Name, metric.Alias,
+			util.FormatSpeed(value), getOpDesc(metric.CompareOp),
+			util.FormatSpeed(threshold), unit)
+	} else {
+		msg = fmt.Sprintf("[%s] %s (%s): %.2f %s %s 阈值 %.2f",
+			levelDesc, metric.Name, metric.Alias, value, unit, getOpDesc(metric.CompareOp), threshold)
+	}
 
 	switch level {
 	case "error":
