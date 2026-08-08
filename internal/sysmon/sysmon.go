@@ -2,10 +2,7 @@ package sysmon
 
 import (
 	"fmt"
-	"os"
-	"os/signal"
 	"sync"
-	"syscall"
 	"time"
 
 	"go.uber.org/zap"
@@ -28,21 +25,37 @@ var (
 // StartSystemMonitor 启动系统资源监控（若配置启用），周期性采集指标、检测阈值、
 // 写入存储、聚合上层指标（日/月/年），并阻塞等待停止信号。
 func StartSystemMonitor() {
+	if !setupSystemMonitor() {
+		return
+	}
+
+	<-stopSysMon
+
+	runningMu.Lock()
+	running = false
+	runningMu.Unlock()
+
+	logger.Info("System monitor stopped")
+}
+
+// setupSystemMonitor 初始化系统监控但不等待信号，由外部统一管理生命周期。
+// 返回 false 表示系统监控未启用或初始化失败。
+func setupSystemMonitor() bool {
 	cfg := config.GlobalConfig.SystemMon
 	if !cfg.Enabled {
 		logger.Info("System monitor is disabled")
-		return
+		return false
 	}
 
 	if err := EnsureStorage(); err != nil {
 		logger.Error("Failed to initialize system monitor storage", zap.Error(err))
-		return
+		return false
 	}
 
 	runningMu.Lock()
 	if running {
 		runningMu.Unlock()
-		return
+		return false
 	}
 	running = true
 	runningMu.Unlock()
@@ -62,16 +75,7 @@ func StartSystemMonitor() {
 
 	printSystemMonitorInfo(interval)
 
-	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
-
-	<-stopSysMon
-
-	runningMu.Lock()
-	running = false
-	runningMu.Unlock()
-
-	logger.Info("System monitor stopped")
+	return true
 }
 
 // StopSystemMonitor 发送停止信号终止系统监控采集循环。
@@ -140,9 +144,7 @@ func collectLoop(interval time.Duration) {
 						zap.Float64("threshold", a.Threshold))
 				}
 
-				if err := SendAlertEmail(alerts); err != nil {
-					logger.Warn("Failed to send system alert email", zap.Error(err))
-				}
+				DispatchSystemAlerts(alerts)
 			}
 		}
 	}

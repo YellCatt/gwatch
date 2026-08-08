@@ -6,6 +6,7 @@ import (
 	"crypto/tls"
 	"fmt"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/go-resty/resty/v2"
@@ -145,6 +146,8 @@ func Scrape(target TargetConfig) (ScrapeResult, error) {
 	// 使用 gjson 提取指标（直接使用字符串，无需先解析为 interface{}）
 	result.Metrics = extractMetrics(string(resp.Body()), target.Metrics)
 	result.Success = true
+
+	applyConsecutiveAlerts(target.Name, target.Metrics, result.Metrics)
 
 	logger.Info("采集完成",
 		zap.String("target", target.Name),
@@ -304,6 +307,45 @@ func logAlert(level string, metric MetricConfig, value float64, threshold float6
 		logger.Warn(msg)
 	case "info":
 		logger.Info(msg)
+	}
+}
+
+var (
+	consecutiveAlertCounts = make(map[string]int)
+	consecutiveMu          sync.Mutex
+)
+
+// applyConsecutiveAlerts 根据配置的连续次数要求，过滤尚未达到连续次数的告警。
+func applyConsecutiveAlerts(targetName string, metricConfigs []MetricConfig, results []MetricResult) {
+	configMap := make(map[string]MetricConfig)
+	for _, mc := range metricConfigs {
+		configMap[mc.Name] = mc
+	}
+
+	for i := range results {
+		mc, ok := configMap[results[i].Name]
+		if !ok || mc.Consecutive <= 1 {
+			continue
+		}
+
+		key := targetName + "::" + mc.Name
+
+		if results[i].OverThreshold || results[i].IsWarning {
+			consecutiveMu.Lock()
+			consecutiveAlertCounts[key]++
+			count := consecutiveAlertCounts[key]
+			consecutiveMu.Unlock()
+
+			if count < mc.Consecutive {
+				results[i].OverThreshold = false
+				results[i].IsWarning = false
+				results[i].Alert = false
+			}
+		} else {
+			consecutiveMu.Lock()
+			delete(consecutiveAlertCounts, key)
+			consecutiveMu.Unlock()
+		}
 	}
 }
 

@@ -3,8 +3,6 @@ package sysmon
 import (
 	"fmt"
 	"strings"
-	"sync"
-	"time"
 
 	"go.uber.org/zap"
 
@@ -12,11 +10,6 @@ import (
 	"gwatch/internal/email"
 	"gwatch/internal/logger"
 	"gwatch/internal/timeutil"
-)
-
-var (
-	lastAlertTimes = make(map[string]time.Time)
-	lastAlertMu    sync.Mutex
 )
 
 // CheckAlerts 根据系统指标与配置阈值对比，返回触发的告警列表。
@@ -87,100 +80,33 @@ func CheckAlerts(metric SystemMetric) []AlertItem {
 	return alerts
 }
 
-// ShouldSendAlert 检查指定告警是否应发送（基于冷却时间进行抑制），并更新上次告警时间。
-func ShouldSendAlert(alert AlertItem) bool {
-	lastAlertMu.Lock()
-	defer lastAlertMu.Unlock()
-
-	cooldown := time.Duration(config.GlobalConfig.SystemMon.AlertCooldown) * time.Second
-	if cooldown <= 0 {
-		cooldown = 5 * time.Minute
-	}
-
-	last, ok := lastAlertTimes[alert.Metric]
-	if ok && time.Since(last) < cooldown {
-		return false
-	}
-
-	lastAlertTimes[alert.Metric] = time.Now()
-	return true
-}
-
-// ClearAlertCooldown 清除指定指标的告警冷却时间记录，使其下次告警可立即发送。
-func ClearAlertCooldown(metric string) {
-	lastAlertMu.Lock()
-	defer lastAlertMu.Unlock()
-	delete(lastAlertTimes, metric)
-}
-
-// SendAlertEmail 发送系统告警邮件：过滤冷却期内的告警项，汇总后通过邮件发送。
-func SendAlertEmail(alerts []AlertItem) error {
+// DispatchSystemAlerts 将系统告警分发到统一告警调度器。
+func DispatchSystemAlerts(alerts []AlertItem) {
 	if !config.GlobalConfig.SystemMon.EmailEnabled {
-		logger.Info("System monitor email alerts disabled")
-		return nil
+		return
 	}
-
 	if !email.Config.Enabled {
-		logger.Warn("Email is disabled globally, skipping system alert email")
-		return nil
+		return
 	}
-
 	if len(alerts) == 0 {
-		return nil
+		return
 	}
 
-	var filteredAlerts []AlertItem
 	for _, a := range alerts {
-		if ShouldSendAlert(a) {
-			filteredAlerts = append(filteredAlerts, a)
-		}
+		email.DispatchAlert(email.UnifiedAlert{
+			Source:      email.SourceSystem,
+			SourceName:  "系统资源监控",
+			TargetName:  a.Metric,
+			MetricName:  a.Metric,
+			MetricAlias: a.Metric,
+			Value:       a.Value,
+			Unit:        a.Unit,
+			Threshold:   a.Threshold,
+			AlertLevel:  a.Level,
+			Message:     a.Message,
+			Timestamp:   a.Timestamp,
+		})
 	}
-
-	if len(filteredAlerts) == 0 {
-		return nil
-	}
-
-	hostname, _ := GetHostInfo()
-
-	var criticalCount, warningCount int
-	for _, a := range filteredAlerts {
-		if a.Level == "CRITICAL" {
-			criticalCount++
-		} else if a.Level == "WARNING" {
-			warningCount++
-		}
-	}
-
-	subject := fmt.Sprintf("【系统告警】%s - %d项告警 (严重:%d 警告:%d)",
-		timeutil.FormatDateTime(timeutil.Now()), len(filteredAlerts), criticalCount, warningCount)
-
-	var body strings.Builder
-	body.WriteString("===== 系统资源监控告警报告 =====\n\n")
-	body.WriteString(fmt.Sprintf("告警时间: %s\n", timeutil.FormatDateTime(timeutil.Now())))
-	body.WriteString(fmt.Sprintf("监控设备: %s\n\n", hostname))
-	body.WriteString(fmt.Sprintf("告警数量: %d (严重:%d 警告:%d)\n\n", len(filteredAlerts), criticalCount, warningCount))
-
-	for _, a := range filteredAlerts {
-		icon := "⚠️"
-		if a.Level == "CRITICAL" {
-			icon = "🚨"
-		}
-		body.WriteString(fmt.Sprintf("%s [%s] %s\n", icon, a.Level, a.Metric))
-		if a.Unit == "KB/s" {
-			body.WriteString(fmt.Sprintf("   当前值:  %s\n", formatSpeed(a.Value)))
-			body.WriteString(fmt.Sprintf("   阈值:    %s\n", formatSpeed(a.Threshold)))
-		} else {
-			body.WriteString(fmt.Sprintf("   当前值:  %.2f %s\n", a.Value, a.Unit))
-			body.WriteString(fmt.Sprintf("   阈值:    %.2f %s\n", a.Threshold, a.Unit))
-		}
-		body.WriteString(fmt.Sprintf("   消息:    %s\n\n", a.Message))
-	}
-
-	body.WriteString("===== 报告结束 =====\n")
-	body.WriteString("来自 gwatch 系统监控")
-
-	logger.Info("Sending system alert email", zap.Int("alerts", len(filteredAlerts)))
-	return email.SendCustomEmail(subject, body.String())
 }
 
 // SendSystemStatusEmail 发送系统状态邮件：汇总最新指标并生成状态报告通过邮件发送。

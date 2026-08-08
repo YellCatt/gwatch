@@ -57,13 +57,17 @@ func yearlyPath() string {
 }
 
 // InitStorage 初始化系统指标存储，确保各级 CSV 文件存在且包含表头。
-func InitStorage() {
+// 返回 true 表示初始化成功。
+func InitStorage() bool {
 	paths := []string{hourlyPath(), dailyPath(), monthlyPath(), yearlyPath()}
+	ok := true
 	for _, p := range paths {
 		if err := ensureCSV(p); err != nil {
 			logger.Error("Failed to init metrics storage", zap.String("path", p), zap.Error(err))
+			ok = false
 		}
 	}
+	return ok
 }
 
 // ensureCSV 确保指定路径的 CSV 文件存在且非空；若不存在则创建并写入表头。

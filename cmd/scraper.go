@@ -25,7 +25,7 @@ var scraperCmd = &cobra.Command{
 	Short: "运行通用指标采集器",
 	Long:  `从配置文件读取监控目标，使用 JSONPath 提取指标并输出`,
 	Run: func(cmd *cobra.Command, args []string) {
-		runScraper()
+		ScraperLoop()
 	},
 }
 
@@ -44,8 +44,14 @@ func init() {
 	rootCmd.AddCommand(probeCmd)
 }
 
-// runScraper 启动通用指标采集器，循环采集配置的目标指标并检查阈值告警。
-func runScraper() {
+var (
+	scraperStopChan chan struct{}
+	scraperRunning  bool
+)
+
+// ScraperLoop 启动通用指标采集器，循环采集配置的目标指标并检查阈值告警。
+// 可独立运行（gwatch scraper）或集成到监控模式中。
+func ScraperLoop() {
 	cfg := config.GlobalConfig.Scraper
 
 	if !cfg.Enabled {
@@ -58,19 +64,27 @@ func runScraper() {
 		return
 	}
 
+	scraperStopChan = make(chan struct{})
+	scraperRunning = true
+	defer func() {
+		scraperRunning = false
+	}()
+
 	logger.Info("启动通用采集器", zap.Int("targets", len(cfg.Targets)))
 
-	// 循环采集
 	for {
-		// 收集本次采集的所有告警
-		var alerts []email.AlertInfo
+		select {
+		case <-scraperStopChan:
+			logger.Info("通用采集器已停止")
+			return
+		default:
+		}
 
 		for _, target := range cfg.Targets {
 			if !target.Enabled {
 				continue
 			}
 
-			// 转换配置
 			scraperTarget := scraper.TargetConfig{
 				Name:               target.Name,
 				URL:                target.URL,
@@ -102,14 +116,12 @@ func runScraper() {
 				})
 			}
 
-			// 采集指标
 			result, err := scraper.Scrape(scraperTarget)
 			if err != nil {
 				logger.Error("采集失败", zap.String("target", target.Name), zap.Error(err))
 				continue
 			}
 
-			// 输出结果
 			fmt.Printf("\n【%s】%s\n", result.Timestamp.Format("2006-01-02 15:04:05"), result.TargetName)
 			fmt.Printf("URL: %s\n", result.TargetURL)
 			fmt.Printf("状态码: %d\n", result.StatusCode)
@@ -148,24 +160,25 @@ func runScraper() {
 					}
 					fmt.Println()
 
-					// 收集告警信息
 					if alertLevel != "" {
-						alerts = append(alerts, email.AlertInfo{
-							TargetName:       target.Name,
-							MetricName:       metric.Name,
-							MetricAlias:      metric.Alias,
-							Value:            metric.Value,
-							Unit:             metric.Unit,
-							Threshold:        metric.Threshold,
-							WarningThreshold: metric.WarningThreshold,
-							AlertLevel:       alertLevel,
+						email.DispatchAlert(email.UnifiedAlert{
+							Source:      email.SourceScraper,
+							SourceName:  "远程资源采集",
+							TargetName:  target.Name,
+							MetricName:  metric.Name,
+							MetricAlias: metric.Alias,
+							Value:       metric.Value,
+							Unit:        metric.Unit,
+							Threshold:   metric.Threshold,
+							AlertLevel:  alertLevel,
+							Message:     fmt.Sprintf("%s: %.2f %s 超过阈值 %.2f %s", name, metric.Value, metric.Unit, metric.Threshold, metric.Unit),
+							Timestamp:   result.Timestamp,
 						})
 					}
 				} else {
 					fmt.Printf("  %s %s: 提取失败 - %s\n", status, name, metric.Error)
 				}
 
-				// 保存指标到存储
 				record := storage.ScraperMetricRecord{
 					TargetName:  result.TargetName,
 					TargetURL:   result.TargetURL,
@@ -182,16 +195,14 @@ func runScraper() {
 			}
 		}
 
-		// 如果有告警，发送邮件通知
-		if len(alerts) > 0 {
-			logger.Warn("检测到告警", zap.Int("count", len(alerts)))
-			if err := email.SendAlertEmail(alerts); err != nil {
-				logger.Error("发送告警邮件失败", zap.Error(err))
-			}
-		}
-
-		// 等待下次采集
 		time.Sleep(10 * time.Second)
+	}
+}
+
+// StopScraper 停止通用采集器循环。
+func StopScraper() {
+	if scraperStopChan != nil && scraperRunning {
+		close(scraperStopChan)
 	}
 }
 

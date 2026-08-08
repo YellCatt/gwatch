@@ -5,7 +5,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"go.uber.org/zap"
 
@@ -35,8 +34,7 @@ func checkAlerts(result *MonitorResult) {
 	}
 }
 
-// sendAlertEmail 发送告警邮件，支持告警间隔抑制（同一用例在间隔内不重复告警），
-// 并将告警内容写入本地告警文件。
+// sendAlertEmail 发送告警邮件到统一调度器，同时保存本地告警记录。
 func sendAlertEmail(result MonitorResult) {
 	if !email.Config.Enabled {
 		return
@@ -44,47 +42,21 @@ func sendAlertEmail(result MonitorResult) {
 
 	tc := result.TestCase
 
-	alertInterval := time.Duration(config.GlobalConfig.Monitor.AlertInterval) * time.Second
-	if alertInterval <= 0 {
-		alertInterval = 6 * time.Hour
-	}
-
-	lastAlertMu.Lock()
-	if last, ok := lastAlertTime[tc.ID]; ok && timeutil.Now().Sub(last) < alertInterval {
-		lastAlertMu.Unlock()
-		logger.Info("Alert email suppressed due to alert interval",
-			zap.String("id", tc.ID),
-			zap.Duration("since_last", timeutil.Now().Sub(last)),
-			zap.Duration("interval", alertInterval))
-		return
-	}
-	lastAlertTime[tc.ID] = timeutil.Now()
-	lastAlertMu.Unlock()
-
 	alertLevel := "WARNING"
-	alertIcon := "⚠️"
 	if result.AlertType == "failure" {
 		alertLevel = "CRITICAL"
-		alertIcon = "🚨"
-	} else if result.AlertType == "slow" {
-		alertLevel = "WARNING"
-		alertIcon = "⏱️"
 	}
-
-	subject := fmt.Sprintf("[%s] gwatch 接口监控告警 - %s", alertLevel, tc.ID)
 
 	requestParams := formatMap(tc.Params)
 	requestHeaders := result.Result.RequestHeaders
 	requestBody := truncateStr(result.Result.RequestBody, 2000)
 	responseBody := truncateStr(result.Result.ResponseBody, 2000)
 
-	body := fmt.Sprintf(`%s ===== 接口监控告警 ===== %s
+	body := fmt.Sprintf(`===== 接口监控告警 =====
 
 【告警级别】%s
 【告警时间】%s
 【监控设备】%s
-
-
 
 【测试用例】
   ID:         %s
@@ -115,7 +87,6 @@ func sendAlertEmail(result MonitorResult) {
   结束时间:   %s
 
 来自 gwatch 接口监控系统`,
-		alertIcon, alertIcon,
 		alertLevel,
 		timeutil.FormatDateTime(timeutil.Now()),
 		getDeviceName(),
@@ -139,9 +110,19 @@ func sendAlertEmail(result MonitorResult) {
 
 	saveAlertRecord(body, tc.ID)
 
-	if err := email.SendCustomEmail(subject, body); err != nil {
-		logger.Warn("Failed to send alert email", zap.Error(err))
-	}
+	email.DispatchAlert(email.UnifiedAlert{
+		Source:      email.SourceAPI,
+		SourceName:  "接口监控",
+		TargetName:  tc.ID,
+		MetricName:  result.AlertType,
+		MetricAlias: tc.Desc,
+		Value:       float64(result.Result.Duration.Milliseconds()),
+		Unit:        "ms",
+		Threshold:   float64(tc.ResponseThreshold),
+		AlertLevel:  alertLevel,
+		Message:     result.AlertMsg,
+		Timestamp:   timeutil.Now(),
+	})
 }
 
 // saveAlertRecord 将告警内容以日志文件形式保存到 reports/alerts/<date>/ 目录。

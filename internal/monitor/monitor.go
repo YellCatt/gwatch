@@ -38,20 +38,38 @@ type MonitorResult struct {
 }
 
 var (
-	tasks         = make(map[string]*MonitorTask)
-	tasksMu       sync.Mutex
-	results       = make([]MonitorResult, 0, 1000)
-	resultsMu     sync.Mutex
-	taskChan      chan psv.TestCase
-	stopChan      chan struct{}
-	lastAlertTime = make(map[string]time.Time)
-	lastAlertMu   sync.Mutex
+	tasks     = make(map[string]*MonitorTask)
+	tasksMu   sync.Mutex
+	results   = make([]MonitorResult, 0, 1000)
+	resultsMu sync.Mutex
+	taskChan  chan psv.TestCase
+	stopChan  chan struct{}
 )
 
 // StartMonitor 启动监控模式：执行全局前置条件、过滤启用监控的测试用例、
 // 启动 worker 协程池、为每个用例开启定时监控、启动报告调度与热加载，
 // 并阻塞等待系统退出信号。
 func StartMonitor(testCases []psv.TestCase) {
+	if !SetupMonitor(testCases) {
+		return
+	}
+
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+
+	fmt.Println("\n监控任务已启动，按 Ctrl+C 停止...")
+	fmt.Printf("热加载已启用，每 %ds 扫描一次新测试用例\n", int(hotReloadInterval.Seconds()))
+
+	<-sigChan
+
+	fmt.Println("\n收到退出信号，正在停止监控任务...")
+	StopAllTasks()
+	fmt.Println("监控任务已全部停止")
+}
+
+// SetupMonitor 初始化监控任务但不等待信号，由外部统一管理生命周期。
+// 返回 false 表示没有可监控的测试用例。
+func SetupMonitor(testCases []psv.TestCase) bool {
 	logger.Info("Starting monitor mode")
 
 	if len(config.GlobalConfig.App.GlobalPre) > 0 {
@@ -61,7 +79,7 @@ func StartMonitor(testCases []psv.TestCase) {
 	monitorCases := filterMonitorCases(testCases)
 	if len(monitorCases) == 0 {
 		logger.Warn("No test cases with monitor_enabled=true found")
-		return
+		return false
 	}
 
 	maxWorkers := config.GlobalConfig.Monitor.MaxWorkers
@@ -71,11 +89,7 @@ func StartMonitor(testCases []psv.TestCase) {
 		maxWorkers = len(monitorCases)
 	}
 
-	fmt.Printf("\n════════════════════════════════════════════════════════╗\n")
-	fmt.Printf("║              gwatch 接口监控模式                        ║\n")
-	fmt.Printf("╚════════════════════════════════════════════════════════╝\n")
-	fmt.Printf("监控任务数: %d\n", len(monitorCases))
-	fmt.Printf("最大并发数: %d\n", maxWorkers)
+	fmt.Printf("接口监控: %d 个任务, %d 个并发\n", len(monitorCases), maxWorkers)
 
 	taskChan = make(chan psv.TestCase, len(monitorCases)*2)
 	stopChan = make(chan struct{})
@@ -90,26 +104,9 @@ func StartMonitor(testCases []psv.TestCase) {
 
 	go generateAndSendStartupReport(monitorCases, maxWorkers)
 
-	if config.GlobalConfig.Monitor.DailyReport ||
-		config.GlobalConfig.Monitor.WeeklyReport ||
-		config.GlobalConfig.Monitor.MonthlyReport ||
-		config.GlobalConfig.Monitor.YearlyReport {
-		go scheduleReports()
-	}
-
 	go startHotReload()
 
-	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
-
-	fmt.Println("\n监控任务已启动，按 Ctrl+C 停止...")
-	fmt.Printf("热加载已启用，每 %ds 扫描一次新测试用例\n", int(hotReloadInterval.Seconds()))
-
-	<-sigChan
-
-	fmt.Println("\n收到退出信号，正在停止监控任务...")
-	StopAllTasks()
-	fmt.Println("监控任务已全部停止")
+	return true
 }
 
 // executeGlobalPreConditions 按配置顺序执行全局前置条件测试用例，
