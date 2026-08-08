@@ -165,9 +165,11 @@ sys_monitor:
   interval: 10                              # 采集间隔（秒）
   chart_enabled: true                       # 是否生成ASCII图表
   email_enabled: true                       # 是否启用邮件告警
-  cpu_threshold: 85                         # CPU使用率告警阈值（%）
-  memory_threshold: 90                       # 内存使用率告警阈值（%）
-  disk_usage_threshold: 90                  # 磁盘使用率告警阈值（%）
-  network_down_threshold: 3072               # 网络下行速度告警阈值（KB/s）
-  network_up_threshold: 1024                 # 网络上行速度告警阈值（KB/s）
+  cpu_threshold: 85                         # CPU使用率严重告警阈值（%）
+  memory_threshold: 90                       # 内存使用率严重告警阈值（%）
+  disk_usage_threshold: 90                  # 磁盘使用率严重告警阈值（%）
+  network_down_threshold: 3072               # 网络下行速度严重告警阈值（KB/s）
+  network_up_threshold: 1024                 # 网络上行速度严重告警阈值（KB/s）
+  network_down_warn_threshold: 2048          # 网络下行速度警告阈值（KB/s）
+  network_up_warn_threshold: 512             # 网络上行速度警告阈值（KB/s）
   alert_cooldown: 7200                     # 告警冷却时间（秒），同一指标在此时间内不重复告警

@@ -112,14 +112,16 @@ type MonitorConfig struct {
 }
 
 type SystemMonitorConfig struct {
-	Enabled              bool    `mapstructure:"enabled"`
-	Interval             int     `mapstructure:"interval"`
-	ChartEnabled         bool    `mapstructure:"chart_enabled"`
-	EmailEnabled         bool    `mapstructure:"email_enabled"`
-	CPUThreshold         float64 `mapstructure:"cpu_threshold"`
-	MemoryThreshold      float64 `mapstructure:"memory_threshold"`
-	DiskUsageThreshold   float64 `mapstructure:"disk_usage_threshold"`
-	NetworkDownThreshold float64 `mapstructure:"network_down_threshold"`
-	NetworkUpThreshold   float64 `mapstructure:"network_up_threshold"`
-	AlertCooldown        int     `mapstructure:"alert_cooldown"`
+	Enabled                  bool    `mapstructure:"enabled"`
+	Interval                 int     `mapstructure:"interval"`
+	ChartEnabled             bool    `mapstructure:"chart_enabled"`
+	EmailEnabled             bool    `mapstructure:"email_enabled"`
+	CPUThreshold             float64 `mapstructure:"cpu_threshold"`
+	MemoryThreshold          float64 `mapstructure:"memory_threshold"`
+	DiskUsageThreshold       float64 `mapstructure:"disk_usage_threshold"`
+	NetworkDownThreshold     float64 `mapstructure:"network_down_threshold"`
+	NetworkUpThreshold       float64 `mapstructure:"network_up_threshold"`
+	NetworkDownWarnThreshold float64 `mapstructure:"network_down_warn_threshold"`
+	NetworkUpWarnThreshold   float64 `mapstructure:"network_up_warn_threshold"`
+	AlertCooldown            int     `mapstructure:"alert_cooldown"`
 }

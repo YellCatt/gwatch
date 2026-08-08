@@ -363,17 +363,20 @@ func GetHistory() []SystemMetric {
 
 // printSystemMonitorInfo 打印系统监控启动时的配置摘要信息。
 func printSystemMonitorInfo(interval time.Duration) {
+	cfg := config.GlobalConfig.SystemMon
 	fmt.Printf("\n╔══════════════════════════════════════════════════════════╗\n")
 	fmt.Printf("║           系统资源监控已启动                            ║\n")
 	fmt.Printf("╠══════════════════════════════════════════════════════════╣\n")
 	fmt.Printf("║ 采集间隔:   %-43v ║\n", interval)
-	fmt.Printf("║ CPU阈值:    %-43s ║\n", fmt.Sprintf("%.0f%%", config.GlobalConfig.SystemMon.CPUThreshold))
-	fmt.Printf("║ 内存阈值:   %-43s ║\n", fmt.Sprintf("%.0f%%", config.GlobalConfig.SystemMon.MemoryThreshold))
-	fmt.Printf("║ 磁盘阈值:   %-43s ║\n", fmt.Sprintf("%.0f%%", config.GlobalConfig.SystemMon.DiskUsageThreshold))
-	fmt.Printf("║ 网络下行阈值: %-43s ║\n", formatSpeed(config.GlobalConfig.SystemMon.NetworkDownThreshold))
-	fmt.Printf("║ 网络上行阈值: %-43s ║\n", formatSpeed(config.GlobalConfig.SystemMon.NetworkUpThreshold))
-	fmt.Printf("║ 图表生成:   %-43v ║\n", config.GlobalConfig.SystemMon.ChartEnabled)
-	fmt.Printf("║ 邮件告警:   %-43v ║\n", config.GlobalConfig.SystemMon.EmailEnabled)
+	fmt.Printf("║ CPU阈值:    %-43s ║\n", fmt.Sprintf("%.0f%%", cfg.CPUThreshold))
+	fmt.Printf("║ 内存阈值:   %-43s ║\n", fmt.Sprintf("%.0f%%", cfg.MemoryThreshold))
+	fmt.Printf("║ 磁盘阈值:   %-43s ║\n", fmt.Sprintf("%.0f%%", cfg.DiskUsageThreshold))
+	fmt.Printf("║ 网络下行(严重): %-41s ║\n", formatSpeed(cfg.NetworkDownThreshold))
+	fmt.Printf("║ 网络下行(警告): %-41s ║\n", formatSpeed(cfg.NetworkDownWarnThreshold))
+	fmt.Printf("║ 网络上行(严重): %-41s ║\n", formatSpeed(cfg.NetworkUpThreshold))
+	fmt.Printf("║ 网络上行(警告): %-41s ║\n", formatSpeed(cfg.NetworkUpWarnThreshold))
+	fmt.Printf("║ 图表生成:   %-43v ║\n", cfg.ChartEnabled)
+	fmt.Printf("║ 邮件告警:   %-43v ║\n", cfg.EmailEnabled)
 	fmt.Printf("╚══════════════════════════════════════════════════════════╝\n\n")
 }
 

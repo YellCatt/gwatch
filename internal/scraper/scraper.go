@@ -6,6 +6,7 @@ import (
 	"crypto/tls"
 	"fmt"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -15,6 +16,7 @@ import (
 
 	"gwatch/internal/logger"
 	"gwatch/internal/timeutil"
+	"gwatch/internal/util"
 )
 
 // MetricConfig 表示单个指标配置
@@ -238,19 +240,18 @@ func extractMetrics(jsonStr string, metrics []MetricConfig) []MetricResult {
 }
 
 // checkAlertConditions 检查告警条件
+// 对于 gt/ge 操作符：先检查严重阈值（值更高），再检查警告阈值
+// 对于 lt/le 操作符：先检查警告阈值（值更高），再检查严重阈值（值更低，代表更严重的情况）
 func checkAlertConditions(metric MetricConfig, value float64, result *MetricResult) {
-	// 如果没有配置阈值或未启用告警，直接返回
 	if (metric.Threshold <= 0 && metric.WarningThreshold <= 0) || !metric.Alert {
 		return
 	}
 
-	// 默认比较操作符为大于
 	compareOp := metric.CompareOp
 	if compareOp == "" {
 		compareOp = "gt"
 	}
 
-	// 默认告警级别为 warn
 	alertLevel := metric.AlertLevel
 	if alertLevel == "" {
 		alertLevel = "warn"
@@ -259,21 +260,34 @@ func checkAlertConditions(metric MetricConfig, value float64, result *MetricResu
 	result.Alert = true
 	result.AlertLevel = alertLevel
 
-	// 检查主阈值（严重告警）
-	if metric.Threshold > 0 {
-		if compare(compareOp, value, metric.Threshold) {
-			result.OverThreshold = true
-			logAlert("error", metric, value, metric.Threshold, "严重")
-			return
-		}
-	}
+	unit := strings.ToLower(strings.TrimSpace(metric.Unit))
 
-	// 检查警告阈值
-	if metric.WarningThreshold > 0 {
-		if compare(compareOp, value, metric.WarningThreshold) {
+	normalizedThreshold := util.NormalizeSpeed(metric.Threshold, unit)
+	normalizedWarning := util.NormalizeSpeed(metric.WarningThreshold, unit)
+
+	isLess := compareOp == "lt" || compareOp == "le"
+
+	if isLess {
+		if metric.WarningThreshold > 0 && compare(compareOp, value, normalizedWarning) {
 			result.IsWarning = true
 			logAlert("warn", metric, value, metric.WarningThreshold, "警告")
 		}
+		if metric.Threshold > 0 && compare(compareOp, value, normalizedThreshold) {
+			result.OverThreshold = true
+			result.IsWarning = false
+			logAlert("error", metric, value, metric.Threshold, "严重")
+		}
+		return
+	}
+
+	if metric.Threshold > 0 && compare(compareOp, value, normalizedThreshold) {
+		result.OverThreshold = true
+		logAlert("error", metric, value, metric.Threshold, "严重")
+		return
+	}
+	if metric.WarningThreshold > 0 && compare(compareOp, value, normalizedWarning) {
+		result.IsWarning = true
+		logAlert("warn", metric, value, metric.WarningThreshold, "警告")
 	}
 }
 

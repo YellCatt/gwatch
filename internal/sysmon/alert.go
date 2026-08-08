@@ -61,7 +61,17 @@ func CheckAlerts(metric SystemMetric) []AlertItem {
 			Value:     metric.NetDownKBps,
 			Threshold: cfg.NetworkDownThreshold,
 			Unit:      "KB/s",
-			Message:   fmt.Sprintf("网络下行速度 %s 超过阈值 %s", formatSpeed(metric.NetDownKBps), formatSpeed(cfg.NetworkDownThreshold)),
+			Message:   fmt.Sprintf("网络下行速度 %s 超过严重阈值 %s", formatSpeed(metric.NetDownKBps), formatSpeed(cfg.NetworkDownThreshold)),
+			Level:     "CRITICAL",
+			Timestamp: metric.Timestamp,
+		})
+	} else if cfg.NetworkDownWarnThreshold > 0 && metric.NetDownKBps >= cfg.NetworkDownWarnThreshold {
+		alerts = append(alerts, AlertItem{
+			Metric:    "网络下行速度",
+			Value:     metric.NetDownKBps,
+			Threshold: cfg.NetworkDownWarnThreshold,
+			Unit:      "KB/s",
+			Message:   fmt.Sprintf("网络下行速度 %s 超过警告阈值 %s", formatSpeed(metric.NetDownKBps), formatSpeed(cfg.NetworkDownWarnThreshold)),
 			Level:     "WARNING",
 			Timestamp: metric.Timestamp,
 		})
@@ -73,7 +83,17 @@ func CheckAlerts(metric SystemMetric) []AlertItem {
 			Value:     metric.NetUpKBps,
 			Threshold: cfg.NetworkUpThreshold,
 			Unit:      "KB/s",
-			Message:   fmt.Sprintf("网络上行速度 %s 超过阈值 %s", formatSpeed(metric.NetUpKBps), formatSpeed(cfg.NetworkUpThreshold)),
+			Message:   fmt.Sprintf("网络上行速度 %s 超过严重阈值 %s", formatSpeed(metric.NetUpKBps), formatSpeed(cfg.NetworkUpThreshold)),
+			Level:     "CRITICAL",
+			Timestamp: metric.Timestamp,
+		})
+	} else if cfg.NetworkUpWarnThreshold > 0 && metric.NetUpKBps >= cfg.NetworkUpWarnThreshold {
+		alerts = append(alerts, AlertItem{
+			Metric:    "网络上行速度",
+			Value:     metric.NetUpKBps,
+			Threshold: cfg.NetworkUpWarnThreshold,
+			Unit:      "KB/s",
+			Message:   fmt.Sprintf("网络上行速度 %s 超过警告阈值 %s", formatSpeed(metric.NetUpKBps), formatSpeed(cfg.NetworkUpWarnThreshold)),
 			Level:     "WARNING",
 			Timestamp: metric.Timestamp,
 		})
