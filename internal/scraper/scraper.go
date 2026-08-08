@@ -172,8 +172,8 @@ func extractMetrics(jsonStr string, metrics []MetricConfig) []MetricResult {
 			Success:   false,
 		}
 
-		// 使用 gjson 提取值
-		gjsonResult := gjson.Get(jsonStr, metric.Path)
+		gjsonPath := normalizePath(metric.Path)
+		gjsonResult := gjson.Get(jsonStr, gjsonPath)
 		if !gjsonResult.Exists() {
 			// 如果是可选指标，跳过不记录
 			if metric.Optional {
@@ -422,4 +422,57 @@ func formatJSONTree(data interface{}, prefix string) string {
 	}
 
 	return result
+}
+
+// normalizePath 将 JSONPath 风格路径转换为 gjson 兼容路径。
+// 支持的转换：
+//   - 去除 "$." 或 "$" 前缀
+//   - 数组索引 "[0]" 转为 ".0"
+//   - 括号引号 '["key"]' 转为 ".key"
+func normalizePath(path string) string {
+	if path == "" {
+		return path
+	}
+
+	p := path
+
+	// 去除 "$." 前缀
+	if len(p) > 2 && p[0] == '$' && p[1] == '.' {
+		p = p[2:]
+	} else if len(p) > 1 && p[0] == '$' {
+		p = p[1:]
+	}
+
+	// 转换 [0] → .0 和 ["key"] → .key
+	var result []byte
+	i := 0
+	for i < len(p) {
+		if p[i] == '[' {
+			i++
+			// 跳过引号
+			for i < len(p) && (p[i] == '"' || p[i] == '\'') {
+				i++
+			}
+			// 收集 key
+			keyStart := i
+			for i < len(p) && p[i] != ']' && p[i] != '"' && p[i] != '\'' {
+				i++
+			}
+			key := p[keyStart:i]
+			// 跳过引号和 ]
+			for i < len(p) && (p[i] == '"' || p[i] == '\'') {
+				i++
+			}
+			if i < len(p) && p[i] == ']' {
+				i++
+			}
+			result = append(result, '.')
+			result = append(result, key...)
+		} else {
+			result = append(result, p[i])
+			i++
+		}
+	}
+
+	return string(result)
 }
