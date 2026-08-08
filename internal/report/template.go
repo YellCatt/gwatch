@@ -22,6 +22,7 @@ func init() {
 		"formatDuration": formatDuration,
 		"formatDateTime": timeutil.FormatDateTime,
 		"formatBytes":    formatBytes,
+		"formatSpeed":    formatSpeed,
 		"boolEnabled":    boolToEnabled,
 		"join":           strings.Join,
 		"deviceName":     getDeviceName,
@@ -498,4 +499,76 @@ func buildMonthlyResourceData(r *Report) monthlyResourceData {
 		Metrics:   metrics,
 		Charts:    buildMonthlyChartData(r),
 	}
+}
+
+// UnifiedAlertEmailData 统一告警邮件模板数据结构。
+type UnifiedAlertEmailData struct {
+	Timestamp     string
+	DeviceName    string
+	TotalCount    int
+	CriticalCount int
+	WarningCount  int
+	Groups        []AlertGroupData
+}
+
+// AlertGroupData 告警分组数据，按来源分组。
+type AlertGroupData struct {
+	SourceName string
+	Alerts     []AlertRowData
+}
+
+// AlertRowData 单条告警数据。
+type AlertRowData struct {
+	TargetName  string
+	MetricAlias string
+	Level       string
+	Value       float64
+	Threshold   float64
+	Unit        string
+	Message     string
+}
+
+// RenderUnifiedAlertBody 使用统一告警模板渲染邮件正文。
+func RenderUnifiedAlertBody(data UnifiedAlertEmailData) string {
+	return executeTemplate("unified_alert", data)
+}
+
+// BuildUnifiedAlertSubject 根据告警列表构建邮件主题。
+func BuildUnifiedAlertSubject(alerts []AlertRowData, criticalCount, warningCount int) string {
+	icon := "⚠️"
+	if criticalCount > 0 {
+		icon = "🚨"
+	}
+
+	var alertNames []string
+	seen := make(map[string]bool)
+	for _, a := range alerts {
+		name := a.MetricAlias
+		if name == "" {
+			name = a.TargetName
+		}
+		if !seen[name] {
+			seen[name] = true
+			alertNames = append(alertNames, fmt.Sprintf("%s告警", name))
+		}
+		if len(alertNames) >= 3 {
+			break
+		}
+	}
+
+	if len(alerts) > 3 {
+		alertNames = append(alertNames, fmt.Sprintf("等%d项", len(alerts)))
+	}
+
+	subject := fmt.Sprintf("%s %s | 告警(%d)·严重(%d)·警告(%d)",
+		icon, strings.Join(alertNames, ", "), len(alerts), criticalCount, warningCount)
+
+	if len([]rune(subject)) > 40 {
+		runes := []rune(subject)
+		if len(runes) > 39 {
+			subject = string(runes[:38]) + "…"
+		}
+	}
+
+	return subject
 }

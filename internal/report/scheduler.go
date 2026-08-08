@@ -7,6 +7,7 @@ import (
 	"go.uber.org/zap"
 
 	"gwatch/config"
+	"gwatch/internal/email"
 	"gwatch/internal/logger"
 	"gwatch/internal/timeutil"
 )
@@ -195,7 +196,8 @@ func generateAndSendReport(period ReportPeriod, date time.Time) {
 		return
 	}
 
-	err = r.SendReportEmail()
+	subject, body := r.PrepareReportEmail()
+	err = email.SendCustomEmail(subject, body)
 	if err != nil {
 		logger.Error("Failed to send report email", zap.Error(err))
 	}

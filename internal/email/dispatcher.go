@@ -9,6 +9,7 @@ import (
 	"go.uber.org/zap"
 
 	"gwatch/internal/logger"
+	"gwatch/internal/report"
 	"gwatch/internal/timeutil"
 )
 
@@ -159,52 +160,45 @@ func sendUnifiedAlertEmail(alerts []UnifiedAlert) error {
 		}
 	}
 
-	subject := buildAlertSubject(alerts, criticalCount, warningCount)
-
-	var body strings.Builder
-	body.WriteString("╔══════════════════════════════════════════════════════════╗\n")
-	body.WriteString("║              gwatch 统一告警通知                         ║\n")
-	body.WriteString("╠══════════════════════════════════════════════════════════╣\n")
-	body.WriteString(fmt.Sprintf("║ 告警时间: %-44s ║\n", timeutil.FormatDateTime(timeutil.Now())))
-	body.WriteString(fmt.Sprintf("║ 监控设备: %-44s ║\n", getDeviceName()))
-	body.WriteString(fmt.Sprintf("║ 告警数量: %d (严重:%d 警告:%d)%-25s ║\n", len(alerts), criticalCount, warningCount, ""))
-	body.WriteString("╚══════════════════════════════════════════════════════════╝\n\n")
-
 	grouped := groupBySource(alerts)
-	for _, group := range grouped {
-		body.WriteString(fmt.Sprintf("━━━ %s ━━━\n\n", group.sourceName))
-		for _, a := range group.alerts {
-			icon := "⚠️"
-			if strings.EqualFold(a.AlertLevel, "CRITICAL") {
-				icon = "🚨"
+
+	var groups []report.AlertGroupData
+	var allRows []report.AlertRowData
+	for _, g := range grouped {
+		var groupRows []report.AlertRowData
+		for _, a := range g.alerts {
+			row := report.AlertRowData{
+				TargetName:  a.TargetName,
+				MetricAlias: a.MetricAlias,
+				Level:       a.AlertLevel,
+				Value:       a.Value,
+				Threshold:   a.Threshold,
+				Unit:        a.Unit,
+				Message:     a.Message,
 			}
-			body.WriteString(fmt.Sprintf("%s [%s] %s\n", icon, a.AlertLevel, a.MetricAlias))
-			body.WriteString(fmt.Sprintf("   目标:     %s\n", a.TargetName))
-			if a.Value != 0 {
-				if a.Unit == "KB/s" {
-					body.WriteString(fmt.Sprintf("   当前值:   %s\n", formatSpeedValue(a.Value)))
-				} else {
-					body.WriteString(fmt.Sprintf("   当前值:   %.2f %s\n", a.Value, a.Unit))
-				}
-			}
-			if a.Threshold > 0 {
-				if a.Unit == "KB/s" {
-					body.WriteString(fmt.Sprintf("   阈值:     %s\n", formatSpeedValue(a.Threshold)))
-				} else {
-					body.WriteString(fmt.Sprintf("   阈值:     %.2f %s\n", a.Threshold, a.Unit))
-				}
-			}
-			if a.Message != "" {
-				body.WriteString(fmt.Sprintf("   消息:     %s\n", a.Message))
-			}
-			body.WriteString("\n")
+			groupRows = append(groupRows, row)
+			allRows = append(allRows, row)
 		}
+		groups = append(groups, report.AlertGroupData{
+			SourceName: g.sourceName,
+			Alerts:     groupRows,
+		})
 	}
 
-	body.WriteString("────── 来自 gwatch 统一监控系统 ──────\n")
+	data := report.UnifiedAlertEmailData{
+		Timestamp:     timeutil.FormatDateTime(timeutil.Now()),
+		DeviceName:    getDeviceName(),
+		TotalCount:    len(alerts),
+		CriticalCount: criticalCount,
+		WarningCount:  warningCount,
+		Groups:        groups,
+	}
+
+	body := report.RenderUnifiedAlertBody(data)
+	subject := report.BuildUnifiedAlertSubject(allRows, criticalCount, warningCount)
 
 	logger.Info("Sending unified alert email", zap.Int("alerts", len(alerts)))
-	return SendEmail(subject, body.String())
+	return SendEmail(subject, body)
 }
 
 type alertGroup struct {
@@ -241,71 +235,6 @@ func groupBySource(alerts []UnifiedAlert) []alertGroup {
 	}
 
 	return result
-}
-
-func buildAlertSubject(alerts []UnifiedAlert, criticalCount, warningCount int) string {
-	icon := "⚠️"
-	if criticalCount > 0 {
-		icon = "🚨"
-	}
-	sourceCounts := make(map[AlertSource]int)
-	for _, a := range alerts {
-		sourceCounts[a.Source]++
-	}
-
-	var alertNames []string
-	seen := make(map[string]bool)
-	for _, a := range alerts {
-		name := a.MetricAlias
-		if name == "" {
-			name = a.MetricName
-		}
-		if !seen[name] {
-			seen[name] = true
-			alertNames = append(alertNames, fmt.Sprintf("%s告警", name))
-		}
-		if len(alertNames) >= 3 {
-			break
-		}
-	}
-
-	if len(alerts) > 3 {
-		alertNames = append(alertNames, fmt.Sprintf("等%d项", len(alerts)))
-	}
-
-	var sourceParts []string
-	sourceOrder := []AlertSource{SourceAPI, SourceScraper, SourceSystem}
-	sourceNames := map[AlertSource]string{
-		SourceAPI:     "接口",
-		SourceScraper: "采集",
-		SourceSystem:  "系统",
-	}
-	for _, src := range sourceOrder {
-		if cnt, ok := sourceCounts[src]; ok {
-			sourceParts = append(sourceParts, fmt.Sprintf("%s(%d)", sourceNames[src], cnt))
-		}
-	}
-
-	alertsText := strings.Join(alertNames, ", ")
-	sources := strings.Join(sourceParts, "·")
-
-	subject := fmt.Sprintf("%s %s | %s", icon, alertsText, sources)
-
-	if len([]rune(subject)) > 40 {
-		runes := []rune(subject)
-		if len(runes) > 39 {
-			subject = string(runes[:38]) + "…"
-		}
-	}
-
-	return subject
-}
-
-func formatSpeedValue(kbps float64) string {
-	if kbps >= 1024 {
-		return fmt.Sprintf("%.2f MB/s", kbps/1024)
-	}
-	return fmt.Sprintf("%.2f KB/s", kbps)
 }
 
 func CloseDispatcher() {

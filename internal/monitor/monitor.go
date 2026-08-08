@@ -298,7 +298,8 @@ func generateAndSendReport(period report.ReportPeriod, date time.Time) {
 		return
 	}
 
-	err = r.SendReportEmail()
+	subject, body := r.PrepareReportEmail()
+	err = email.SendCustomEmail(subject, body)
 	if err != nil {
 		logger.Error("Failed to send report email", zap.Error(err))
 	}
@@ -320,7 +321,8 @@ func generateAndSendStartupReport(cases []psv.TestCase, maxWorkers int) {
 		return
 	}
 
-	err = r.SendReportEmail()
+	subject, body := r.PrepareReportEmail()
+	err = email.SendCustomEmail(subject, body)
 	if err != nil {
 		logger.Error("Failed to send startup report email", zap.Error(err))
 	}

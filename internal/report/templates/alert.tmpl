@@ -1,0 +1,30 @@
+{{/* 统一告警邮件模板 */}}
+{{define "unified_alert"}}
+╔══════════════════════════════════════════════════════════╗
+║              gwatch 统一告警通知                         ║
+╠══════════════════════════════════════════════════════════╣
+║ 告警时间: {{.Timestamp}}
+║ 监控设备: {{.DeviceName}}
+║ 告警数量: {{.TotalCount}} (严重:{{.CriticalCount}} 警告:{{.WarningCount}})
+╚══════════════════════════════════════════════════════════╝
+{{range .Groups}}
+━━━ {{.SourceName}} ━━━
+{{range .Alerts}}{{if eq .Level "CRITICAL"}}🚨{{else}}⚠️{{end}} [{{.Level}}] {{.MetricAlias}}
+   目标:     {{.TargetName}}
+{{- if ne .Value 0}}
+{{- if eq .Unit "KB/s"}}   当前值:   {{formatSpeed .Value}}
+{{- else}}   当前值:   {{printf "%.2f" .Value}} {{.Unit}}
+{{- end}}
+{{- end}}
+{{- if gt .Threshold 0}}
+{{- if eq .Unit "KB/s"}}   阈值:     {{formatSpeed .Threshold}}
+{{- else}}   阈值:     {{printf "%.2f" .Threshold}} {{.Unit}}
+{{- end}}
+{{- end}}
+{{- if .Message}}
+   消息:     {{.Message}}
+{{- end}}
+
+{{end}}{{end}}
+────── 来自 gwatch 统一监控系统 ──────
+{{end}}

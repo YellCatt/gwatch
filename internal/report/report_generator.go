@@ -11,7 +11,6 @@ import (
 	"go.uber.org/zap"
 
 	"gwatch/config"
-	"gwatch/internal/email"
 	"gwatch/internal/logger"
 	"gwatch/internal/storage"
 	"gwatch/internal/sysmon"
@@ -387,13 +386,8 @@ func (r *Report) SaveReport() (string, error) {
 	return filePath, nil
 }
 
-// SendReportEmail 发送报告邮件，邮件主题包含周期和告警次数信息。
-func (r *Report) SendReportEmail() error {
-	if !email.Config.Enabled {
-		logger.Info("Email is disabled, skipping report email")
-		return nil
-	}
-
+// PrepareReportEmail 准备报告邮件的主题和正文，由调用方负责发送。
+func (r *Report) PrepareReportEmail() (string, string) {
 	totalAlerts := 0
 	for _, e := range r.AggregatedErrors {
 		totalAlerts += e.AlertCount
@@ -411,8 +405,8 @@ func (r *Report) SendReportEmail() error {
 	}
 	body := r.GenerateContent()
 
-	logger.Info("Sending report email", zap.String("period", string(r.Period)))
-	return email.SendCustomEmail(subject, body)
+	logger.Info("Preparing report email", zap.String("period", string(r.Period)))
+	return subject, body
 }
 
 // GenerateContent 根据报告周期分发到对应的内容生成方法。
