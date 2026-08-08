@@ -55,18 +55,13 @@ func NewPeriodicScheduler(opts ...PeriodicSchedulerOption) *PeriodicScheduler {
 }
 
 // Start 启动定时调度循环，阻塞直到程序退出。
-// 如果系统启动时已错过当天的触发时间，会立即触发一次回调，
-// 然后从第二天开始按计划调度。
+// 系统启动后只等到下一次调度时间才触发，不再补发"错过"的报告。
 // 通过 lastSentDate 机制确保每天只触发一次回调。
 func (s *PeriodicScheduler) Start() {
 	now := time.Now()
 	next := time.Date(now.Year(), now.Month(), now.Day(), s.reportHour, s.reportMinute, 0, 0, now.Location())
 
-	// 如果当前时间已过配置的报告时间，立即触发一次并推进到明天
 	if !now.Before(next) {
-		logger.Info("Report time already passed today, triggering immediately")
-		s.trigger()
-		s.lastSentDate = now.Format("2006-01-02")
 		next = next.Add(24 * time.Hour)
 	}
 
