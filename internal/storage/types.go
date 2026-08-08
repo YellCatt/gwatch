@@ -97,3 +97,35 @@ type ScraperMetricMonthlyAvg struct {
 	Month       int
 	AvgValue    float64
 }
+
+// SystemAlertRecord 表示系统告警汇总记录
+type SystemAlertRecord struct {
+	Date            string
+	Metric          string
+	MetricAlias     string
+	Value           float64
+	Threshold       float64
+	Unit            string
+	AlertLevel      string
+	AlertCount      int64
+	FirstOccurrence string
+	LastOccurrence  string
+	Message         string
+}
+
+// ScraperAlertRecord 表示采集告警汇总记录
+type ScraperAlertRecord struct {
+	Date            string
+	TargetName      string
+	TargetURL       string
+	MetricName      string
+	MetricAlias     string
+	Value           float64
+	Threshold       float64
+	Unit            string
+	AlertLevel      string
+	AlertCount      int64
+	FirstOccurrence string
+	LastOccurrence  string
+	Message         string
+}

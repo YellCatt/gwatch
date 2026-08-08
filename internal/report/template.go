@@ -41,20 +41,28 @@ func executeTemplate(name string, data any) string {
 }
 
 type baseReportData struct {
-	Period             string
-	StartDate          string
-	EndDate            string
-	GeneratedAt        time.Time
-	TotalTasks         int
-	SuccessTasks       int
-	FailedTasks        int
-	SuccessRate        float64
-	AvgDuration        string
-	InterfaceStats     []interfaceStatRow
-	AggregatedErrors   []aggregatedErrorRow
-	CriticalAlertCount int
-	WarningAlertCount  int
-	TotalAlertCount    int
+	Period               string
+	StartDate            string
+	EndDate              string
+	GeneratedAt          time.Time
+	TotalTasks           int
+	SuccessTasks         int
+	FailedTasks          int
+	SuccessRate          float64
+	AvgDuration          string
+	InterfaceStats       []interfaceStatRow
+	AggregatedErrors     []aggregatedErrorRow
+	SystemAlerts         []systemAlertRow
+	ScraperAlerts        []scraperAlertRow
+	CriticalAlertCount   int
+	WarningAlertCount    int
+	TotalAlertCount      int
+	SystemCriticalCount  int
+	SystemWarningCount   int
+	SystemAlertTotal     int
+	ScraperCriticalCount int
+	ScraperWarningCount  int
+	ScraperAlertTotal    int
 }
 
 type interfaceStatRow struct {
@@ -79,6 +87,36 @@ type aggregatedErrorRow struct {
 	FirstOccurrence string
 	LastOccurrence  string
 	ErrorMsg        string
+}
+
+type systemAlertRow struct {
+	Icon            string
+	Level           string
+	Metric          string
+	MetricAlias     string
+	Value           string
+	Threshold       string
+	Unit            string
+	AlertCount      int64
+	FirstOccurrence string
+	LastOccurrence  string
+	Message         string
+}
+
+type scraperAlertRow struct {
+	Icon            string
+	Level           string
+	TargetName      string
+	TargetURL       string
+	MetricName      string
+	MetricAlias     string
+	Value           string
+	Threshold       string
+	Unit            string
+	AlertCount      int64
+	FirstOccurrence string
+	LastOccurrence  string
+	Message         string
 }
 
 type startupReportData struct {
@@ -226,21 +264,83 @@ func buildBaseData(r *Report) baseReportData {
 		})
 	}
 
+	sysCritical := 0
+	sysWarning := 0
+	sysAlerts := make([]systemAlertRow, 0, len(r.SystemAlerts))
+	for _, a := range r.SystemAlerts {
+		icon, label := alertLevelDisplay(a.AlertLevel)
+		level := strings.ToUpper(strings.TrimSpace(a.AlertLevel))
+		if level == "CRITICAL" {
+			sysCritical++
+		} else if level == "WARNING" {
+			sysWarning++
+		}
+		sysAlerts = append(sysAlerts, systemAlertRow{
+			Icon:            icon,
+			Level:           label,
+			Metric:          a.Metric,
+			MetricAlias:     a.MetricAlias,
+			Value:           fmt.Sprintf("%.1f", a.Value),
+			Threshold:       fmt.Sprintf("%.1f", a.Threshold),
+			Unit:            a.Unit,
+			AlertCount:      a.AlertCount,
+			FirstOccurrence: a.FirstOccurrence,
+			LastOccurrence:  a.LastOccurrence,
+			Message:         a.Message,
+		})
+	}
+
+	scraperCritical := 0
+	scraperWarning := 0
+	scraperAlerts := make([]scraperAlertRow, 0, len(r.ScraperAlerts))
+	for _, a := range r.ScraperAlerts {
+		icon, label := alertLevelDisplay(a.AlertLevel)
+		level := strings.ToUpper(strings.TrimSpace(a.AlertLevel))
+		if level == "CRITICAL" {
+			scraperCritical++
+		} else if level == "WARNING" {
+			scraperWarning++
+		}
+		scraperAlerts = append(scraperAlerts, scraperAlertRow{
+			Icon:            icon,
+			Level:           label,
+			TargetName:      a.TargetName,
+			TargetURL:       a.TargetURL,
+			MetricName:      a.MetricName,
+			MetricAlias:     a.MetricAlias,
+			Value:           fmt.Sprintf("%.2f", a.Value),
+			Threshold:       fmt.Sprintf("%.2f", a.Threshold),
+			Unit:            a.Unit,
+			AlertCount:      a.AlertCount,
+			FirstOccurrence: a.FirstOccurrence,
+			LastOccurrence:  a.LastOccurrence,
+			Message:         a.Message,
+		})
+	}
+
 	return baseReportData{
-		Period:             PeriodNames[r.Period],
-		StartDate:          r.StartDate,
-		EndDate:            r.EndDate,
-		GeneratedAt:        r.GeneratedAt,
-		TotalTasks:         r.TotalTasks,
-		SuccessTasks:       r.SuccessTasks,
-		FailedTasks:        r.FailedTasks,
-		SuccessRate:        successRate,
-		AvgDuration:        formatAvgDuration(r.InterfaceStats),
-		InterfaceStats:     stats,
-		AggregatedErrors:   errs,
-		CriticalAlertCount: criticalCount,
-		WarningAlertCount:  warningCount,
-		TotalAlertCount:    len(r.AggregatedErrors),
+		Period:               PeriodNames[r.Period],
+		StartDate:            r.StartDate,
+		EndDate:              r.EndDate,
+		GeneratedAt:          r.GeneratedAt,
+		TotalTasks:           r.TotalTasks,
+		SuccessTasks:         r.SuccessTasks,
+		FailedTasks:          r.FailedTasks,
+		SuccessRate:          successRate,
+		AvgDuration:          formatAvgDuration(r.InterfaceStats),
+		InterfaceStats:       stats,
+		AggregatedErrors:     errs,
+		SystemAlerts:         sysAlerts,
+		ScraperAlerts:        scraperAlerts,
+		CriticalAlertCount:   criticalCount,
+		WarningAlertCount:    warningCount,
+		TotalAlertCount:      len(r.AggregatedErrors),
+		SystemCriticalCount:  sysCritical,
+		SystemWarningCount:   sysWarning,
+		SystemAlertTotal:     len(r.SystemAlerts),
+		ScraperCriticalCount: scraperCritical,
+		ScraperWarningCount:  scraperWarning,
+		ScraperAlertTotal:    len(r.ScraperAlerts),
 	}
 }
 

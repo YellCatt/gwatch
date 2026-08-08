@@ -9,6 +9,7 @@ import (
 	"gwatch/config"
 	"gwatch/internal/email"
 	"gwatch/internal/logger"
+	"gwatch/internal/storage"
 	"gwatch/internal/timeutil"
 )
 
@@ -105,6 +106,18 @@ func DispatchSystemAlerts(alerts []AlertItem) {
 			AlertLevel:  a.Level,
 			Message:     a.Message,
 			Timestamp:   a.Timestamp,
+		})
+
+		dateStr := a.Timestamp.Format("2006-01-02")
+		storage.UpdateSystemAlertSummary(storage.SystemAlertRecord{
+			Date:        dateStr,
+			Metric:      a.Metric,
+			MetricAlias: a.Metric,
+			Value:       a.Value,
+			Threshold:   a.Threshold,
+			Unit:        a.Unit,
+			AlertLevel:  a.Level,
+			Message:     a.Message,
 		})
 	}
 }

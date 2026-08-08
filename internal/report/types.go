@@ -50,6 +50,8 @@ type Report struct {
 	SuccessTasks     int
 	InterfaceStats   []InterfaceStat
 	AggregatedErrors []AggregatedError
+	SystemAlerts     []SystemAlertItem
+	ScraperAlerts    []ScraperAlertItem
 	HourlyMetrics    []HourlyResourceMetric
 	DailyMetrics     []DailyResourceMetric
 	MonthlyMetrics   []MonthlyResourceMetric
@@ -126,13 +128,41 @@ type AggregatedError struct {
 }
 
 type SystemMetricsSnapshot struct {
-	CPUPercent    float64
-	MemoryPercent float64
-	DiskPercent   float64
-	NetDownKBps   float64
-	NetUpKBps     float64
-	MemUsedBytes  uint64
-	MemTotalBytes uint64
-	DiskUsedBytes uint64
+	CPUPercent     float64
+	MemoryPercent  float64
+	DiskPercent    float64
+	NetDownKBps    float64
+	NetUpKBps      float64
+	MemUsedBytes   uint64
+	MemTotalBytes  uint64
+	DiskUsedBytes  uint64
 	DiskTotalBytes uint64
+}
+
+type SystemAlertItem struct {
+	Metric          string
+	MetricAlias     string
+	Value           float64
+	Threshold       float64
+	Unit            string
+	AlertLevel      string
+	AlertCount      int64
+	FirstOccurrence string
+	LastOccurrence  string
+	Message         string
+}
+
+type ScraperAlertItem struct {
+	TargetName      string
+	TargetURL       string
+	MetricName      string
+	MetricAlias     string
+	Value           float64
+	Threshold       float64
+	Unit            string
+	AlertLevel      string
+	AlertCount      int64
+	FirstOccurrence string
+	LastOccurrence  string
+	Message         string
 }

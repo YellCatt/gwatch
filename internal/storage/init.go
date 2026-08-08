@@ -97,6 +97,36 @@ var (
 		"timestamp",
 	}
 
+	systemAlertHeader = []string{
+		"date",
+		"metric",
+		"metric_alias",
+		"value",
+		"threshold",
+		"unit",
+		"alert_level",
+		"alert_count",
+		"first_occurrence",
+		"last_occurrence",
+		"message",
+	}
+
+	scraperAlertHeader = []string{
+		"date",
+		"target_name",
+		"target_url",
+		"metric_name",
+		"metric_alias",
+		"value",
+		"threshold",
+		"unit",
+		"alert_level",
+		"alert_count",
+		"first_occurrence",
+		"last_occurrence",
+		"message",
+	}
+
 	indexHeader = []string{
 		"file_name",
 		"description",
@@ -183,6 +213,14 @@ func initCSVInternal(dir string) error {
 		logger.Error("初始化采集指标 CSV 失败", zap.Error(err))
 		return err
 	}
+	if err := ensureCSV(systemAlertCSVPath(), systemAlertHeader); err != nil {
+		logger.Error("初始化系统告警 CSV 失败", zap.Error(err))
+		return err
+	}
+	if err := ensureCSV(scraperAlertCSVPath(), scraperAlertHeader); err != nil {
+		logger.Error("初始化采集告警 CSV 失败", zap.Error(err))
+		return err
+	}
 
 	if err := writeIndexCSV(); err != nil {
 		logger.Error("生成 CSV 数据表总表失败", zap.Error(err))
@@ -244,6 +282,18 @@ func csvFileMetas() []csvFileMeta {
 			description: "系统资源采集指标明细：通用采集器每次采集的指标值（如 CPU/内存/负载），是运维报告资源监控图表的数据来源",
 			writeMode:   "追加",
 			header:      scraperMetricHeader,
+		},
+		{
+			fileName:    filepath.Base(systemAlertCSVPath()),
+			description: "系统告警每日汇总：按 日期+指标 聚合的系统级告警（CPU/内存/磁盘/网络），是运维报告系统告警汇总的数据来源",
+			writeMode:   "覆盖重写",
+			header:      systemAlertHeader,
+		},
+		{
+			fileName:    filepath.Base(scraperAlertCSVPath()),
+			description: "采集告警每日汇总：按 日期+目标+指标 聚合的采集器告警，是运维报告采集告警汇总的数据来源",
+			writeMode:   "覆盖重写",
+			header:      scraperAlertHeader,
 		},
 		{
 			fileName:    filepath.Base(indexCSVPath()),
@@ -318,6 +368,16 @@ func alertSummaryCSVPath() string {
 // scraperMetricCSVPath 返回采集器指标 CSV 文件路径。
 func scraperMetricCSVPath() string {
 	return filepath.Join(dataDir, "scraper_metrics.csv")
+}
+
+// systemAlertCSVPath 返回系统告警汇总 CSV 文件路径。
+func systemAlertCSVPath() string {
+	return filepath.Join(dataDir, "system_alerts.csv")
+}
+
+// scraperAlertCSVPath 返回采集告警汇总 CSV 文件路径。
+func scraperAlertCSVPath() string {
+	return filepath.Join(dataDir, "scraper_alerts.csv")
 }
 
 // indexCSVPath 返回 CSV 数据总表文件路径。

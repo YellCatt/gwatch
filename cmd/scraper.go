@@ -174,6 +174,20 @@ func ScraperLoop() {
 							Message:     fmt.Sprintf("%s: %.2f %s 超过阈值 %.2f %s", name, metric.Value, metric.Unit, metric.Threshold, metric.Unit),
 							Timestamp:   result.Timestamp,
 						})
+
+						dateStr := result.Timestamp.Format("2006-01-02")
+						storage.UpdateScraperAlertSummary(storage.ScraperAlertRecord{
+							Date:        dateStr,
+							TargetName:  target.Name,
+							TargetURL:   target.URL,
+							MetricName:  metric.Name,
+							MetricAlias: metric.Alias,
+							Value:       metric.Value,
+							Threshold:   metric.Threshold,
+							Unit:        metric.Unit,
+							AlertLevel:  alertLevel,
+							Message:     fmt.Sprintf("%s: %.2f %s 超过阈值 %.2f %s", name, metric.Value, metric.Unit, metric.Threshold, metric.Unit),
+						})
 					}
 				} else {
 					fmt.Printf("  %s %s: 提取失败 - %s\n", status, name, metric.Error)

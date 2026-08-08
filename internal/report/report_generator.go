@@ -87,6 +87,48 @@ func GenerateReportFromStorage(period ReportPeriod, startDate, endDate time.Time
 		loadResourceMetricsByPeriod(report, period, startDate, endDate)
 	}
 
+	systemAlerts, err := storage.GetSystemAlertsByPeriod(startDate, endDate)
+	if err != nil {
+		logger.Error("Failed to get system alerts from storage", zap.Error(err))
+	} else {
+		for _, a := range systemAlerts {
+			report.SystemAlerts = append(report.SystemAlerts, SystemAlertItem{
+				Metric:          a.Metric,
+				MetricAlias:     a.MetricAlias,
+				Value:           a.Value,
+				Threshold:       a.Threshold,
+				Unit:            a.Unit,
+				AlertLevel:      a.AlertLevel,
+				AlertCount:      a.AlertCount,
+				FirstOccurrence: a.FirstOccurrence,
+				LastOccurrence:  a.LastOccurrence,
+				Message:         a.Message,
+			})
+		}
+	}
+
+	scraperAlerts, err := storage.GetScraperAlertsByPeriod(startDate, endDate)
+	if err != nil {
+		logger.Error("Failed to get scraper alerts from storage", zap.Error(err))
+	} else {
+		for _, a := range scraperAlerts {
+			report.ScraperAlerts = append(report.ScraperAlerts, ScraperAlertItem{
+				TargetName:      a.TargetName,
+				TargetURL:       a.TargetURL,
+				MetricName:      a.MetricName,
+				MetricAlias:     a.MetricAlias,
+				Value:           a.Value,
+				Threshold:       a.Threshold,
+				Unit:            a.Unit,
+				AlertLevel:      a.AlertLevel,
+				AlertCount:      a.AlertCount,
+				FirstOccurrence: a.FirstOccurrence,
+				LastOccurrence:  a.LastOccurrence,
+				Message:         a.Message,
+			})
+		}
+	}
+
 	if period == PeriodDaily && config.GlobalConfig.SystemMon.Enabled {
 		report.SystemMetrics = loadSystemMetrics()
 	}
@@ -355,6 +397,12 @@ func (r *Report) SendReportEmail() error {
 	totalAlerts := 0
 	for _, e := range r.AggregatedErrors {
 		totalAlerts += e.AlertCount
+	}
+	for _, a := range r.SystemAlerts {
+		totalAlerts += int(a.AlertCount)
+	}
+	for _, a := range r.ScraperAlerts {
+		totalAlerts += int(a.AlertCount)
 	}
 
 	subject := fmt.Sprintf("[gwatch] %s运维报告 - %s ~ %s", PeriodNames[r.Period], r.StartDate, r.EndDate)
