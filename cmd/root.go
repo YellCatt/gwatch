@@ -3,13 +3,17 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
 
 	"gwatch/config"
+	"gwatch/internal/bootstrap"
 	"gwatch/internal/email"
 	"gwatch/internal/logger"
+	"gwatch/internal/monitor"
+	"gwatch/internal/testcase"
 )
 
 var (
@@ -20,9 +24,21 @@ var (
 		Args:  cobra.ArbitraryArgs,
 		Run: func(cmd *cobra.Command, args []string) {
 			if testFlag {
-				runTests(args)
+				var tags []string
+				if tagsFlag != "" {
+					for _, tag := range strings.Split(tagsFlag, ",") {
+						tags = append(tags, strings.TrimSpace(tag))
+					}
+				}
+				testcase.RunTests(args, tags)
 			} else {
-				startMonitor(args)
+				var tags []string
+				if tagsFlag != "" {
+					for _, tag := range strings.Split(tagsFlag, ",") {
+						tags = append(tags, strings.TrimSpace(tag))
+					}
+				}
+				monitor.StartMonitorMode(args, tags)
 			}
 		},
 	}
@@ -31,7 +47,6 @@ var (
 	testFlag bool
 )
 
-// Execute 执行根命令，启动 Cobra 命令行程序。
 func Execute() {
 	if err := rootCmd.Execute(); err != nil {
 		logger.Error("Failed to execute command", zap.Error(err))
@@ -46,7 +61,7 @@ func Execute() {
 }
 
 func init() {
-	cobra.OnInitialize(initConfig)
+	cobra.OnInitialize(bootstrap.InitApp)
 	rootCmd.Flags().StringVar(&config.CfgFile, "config", "", "config file (default is ./config/config.yaml)")
 	rootCmd.Flags().StringVarP(&tagsFlag, "tags", "T", "", "filter tests by tags (comma-separated)")
 	rootCmd.Flags().BoolVarP(&testFlag, "test", "t", false, "run tests once (default is monitor mode)")

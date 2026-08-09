@@ -12,10 +12,13 @@ import (
 
 	"gwatch/config"
 	"gwatch/internal/email"
+	"gwatch/internal/httpclient"
 	"gwatch/internal/logger"
 	"gwatch/internal/psv"
 	"gwatch/internal/report"
+	"gwatch/internal/scraper"
 	"gwatch/internal/storage"
+	"gwatch/internal/sysmon"
 	"gwatch/internal/testcase"
 	"gwatch/internal/timeutil"
 )
@@ -72,9 +75,7 @@ func StartMonitor(testCases []psv.TestCase) {
 func SetupMonitor(testCases []psv.TestCase) bool {
 	logger.Info("Starting monitor mode")
 
-	if len(config.GlobalConfig.App.GlobalPre) > 0 {
-		executeGlobalPreConditions(testCases)
-	}
+	testcase.ExecuteGlobalPreConditions(testCases)
 
 	monitorCases := filterMonitorCases(testCases)
 	if len(monitorCases) == 0 {
@@ -107,40 +108,6 @@ func SetupMonitor(testCases []psv.TestCase) bool {
 	go startHotReload()
 
 	return true
-}
-
-// executeGlobalPreConditions 按配置顺序执行全局前置条件测试用例，
-// 若任一前置条件失败则发送错误邮件并终止进程。
-func executeGlobalPreConditions(testCases []psv.TestCase) {
-	fmt.Printf("\n════════════════════════════════════════════════════════╗\n")
-	fmt.Printf("║ 执行全局前置条件                                       ║\n")
-	fmt.Printf("╚════════════════════════════════════════════════════════╝\n\n")
-
-	for _, preID := range config.GlobalConfig.App.GlobalPre {
-		found := false
-		for _, tc := range testCases {
-			if tc.ID == preID {
-				fmt.Printf("[全局前置] 执行: %s - %s\n", tc.ID, tc.Desc)
-				result := testcase.ExecuteTestCase(tc)
-				if !result.Passed {
-					fmt.Printf("[全局前置] ❌ 失败: %s\n", result.Error)
-					fmt.Printf("\n全局前置条件失败，终止监控启动\n")
-					errorMsg := fmt.Sprintf("全局前置条件 '%s' 执行失败: %s", tc.ID, result.Error)
-					if err := email.SendErrorReportEmail(errorMsg); err != nil {
-						logger.Warn("Failed to send error report email", zap.Error(err))
-					}
-					os.Exit(1)
-				}
-				fmt.Printf("[全局前置] ✅ 成功\n")
-				found = true
-				break
-			}
-		}
-		if !found {
-			fmt.Printf("[全局前置] ⚠️ 未找到测试用例: %s\n", preID)
-		}
-	}
-	fmt.Println()
 }
 
 // worker 监控 worker 协程：从 taskChan 接收任务并执行，直到从 stopChan 收到停止信号。
@@ -264,52 +231,6 @@ func GetTaskCount() int {
 	return len(tasks)
 }
 
-// generateAndSendReport 根据指定周期与日期计算时间区间，生成报告并保存、发送邮件。
-func generateAndSendReport(period report.ReportPeriod, date time.Time) {
-	var startDate, endDate time.Time
-	switch period {
-	case report.PeriodDaily:
-		startDate = time.Date(date.Year(), date.Month(), date.Day(), 0, 0, 0, 0, date.Location())
-		endDate = startDate.Add(24 * time.Hour)
-	case report.PeriodWeekly:
-		weekday := date.Weekday()
-		daysToMonday := int(weekday - time.Monday)
-		if daysToMonday < 0 {
-			daysToMonday += 7
-		}
-		startDate = time.Date(date.Year(), date.Month(), date.Day(), 0, 0, 0, 0, date.Location()).AddDate(0, 0, -daysToMonday)
-		endDate = startDate.AddDate(0, 0, 7)
-	case report.PeriodMonthly:
-		startDate = time.Date(date.Year(), date.Month(), 1, 0, 0, 0, 0, date.Location())
-		endDate = startDate.AddDate(0, 1, 0)
-	case report.PeriodYearly:
-		startDate = time.Date(date.Year(), 1, 1, 0, 0, 0, 0, date.Location())
-		endDate = startDate.AddDate(1, 0, 0)
-	default:
-		logger.Error("Unknown report period", zap.String("period", string(period)))
-		return
-	}
-
-	r := report.GenerateReportFromStorage(period, startDate, endDate)
-
-	_, err := r.SaveReport()
-	if err != nil {
-		logger.Error("Failed to save report", zap.Error(err))
-		return
-	}
-
-	subject, body := r.PrepareReportEmail()
-	err = email.SendCustomEmail(subject, body)
-	if err != nil {
-		logger.Error("Failed to send report email", zap.Error(err))
-	}
-}
-
-// generateAndSendDailyReport 便捷函数：生成并发送指定日期的每日报告。
-func generateAndSendDailyReport(date time.Time) {
-	generateAndSendReport(report.PeriodDaily, date)
-}
-
 // generateAndSendStartupReport 生成并发送启动报告（包含任务列表与最大并发数等信息）。
 func generateAndSendStartupReport(cases []psv.TestCase, maxWorkers int) {
 	info := buildStartupInfo(cases, maxWorkers)
@@ -348,4 +269,102 @@ func buildStartupInfo(cases []psv.TestCase, maxWorkers int) *report.StartupInfo 
 		})
 	}
 	return info
+}
+
+func StartMonitorMode(paths []string, tags []string) {
+	httpclient.InitClient()
+
+	if err := storage.InitDB(config.GlobalConfig.App.DataDir); err != nil {
+		logger.Warn("CSV 存储初始化失败", zap.Error(err))
+	} else {
+		logger.Info("CSV 存储初始化成功")
+	}
+
+	var wg sync.WaitGroup
+	started := make([]string, 0, 3)
+
+	if config.GlobalConfig.SystemMon.Enabled {
+		if sysmon.InitStorage() {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				sysmon.StartSystemMonitor()
+			}()
+			started = append(started, "本机系统监控")
+		}
+	}
+
+	if config.GlobalConfig.Scraper.Enabled {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			scraper.StartLoop()
+		}()
+		started = append(started, "远程资源采集")
+	}
+
+	if len(paths) == 0 {
+		paths = []string{config.GlobalConfig.App.CaseDir}
+	}
+
+	testCases, err := psv.ParseFiles(paths)
+	if err != nil {
+		logger.Error("Failed to parse PSV files", zap.Error(err))
+		errorMsg := fmt.Sprintf("解析测试用例文件失败: %v", err)
+		if err := email.SendErrorReportEmail(errorMsg); err != nil {
+			logger.Warn("Failed to send error report email", zap.Error(err))
+		}
+		os.Exit(1)
+	}
+
+	testcase.SetAllTestCases(testCases)
+
+	if len(tags) > 0 {
+		testCases = testcase.FilterByTags(testCases, tags)
+	}
+
+	if config.GlobalConfig.Monitor.Enabled {
+		if SetupMonitor(testCases) {
+			started = append(started, "API 接口监控")
+		}
+	}
+
+	if config.GlobalConfig.Monitor.DailyReport ||
+		config.GlobalConfig.Monitor.WeeklyReport ||
+		config.GlobalConfig.Monitor.MonthlyReport ||
+		config.GlobalConfig.Monitor.YearlyReport {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			report.NewReportScheduler(email.SendCustomEmail).Start()
+		}()
+		started = append(started, "定期报告")
+	}
+
+	PrintUnifiedBanner(started)
+
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+
+	fmt.Println("按 Ctrl+C 停止所有监控...")
+	<-sigChan
+
+	fmt.Println("\n收到退出信号，正在停止所有监控系统...")
+	email.CloseDispatcher()
+	scraper.StopLoop()
+	StopAllTasks()
+	sysmon.StopSystemMonitor()
+	fmt.Println("所有监控系统已停止")
+
+	wg.Wait()
+}
+
+func PrintUnifiedBanner(started []string) {
+	fmt.Printf("\n╔══════════════════════════════════════════════════════════╗\n")
+	fmt.Printf("║                   gwatch 统一监控中心                     ║\n")
+	fmt.Printf("╠══════════════════════════════════════════════════════════╣\n")
+	for i, name := range started {
+		fmt.Printf("║  [%d] %-46s ║\n", i+1, name)
+	}
+	fmt.Printf("╚══════════════════════════════════════════════════════════╝\n\n")
 }

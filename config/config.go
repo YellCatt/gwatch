@@ -2,13 +2,13 @@ package config
 
 import (
 	"fmt"
-	"gwatch/internal/logger"
-	"log"
 	"os"
 
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
 	"gopkg.in/yaml.v3"
+
+	"gwatch/internal/logger"
 )
 
 var CfgFile string
@@ -26,11 +26,13 @@ func InitConfig() {
 	}
 
 	if err := viper.ReadInConfig(); err != nil {
-		log.Fatalf("Error reading config file: %v", err)
+		fmt.Fprintln(os.Stderr, "Error reading config file:", err)
+		os.Exit(1)
 	}
 
 	if err := viper.Unmarshal(&GlobalConfig); err != nil {
-		log.Fatalf("Unable to decode config into struct: %v", err)
+		fmt.Fprintln(os.Stderr, "Unable to decode config into struct:", err)
+		os.Exit(1)
 	}
 
 	setCleanerDefaults()
@@ -74,44 +76,34 @@ func loadRawVars() map[string]string {
 		configFile = "./config/config.yaml"
 	}
 
-	log.Printf("[DEBUG] loadRawVars 开始，配置文件: %s", configFile)
-
 	data, err := os.ReadFile(configFile)
 	if err != nil {
-		log.Printf("[WARN] loadRawVars: 直接读取配置文件失败，将回退到 viper: %v", err)
+		zap.L().Warn("loadRawVars: read config file failed, falling back to viper", zap.Error(err))
 	} else {
-		log.Printf("[DEBUG] loadRawVars: 成功读取配置文件，大小: %d bytes", len(data))
 		var raw map[string]any
 		if err := yaml.Unmarshal(data, &raw); err != nil {
-			log.Printf("[WARN] loadRawVars: YAML 解析失败，将回退到 viper: %v", err)
-		} else {
-			log.Printf("[DEBUG] loadRawVars: YAML 解析成功")
-			if varsMap, ok := raw["vars"].(map[string]any); ok {
-				log.Printf("[DEBUG] loadRawVars: 找到 vars 配置，数量: %d", len(varsMap))
-				for k, v := range varsMap {
-					switch val := v.(type) {
-					case string:
-						result[k] = val
-						log.Printf("[DEBUG] loadRawVars: 加载变量 key=%s, value=%s", k, val)
-					default:
-						result[k] = fmt.Sprintf("%v", val)
-						log.Printf("[DEBUG] loadRawVars: 加载变量（非字符串类型）key=%s, value=%v", k, v)
-					}
+			zap.L().Warn("loadRawVars: YAML unmarshal failed, falling back to viper", zap.Error(err))
+		} else if varsMap, ok := raw["vars"].(map[string]any); ok {
+			for k, v := range varsMap {
+				switch val := v.(type) {
+				case string:
+					result[k] = val
+				default:
+					result[k] = fmt.Sprintf("%v", val)
 				}
-				log.Printf("[INFO] loadRawVars 完成（直接读取），变量数量: %d", len(result))
-				return result
-			} else {
-				log.Printf("[WARN] loadRawVars: vars 配置不存在或格式不正确，将回退到 viper")
 			}
+			zap.L().Info("loadRawVars done (direct read)", zap.Int("count", len(result)))
+			return result
+		} else {
+			zap.L().Warn("loadRawVars: vars section missing or invalid, falling back to viper")
 		}
 	}
 
-	log.Printf("[WARN] loadRawVars: 使用 viper 回退模式（键名会转为小写）")
+	zap.L().Warn("loadRawVars: using viper fallback (keys will be lowercased)")
 	viperVars := viper.GetStringMapString("vars")
 	for k, v := range viperVars {
 		result[k] = v
-		log.Printf("[DEBUG] loadRawVars: viper 模式加载变量 key=%s, value=%s", k, v)
 	}
-	log.Printf("[INFO] loadRawVars 完成（viper 回退），变量数量: %d", len(result))
+	zap.L().Info("loadRawVars done (viper fallback)", zap.Int("count", len(result)))
 	return result
 }

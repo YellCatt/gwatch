@@ -1,4 +1,4 @@
-package cmd
+package bootstrap
 
 import (
 	"fmt"
@@ -12,9 +12,8 @@ import (
 	"gwatch/internal/vars"
 )
 
-// initConfig 初始化应用配置：创建目录、加载配置文件、初始化日志系统、变量和邮件服务。
-func initConfig() {
-	initDirectories()
+func InitApp() {
+	InitDirectories()
 
 	config.InitConfig()
 
@@ -46,7 +45,6 @@ func initConfig() {
 	})
 }
 
-// maskVars 对变量值进行脱敏处理，返回脱敏后的变量映射。
 func maskVars(vars map[string]string) map[string]string {
 	result := make(map[string]string)
 	for k, v := range vars {
@@ -55,7 +53,6 @@ func maskVars(vars map[string]string) map[string]string {
 	return result
 }
 
-// maskString 对单个字符串进行脱敏处理，保留前 4 位和后 4 位，中间用 *** 替代。
 func maskString(s string) string {
 	if len(s) <= 8 {
 		return "***"
@@ -63,8 +60,7 @@ func maskString(s string) string {
 	return s[:4] + "***" + s[len(s)-4:]
 }
 
-// initDirectories 创建运行所需的默认目录结构。
-func initDirectories() {
+func InitDirectories() {
 	directories := []string{
 		"./config",
 		"./logs",
@@ -86,7 +82,6 @@ func initDirectories() {
 	createDefaultConfigFile()
 }
 
-// createDefaultConfigFile 如果配置文件不存在，则创建一个默认配置文件。
 func createDefaultConfigFile() {
 	configPath := "./config/config.yaml"
 

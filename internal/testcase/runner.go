@@ -1,4 +1,4 @@
-package cmd
+package testcase
 
 import (
 	"fmt"
@@ -13,13 +13,11 @@ import (
 	"gwatch/internal/logger"
 	"gwatch/internal/psv"
 	"gwatch/internal/storage"
-	"gwatch/internal/testcase"
 	"gwatch/internal/timeutil"
 	"gwatch/internal/vars"
 )
 
-// runTests 运行测试模式：初始化存储、解析 PSV 文件、过滤标签、执行测试用例、生成报告并清理资源。
-func runTests(paths []string) {
+func RunTests(paths []string, tags []string) {
 	if err := storage.InitDB(config.GlobalConfig.App.DataDir); err != nil {
 		logger.Warn("CSV 存储初始化失败", zap.Error(err))
 	} else {
@@ -46,19 +44,11 @@ func runTests(paths []string) {
 		os.Exit(1)
 	}
 
-	testcase.SetAllTestCases(testCases)
+	SetAllTestCases(testCases)
 
-	var tags []string
-	if tagsFlag != "" {
-		tags = strings.Split(tagsFlag, ",")
-		for i, tag := range tags {
-			tags[i] = strings.TrimSpace(tag)
-		}
-	}
+	totalTestCaseCount, totalChainCount, totalIndependentCount := CountTestSummary(testCases)
 
-	totalTestCaseCount, totalChainCount, totalIndependentCount := testcase.CountTestSummary(testCases)
-
-	testCases = testcase.FilterByTags(testCases, tags)
+	testCases = FilterByTags(testCases, tags)
 
 	if len(testCases) == 0 {
 		logger.Info("No test cases to run", zap.Strings("paths", paths))
@@ -67,29 +57,27 @@ func runTests(paths []string) {
 
 	logger.Info("Starting API tests", zap.Int("count", len(testCases)))
 
-	estimatedDuration := calculateEstimatedDuration(testCases)
+	estimatedDuration := CalculateEstimatedDuration(testCases)
 
 	var estimatedDurationStr string
 	if estimatedDuration > 0 {
-		estimatedDurationStr = formatDuration(estimatedDuration)
+		estimatedDurationStr = FormatDuration(estimatedDuration)
 	} else {
 		estimatedDurationStr = "无历史数据"
 	}
 
-	executedCount, executedChainCount, executedIndependentCount := testcase.CountTestSummary(testCases)
+	executedCount, executedChainCount, executedIndependentCount := CountTestSummary(testCases)
 
-	printTaskSummary(totalTestCaseCount, totalChainCount, totalIndependentCount, tags, executedCount, executedChainCount, executedIndependentCount, estimatedDurationStr)
+	PrintTaskSummary(totalTestCaseCount, totalChainCount, totalIndependentCount, tags, executedCount, executedChainCount, executedIndependentCount, estimatedDurationStr)
 
 	reportTimestamp := timeutil.FormatCompact(timeutil.Now())
 
-	if len(config.GlobalConfig.App.GlobalPre) > 0 {
-		executeGlobalPreConditions(testCases)
-	}
+	ExecuteGlobalPreConditions(testCases)
 
-	var results []testcase.TestResult
-	chainFiles := testcase.GetChainFiles(testCases)
+	var results []TestResult
+	chainFiles := GetChainFiles(testCases)
 	for i, tc := range testCases {
-		result := testcase.ExecuteTestCase(tc)
+		result := ExecuteTestCase(tc)
 		results = append(results, result)
 
 		fmt.Printf("\n\n────────────────────────────────────────────────────────────\n")
@@ -100,8 +88,8 @@ func runTests(paths []string) {
 		fmt.Printf("第 %d/%d 个%s完成，正在更新报告...\n", i+1, len(testCases), stepLabel)
 		fmt.Printf("────────────────────────────────────────────────────────────\n")
 
-		allReport, errorReport := testcase.GenerateReport(results)
-		allPath, errorPath := testcase.SaveReports(allReport, errorReport, reportTimestamp)
+		allReport, errorReport := GenerateReport(results)
+		allPath, errorPath := SaveReports(allReport, errorReport, reportTimestamp)
 
 		fmt.Printf("\nPSV 报告已保存: %s\n", allPath)
 		if errorPath != "" {
@@ -109,7 +97,7 @@ func runTests(paths []string) {
 		}
 	}
 
-	testcase.PrintSummary(results)
+	PrintSummary(results)
 
 	if err := storage.CalculateAndStoreAverages(); err != nil {
 		logger.Warn("Failed to calculate and store average durations", zap.Error(err))
@@ -117,9 +105,7 @@ func runTests(paths []string) {
 		logger.Info("Successfully calculated and stored average durations")
 	}
 
-	if len(config.GlobalConfig.App.GlobalPost) > 0 {
-		executeGlobalPostConditions(testCases)
-	}
+	ExecuteGlobalPostConditions(testCases)
 
 	vars.CleanupGlobalPreVariables()
 	logger.Info("Cleaned up global pre variables")
@@ -136,8 +122,7 @@ func runTests(paths []string) {
 	}
 }
 
-// printTaskSummary 打印任务统计信息表格到控制台。
-func printTaskSummary(totalTestCaseCount, totalChainCount, totalIndependentCount int, tags []string, executedCount, executedChainCount, executedIndependentCount int, estimatedDurationStr string) {
+func PrintTaskSummary(totalTestCaseCount, totalChainCount, totalIndependentCount int, tags []string, executedCount, executedChainCount, executedIndependentCount int, estimatedDurationStr string) {
 	fmt.Printf("\n════════════════════════════════════════════════════════╗\n")
 	fmt.Printf("║ 任务统计信息                                           ║\n")
 	fmt.Printf("╠════════════════════════════════════════════════════════╣\n")
@@ -160,69 +145,7 @@ func printTaskSummary(totalTestCaseCount, totalChainCount, totalIndependentCount
 	fmt.Printf("╚════════════════════════════════════════════════════════╝\n\n")
 }
 
-// executeGlobalPreConditions 执行全局前置条件中指定的测试用例。
-func executeGlobalPreConditions(testCases []psv.TestCase) {
-	fmt.Printf("\n════════════════════════════════════════════════════════╗\n")
-	fmt.Printf("║ 执行全局前置条件                                       ║\n")
-	fmt.Printf("╚════════════════════════════════════════════════════════╝\n\n")
-
-	for _, preID := range config.GlobalConfig.App.GlobalPre {
-		found := false
-		for _, tc := range testCases {
-			if tc.ID == preID {
-				fmt.Printf("[全局前置] 执行: %s - %s\n", tc.ID, tc.Desc)
-				result := testcase.ExecuteTestCase(tc)
-				if !result.Passed {
-					fmt.Printf("[全局前置] ❌ 失败: %s\n", result.Error)
-					fmt.Printf("\n全局前置条件失败，终止测试执行\n")
-					errorMsg := fmt.Sprintf("全局前置条件 '%s' 执行失败: %s", tc.ID, result.Error)
-					if err := email.SendErrorReportEmail(errorMsg); err != nil {
-						logger.Warn("Failed to send error report email", zap.Error(err))
-					}
-					os.Exit(1)
-				}
-				fmt.Printf("[全局前置] ✅ 成功\n")
-				found = true
-				break
-			}
-		}
-		if !found {
-			fmt.Printf("[全局前置] ⚠️ 未找到测试用例: %s\n", preID)
-		}
-	}
-	fmt.Println()
-}
-
-// executeGlobalPostConditions 执行全局后置条件中指定的测试用例。
-func executeGlobalPostConditions(testCases []psv.TestCase) {
-	fmt.Printf("\n════════════════════════════════════════════════════════╗\n")
-	fmt.Printf("║ 执行全局后置条件                                       ║\n")
-	fmt.Printf("╚════════════════════════════════════════════════════════╝\n\n")
-
-	for _, postID := range config.GlobalConfig.App.GlobalPost {
-		found := false
-		for _, tc := range testCases {
-			if tc.ID == postID {
-				fmt.Printf("[全局后置] 执行: %s - %s\n", tc.ID, tc.Desc)
-				result := testcase.ExecuteTestCase(tc)
-				if !result.Passed {
-					fmt.Printf("[全局后置] ❌ 失败: %s\n", result.Error)
-				} else {
-					fmt.Printf("[全局后置] ✅ 成功\n")
-				}
-				found = true
-				break
-			}
-		}
-		if !found {
-			fmt.Printf("[全局后置] ⚠️ 未找到测试用例: %s\n", postID)
-		}
-	}
-	fmt.Println()
-}
-
-// calculateEstimatedDuration 根据历史平均执行时间估算所有测试用例的总执行时长。
-func calculateEstimatedDuration(testCases []psv.TestCase) time.Duration {
+func CalculateEstimatedDuration(testCases []psv.TestCase) time.Duration {
 	averages, err := storage.GetAllAverageDurations()
 	if err != nil {
 		logger.Warn("Failed to get average durations", zap.Error(err))
@@ -261,8 +184,7 @@ func calculateEstimatedDuration(testCases []psv.TestCase) time.Duration {
 	return total
 }
 
-// formatDuration 将时长格式化为易读形式（ms、s、m、h）。
-func formatDuration(d time.Duration) string {
+func FormatDuration(d time.Duration) string {
 	if d < time.Second {
 		return fmt.Sprintf("%dms", d.Milliseconds())
 	} else if d < time.Minute {
