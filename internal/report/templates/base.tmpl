@@ -9,7 +9,6 @@ gwatch {{.Period}}运维报告
 
 
 📊 执行概览
-
   总次数:  {{.TotalTasks}}
   成功:    {{.SuccessTasks}}
   失败:    {{.FailedTasks}}
@@ -19,7 +18,6 @@ gwatch {{.Period}}运维报告
 
 
 🔧 接口状态
-
 {{- if .InterfaceStats}}
 {{range .InterfaceStats}}{{if .HasFailure}}⚠️{{else}}✅{{end}} {{.TaskID}}
     请求: {{.TotalCount}}次  成功: {{.SuccessCount}}  失败: {{.FailedCount}}
@@ -30,7 +28,6 @@ gwatch {{.Period}}运维报告
 
 
 📢 告警汇总
-
 {{- if .AggregatedErrors}}
 {{range .AggregatedErrors}}▸ {{.Icon}} 【{{.Level}}】{{.TaskID}}
   {{.TaskDesc}}
@@ -51,7 +48,6 @@ gwatch {{.Period}}运维报告
 {{- if .SystemAlerts}}
 
 🖥️ 系统资源告警
-
 {{range .SystemAlerts}}▸ {{.Icon}} 【{{.Level}}】{{.Metric}}
   当前值: {{.Value}} {{.Unit}}  阈值: {{.Threshold}} {{.Unit}}
   告警次数: {{.AlertCount}} 次
@@ -68,7 +64,6 @@ gwatch {{.Period}}运维报告
 {{- if .ScraperAlerts}}
 
 🔍 远程资源告警
-
 {{range .ScraperAlerts}}▸ {{.Icon}} 【{{.Level}}】{{.TargetName}} - {{.MetricName}}
   目标: {{.TargetURL}}
   当前值: {{.Value}} {{.Unit}}  阈值: {{.Threshold}} {{.Unit}}
