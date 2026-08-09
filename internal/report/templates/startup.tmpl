@@ -9,7 +9,6 @@ gwatch 接口监控系统 - 启动报告
 
 
 📋 系统配置
-
   数据目录: {{.DataDir}}
   报告目录: {{.ReportDir}}
   用例目录: {{.CaseDir}}
@@ -17,7 +16,6 @@ gwatch 接口监控系统 - 启动报告
 
 
 📡 监控配置
-
   监控模式:   {{.MonitorEnabled}}
   监控接口数: {{if .HasTasks}}{{.TaskCount}} 个{{else}}0{{end}}
   实际并发:   {{if .HasTasks}}{{.ActualMaxWorkers}}{{else}}{{.MaxWorkers}}{{end}}
@@ -30,7 +28,6 @@ gwatch 接口监控系统 - 启动报告
 
 
 📊 报告计划
-
   每日报告: {{.DailyReport}}{{if .HasDailyReport}} (每天 {{.ReportTime}}){{end}}
   每周报告: {{.WeeklyReport}}
   每月报告: {{.MonthlyReport}}
@@ -39,7 +36,6 @@ gwatch 接口监控系统 - 启动报告
 
 
 📧 邮件通知
-
   邮件功能: {{.EmailEnabled}}
 {{- if .HasEmail}}
   发件人:   {{.EmailFrom}}
@@ -50,7 +46,6 @@ gwatch 接口监控系统 - 启动报告
 
 
 🔧 资源采集 (Scraper)
-
   采集功能: {{.ScraperEnabled}}
 {{- if .HasScraper}}
   目标数:   {{.ScraperTargetCount}}
@@ -61,7 +56,6 @@ gwatch 接口监控系统 - 启动报告
 
 
 🖥️ 系统监控
-
   系统监控: {{.SystemMonEnabled}}
 {{- if .HasSystemMon}}
   采集间隔: {{.SystemMonInterval}} 秒
