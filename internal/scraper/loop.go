@@ -147,6 +147,15 @@ func StartLoop() {
 
 					if alertLevel != "" {
 						isSpeed := util.IsSpeedUnit(metric.Unit)
+						alertThreshold := metric.AlertThreshold
+						if alertThreshold == 0 {
+							if metric.IsWarning {
+								alertThreshold = metric.WarningThreshold
+							} else {
+								alertThreshold = metric.Threshold
+							}
+						}
+
 						email.DispatchAlert(email.UnifiedAlert{
 							Source:      email.SourceScraper,
 							SourceName:  "远程资源采集",
@@ -155,7 +164,7 @@ func StartLoop() {
 							MetricAlias: metric.Alias,
 							Value:       metric.Value,
 							Unit:        metric.Unit,
-							Threshold:   metric.Threshold,
+							Threshold:   alertThreshold,
 							AlertLevel:  alertLevel,
 							Message:     buildAlertMessage(name, metric, isSpeed),
 							Timestamp:   result.Timestamp,
@@ -169,7 +178,7 @@ func StartLoop() {
 							MetricName:  metric.Name,
 							MetricAlias: metric.Alias,
 							Value:       metric.Value,
-							Threshold:   metric.Threshold,
+							Threshold:   alertThreshold,
 							Unit:        metric.Unit,
 							AlertLevel:  alertLevel,
 							Message:     buildAlertMessage(name, metric, isSpeed),
@@ -283,8 +292,37 @@ func printMetricSuggestions(data interface{}, path string) {
 }
 
 func buildAlertMessage(name string, metric MetricResult, isSpeed bool) string {
-	if isSpeed {
-		return fmt.Sprintf("%s: %s 超过阈值 %s", name, util.FormatSpeed(metric.Value), util.FormatSpeed(metric.Threshold))
+	alertThreshold := metric.AlertThreshold
+	if alertThreshold == 0 {
+		if metric.IsWarning {
+			alertThreshold = metric.WarningThreshold
+		} else {
+			alertThreshold = metric.Threshold
+		}
 	}
-	return fmt.Sprintf("%s: %.2f %s 超过阈值 %.2f %s", name, metric.Value, metric.Unit, metric.Threshold, metric.Unit)
+
+	compareOp := metric.AlertCompareOp
+	if compareOp == "" {
+		compareOp = "gt"
+	}
+
+	opDesc := getOpMessageDesc(compareOp)
+
+	if isSpeed {
+		return fmt.Sprintf("%s: %s %s %s", name, util.FormatSpeed(metric.Value), opDesc, util.FormatSpeed(alertThreshold))
+	}
+	return fmt.Sprintf("%s: %.2f %s %s %.2f %s", name, metric.Value, metric.Unit, opDesc, alertThreshold, metric.Unit)
+}
+
+func getOpMessageDesc(op string) string {
+	switch op {
+	case "lt", "le":
+		return "低于阈值"
+	case "gt", "ge":
+		return "超过阈值"
+	case "eq":
+		return "等于阈值"
+	default:
+		return "超过阈值"
+	}
 }

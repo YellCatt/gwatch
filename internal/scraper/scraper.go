@@ -65,6 +65,8 @@ type MetricResult struct {
 	AlertLevel       string  `json:"alert_level,omitempty"`
 	OverThreshold    bool    `json:"over_threshold"`
 	IsWarning        bool    `json:"is_warning"`
+	AlertThreshold   float64 `json:"alert_threshold,omitempty"`
+	AlertCompareOp   string  `json:"alert_compare_op,omitempty"`
 }
 
 // ScrapeResult 表示一次采集结果
@@ -309,6 +311,7 @@ func checkAlertConditions(metric MetricConfig, value float64, result *MetricResu
 
 	result.Alert = true
 	result.AlertLevel = alertLevel
+	result.AlertCompareOp = compareOp
 
 	isLess := compareOp == "lt" || compareOp == "le"
 
@@ -320,11 +323,13 @@ func checkAlertConditions(metric MetricConfig, value float64, result *MetricResu
 	if isLess {
 		if metric.WarningThreshold > 0 && compare(compareOp, value, warningThreshold) {
 			result.IsWarning = true
+			result.AlertThreshold = warningThreshold
 			logAlert("warn", metric, value, warningThreshold, unit, "警告")
 		}
 		if metric.Threshold > 0 && compare(compareOp, value, threshold) {
 			result.OverThreshold = true
 			result.IsWarning = false
+			result.AlertThreshold = threshold
 			logAlert("error", metric, value, threshold, unit, "严重")
 		}
 		return
@@ -332,11 +337,13 @@ func checkAlertConditions(metric MetricConfig, value float64, result *MetricResu
 
 	if metric.Threshold > 0 && compare(compareOp, value, threshold) {
 		result.OverThreshold = true
+		result.AlertThreshold = threshold
 		logAlert("error", metric, value, threshold, unit, "严重")
 		return
 	}
 	if metric.WarningThreshold > 0 && compare(compareOp, value, warningThreshold) {
 		result.IsWarning = true
+		result.AlertThreshold = warningThreshold
 		logAlert("warn", metric, value, warningThreshold, unit, "警告")
 	}
 }
