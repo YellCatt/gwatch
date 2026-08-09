@@ -15,9 +15,17 @@ var alertTemplateFS embed.FS
 
 var alertTmpl *template.Template
 
+func formatValue(v float64, unit string) string {
+	if unit == "KB/s" {
+		return util.FormatSpeed(v)
+	}
+	return fmt.Sprintf("%.2f %s", v, unit)
+}
+
 func init() {
 	funcMap := template.FuncMap{
 		"formatSpeed": util.FormatSpeed,
+		"formatValue": formatValue,
 		"printf":      fmt.Sprintf,
 	}
 	alertTmpl = template.Must(template.New("").Funcs(funcMap).ParseFS(alertTemplateFS, "templates/*.tmpl"))

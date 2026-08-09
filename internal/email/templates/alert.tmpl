@@ -10,14 +10,10 @@
 {{range .Alerts}}{{if eq .Level "CRITICAL"}}🚨{{else}}⚠️{{end}} [{{.Level}}] {{.MetricAlias}}
    目标:     {{.TargetName}}
 {{- if ne .Value 0.0}}
-{{- if eq .Unit "KB/s"}}   当前值:   {{formatSpeed .Value}}
-{{- else}}   当前值:   {{printf "%.2f" .Value}} {{.Unit}}
-{{- end}}
+   当前值:   {{formatValue .Value .Unit}}
 {{- end}}
 {{- if gt .Threshold 0.0}}
-{{- if eq .Unit "KB/s"}}   阈值:     {{formatSpeed .Threshold}}
-{{- else}}   阈值:     {{printf "%.2f" .Threshold}} {{.Unit}}
-{{- end}}
+   阈值:     {{formatValue .Threshold .Unit}}
 {{- end}}
 {{- if .Message}}
    消息:     {{.Message}}
