@@ -7,6 +7,7 @@ import (
 	"go.uber.org/zap"
 
 	"gwatch/internal/logger"
+	"gwatch/internal/timeutil"
 )
 
 type PeriodicScheduler struct {
@@ -45,7 +46,7 @@ func NewPeriodicScheduler(opts ...PeriodicSchedulerOption) *PeriodicScheduler {
 }
 
 func (s *PeriodicScheduler) Start() {
-	now := time.Now()
+	now := timeutil.Now()
 	next := time.Date(now.Year(), now.Month(), now.Day(), s.reportHour, s.reportMinute, 0, 0, now.Location())
 
 	if !now.Before(next) {
@@ -53,7 +54,7 @@ func (s *PeriodicScheduler) Start() {
 	}
 
 	for {
-		now := time.Now()
+		now := timeutil.Now()
 		duration := next.Sub(now)
 
 		if duration <= 0 {
@@ -72,7 +73,7 @@ func (s *PeriodicScheduler) Start() {
 			time.Sleep(duration)
 		}
 
-		today := time.Now().Format("2006-01-02")
+		today := timeutil.Now().Format("2006-01-02")
 		if today == s.lastSentDate {
 			logger.Info("Reports already sent today, skipping", zap.String("date", today))
 			next = next.Add(24 * time.Hour)
