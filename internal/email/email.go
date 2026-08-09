@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"fmt"
 	"log"
+	"mime"
 	"net/smtp"
 	"strings"
 
@@ -31,8 +32,18 @@ func InitEmail(cfg EmailConfig) {
 	Config = cfg
 }
 
-// formatSubject 格式化邮件主题（预留扩展点）。
+// formatSubject 格式化邮件主题，对包含非 ASCII 字符的主题进行 RFC 2047 编码。
 func formatSubject(subject string) string {
+	hasNonASCII := false
+	for _, r := range subject {
+		if r > 127 {
+			hasNonASCII = true
+			break
+		}
+	}
+	if hasNonASCII {
+		return mime.QEncoding.Encode("UTF-8", subject)
+	}
 	return subject
 }
 
