@@ -11,18 +11,15 @@ func generateASCIIChart(data []float64, labels []string, unit string, barWidth i
 		return "  (无数据)\n"
 	}
 
-	validData := make([]float64, 0, len(data))
-	for _, v := range data {
-		if v >= 0 {
-			validData = append(validData, v)
-		}
-	}
-	if len(validData) == 0 {
-		return "  (无有效数据)\n"
+	if barWidth <= 0 {
+		barWidth = 20
 	}
 
 	var maxVal float64
-	for _, v := range validData {
+	for _, v := range data {
+		if v < 0 {
+			continue
+		}
 		if v > maxVal {
 			maxVal = v
 		}
@@ -31,18 +28,16 @@ func generateASCIIChart(data []float64, labels []string, unit string, barWidth i
 		maxVal = 1
 	}
 
-	if barWidth <= 0 {
-		barWidth = 20
-	}
-
 	var builder strings.Builder
 	builder.WriteString(fmt.Sprintf("  图表 (数据点: %d)\n", len(data)))
 	builder.WriteString("\n")
 
+	anyValid := false
 	for i, v := range data {
 		if v < 0 {
 			continue
 		}
+		anyValid = true
 
 		percent := v / maxVal
 		if percent > 1.0 {
@@ -75,6 +70,10 @@ func generateASCIIChart(data []float64, labels []string, unit string, barWidth i
 		builder.WriteString(fmt.Sprintf("  %s %s %s\n", label, barStr, valueStr))
 	}
 
+	if !anyValid {
+		builder.WriteString("  (无有效数据)\n")
+	}
+
 	builder.WriteString("\n")
 	return builder.String()
 }
@@ -91,11 +90,18 @@ func padRight(s string, length int) string {
 func buildHourlyChartData(r *Report) []string {
 	charts := make([]string, 0, len(r.HourlyMetrics))
 	for _, m := range r.HourlyMetrics {
-		values := make([]float64, 24)
-		labels := make([]string, 24)
-		for i, d := range m.HourlyData {
-			values[i] = d.AvgValue
-			labels[i] = fmt.Sprintf("%02d:00", i)
+		values := make([]float64, 0)
+		labels := make([]string, 0)
+		for _, d := range m.HourlyData {
+			if d.AvgValue < 0 {
+				continue
+			}
+			values = append(values, d.AvgValue)
+			labels = append(labels, fmt.Sprintf("%02d:00", d.Hour))
+		}
+
+		if len(values) == 0 {
+			continue
 		}
 
 		header := fmt.Sprintf("  🖥️ %s - %s (%s)\n", m.TargetName, m.MetricAlias, m.Unit)
@@ -109,11 +115,18 @@ func buildHourlyChartData(r *Report) []string {
 func buildDailyChartData(r *Report) []string {
 	charts := make([]string, 0, len(r.DailyMetrics))
 	for _, m := range r.DailyMetrics {
-		values := make([]float64, len(m.DailyData))
-		labels := make([]string, len(m.DailyData))
-		for i, d := range m.DailyData {
-			values[i] = d.AvgValue
-			labels[i] = d.DayLabel
+		values := make([]float64, 0)
+		labels := make([]string, 0)
+		for _, d := range m.DailyData {
+			if d.AvgValue < 0 {
+				continue
+			}
+			values = append(values, d.AvgValue)
+			labels = append(labels, d.DayLabel)
+		}
+
+		if len(values) == 0 {
+			continue
 		}
 
 		header := fmt.Sprintf("  🖥️ %s - %s (%s)\n", m.TargetName, m.MetricAlias, m.Unit)
@@ -127,11 +140,18 @@ func buildDailyChartData(r *Report) []string {
 func buildMonthlyChartData(r *Report) []string {
 	charts := make([]string, 0, len(r.MonthlyMetrics))
 	for _, m := range r.MonthlyMetrics {
-		values := make([]float64, len(m.MonthlyData))
-		labels := make([]string, len(m.MonthlyData))
-		for i, d := range m.MonthlyData {
-			values[i] = d.AvgValue
-			labels[i] = d.MonthLabel
+		values := make([]float64, 0)
+		labels := make([]string, 0)
+		for _, d := range m.MonthlyData {
+			if d.AvgValue < 0 {
+				continue
+			}
+			values = append(values, d.AvgValue)
+			labels = append(labels, d.MonthLabel)
+		}
+
+		if len(values) == 0 {
+			continue
 		}
 
 		header := fmt.Sprintf("  🖥️ %s - %s (%s)\n", m.TargetName, m.MetricAlias, m.Unit)

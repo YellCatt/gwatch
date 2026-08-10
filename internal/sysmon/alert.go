@@ -130,15 +130,18 @@ func DispatchSystemAlerts(alerts []AlertItem) {
 		})
 
 		dateStr := a.Timestamp.Format("2006-01-02")
+		timestampStr := a.Timestamp.Format("2006-01-02 15:04:05")
 		storage.UpdateSystemAlertSummary(storage.SystemAlertRecord{
-			Date:        dateStr,
-			Metric:      a.Metric,
-			MetricAlias: a.Metric,
-			Value:       a.Value,
-			Threshold:   a.Threshold,
-			Unit:        a.Unit,
-			AlertLevel:  a.Level,
-			Message:     a.Message,
+			Date:            dateStr,
+			Metric:          a.Metric,
+			MetricAlias:     a.Metric,
+			Value:           a.Value,
+			Threshold:       a.Threshold,
+			Unit:            a.Unit,
+			AlertLevel:      a.Level,
+			FirstOccurrence: timestampStr,
+			LastOccurrence:  timestampStr,
+			Message:         a.Message,
 		})
 	}
 }

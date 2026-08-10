@@ -5,7 +5,6 @@
 
 
 📈 每小时资源指标趋势
-
 【周期】{{.StartDate}} ~ {{.EndDate}}
 {{- if .Charts}}
 {{range .Charts}}{{.}}
@@ -17,7 +16,6 @@
 
 
 📈 {{.Title}} - 每日资源指标趋势
-
 【周期】{{.StartDate}} ~ {{.EndDate}}
 {{- if .Charts}}
 {{range .Charts}}{{.}}
@@ -29,7 +27,6 @@
 
 
 📈 年度报表 - 月度资源指标趋势
-
 【周期】{{.StartDate}} ~ {{.EndDate}}
 {{- if .Charts}}
 {{range .Charts}}{{.}}
@@ -41,7 +38,6 @@
 
 
 🖥️ 系统资源状态
-
   CPU:  {{printf "%.2f" .CPUPercent}}%
   内存: {{printf "%.2f" .MemoryPercent}}% ({{formatBytes .MemUsedBytes}} / {{formatBytes .MemTotalBytes}})
   磁盘: {{printf "%.2f" .DiskPercent}}% ({{formatBytes .DiskUsedBytes}} / {{formatBytes .DiskTotalBytes}})

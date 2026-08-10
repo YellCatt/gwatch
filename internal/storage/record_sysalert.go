@@ -17,6 +17,9 @@ func UpdateSystemAlertSummary(record SystemAlertRecord) error {
 
 	dateStr := record.Date
 	timestampStr := record.LastOccurrence
+	if timestampStr == "" {
+		timestampStr = time.Now().Format("2006-01-02 15:04:05")
+	}
 
 	header, records, err := readRecords(systemAlertCSVPath())
 	if err != nil {
@@ -206,6 +209,9 @@ func UpdateScraperAlertSummary(record ScraperAlertRecord) error {
 
 	dateStr := record.Date
 	timestampStr := record.LastOccurrence
+	if timestampStr == "" {
+		timestampStr = time.Now().Format("2006-01-02 15:04:05")
+	}
 
 	_, records, err := readRecords(scraperAlertCSVPath())
 	if err != nil {

@@ -106,10 +106,10 @@ func StartLoop() {
 					status = "FAIL"
 				} else if metric.OverThreshold {
 					status = "CRITICAL"
-					alertLevel = "严重"
+					alertLevel = "CRITICAL"
 				} else if metric.IsWarning {
 					status = "WARNING"
-					alertLevel = "警告"
+					alertLevel = "WARNING"
 				}
 
 				name := metric.Name
@@ -171,17 +171,20 @@ func StartLoop() {
 						})
 
 						dateStr := result.Timestamp.Format("2006-01-02")
+						timestampStr := result.Timestamp.Format("2006-01-02 15:04:05")
 						storage.UpdateScraperAlertSummary(storage.ScraperAlertRecord{
-							Date:        dateStr,
-							TargetName:  target.Name,
-							TargetURL:   target.URL,
-							MetricName:  metric.Name,
-							MetricAlias: metric.Alias,
-							Value:       metric.Value,
-							Threshold:   alertThreshold,
-							Unit:        metric.Unit,
-							AlertLevel:  alertLevel,
-							Message:     buildAlertMessage(name, metric, isSpeed),
+							Date:            dateStr,
+							TargetName:      target.Name,
+							TargetURL:       target.URL,
+							MetricName:      metric.Name,
+							MetricAlias:     metric.Alias,
+							Value:           metric.Value,
+							Threshold:       alertThreshold,
+							Unit:            metric.Unit,
+							AlertLevel:      alertLevel,
+							FirstOccurrence: timestampStr,
+							LastOccurrence:  timestampStr,
+							Message:         buildAlertMessage(name, metric, isSpeed),
 						})
 					}
 				} else {
