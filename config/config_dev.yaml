@@ -149,6 +149,9 @@ email:
   smtp_server: "smtp.qq.com"                # SMTP服务器地址
   smtp_port: 465                            # SMTP端口
   error_subject: "[gwatch] 监控系统错误告警" # 错误告警邮件主题
+  scraper_cooldown: 21600                   # 远程采集告警冷却时间（秒），同一指标在此时间内不重复告警，默认6小时
+  api_cooldown: 21600                       # 接口监控告警冷却时间（秒），默认6小时
+  system_cooldown: 7200                    # 系统资源告警冷却时间（秒），默认2小时
 
 cleaner:
   enabled: true                             # 是否启用自动清理

@@ -43,6 +43,20 @@
   磁盘: {{printf "%.2f" .DiskPercent}}% ({{formatBytes .DiskUsedBytes}} / {{formatBytes .DiskTotalBytes}})
   网络: ↓{{printf "%.2f" .NetDownKBps}} KB/s  ↑{{printf "%.2f" .NetUpKBps}} KB/s
 
+{{if .CPUChart}}
+📈 系统资源趋势 (过去24小时)
+
+  【CPU 使用率趋势】
+{{.CPUChart}}
+  【内存使用率趋势】
+{{.MemoryChart}}
+  【磁盘使用率趋势】
+{{.DiskChart}}
+  【网络下行速度趋势】
+{{.NetDownChart}}
+  【网络上行速度趋势】
+{{.NetUpChart}}
+{{end}}
 {{end}}
 
 {{/* 每日报告完整模板 */}}
@@ -53,25 +67,33 @@
 {{end}}
 {{if .HasHourly}}
 {{template "hourly_resource" .Hourly}}
-{{end}}{{end}}
+{{end}}
+来自 gwatch 运维监控系统
+{{end}}
 
 {{/* 每周报告完整模板 */}}
 {{define "weekly"}}
 {{template "base" .Base}}
 {{if .HasDaily}}
 {{template "daily_resource" .Daily}}
-{{end}}{{end}}
+{{end}}
+来自 gwatch 运维监控系统
+{{end}}
 
 {{/* 每月报告完整模板 */}}
 {{define "monthly"}}
 {{template "base" .Base}}
 {{if .HasDaily}}
 {{template "daily_resource" .Daily}}
-{{end}}{{end}}
+{{end}}
+来自 gwatch 运维监控系统
+{{end}}
 
 {{/* 年度报告完整模板 */}}
 {{define "yearly"}}
 {{template "base" .Base}}
 {{if .HasMonthly}}
 {{template "monthly_resource" .Monthly}}
-{{end}}{{end}}
+{{end}}
+来自 gwatch 运维监控系统
+{{end}}

@@ -137,6 +137,11 @@ type SystemMetricsSnapshot struct {
 	MemTotalBytes  uint64
 	DiskUsedBytes  uint64
 	DiskTotalBytes uint64
+	CPUChart       string
+	MemoryChart    string
+	DiskChart      string
+	NetDownChart   string
+	NetUpChart     string
 }
 
 type SystemAlertItem struct {

@@ -128,11 +128,20 @@ func filterByCooldown(alerts []UnifiedAlert) []UnifiedAlert {
 func getCooldownForSource(source AlertSource) time.Duration {
 	switch source {
 	case SourceAPI:
+		if Config.APICooldown > 0 {
+			return time.Duration(Config.APICooldown) * time.Second
+		}
 		return 6 * time.Hour
 	case SourceSystem:
+		if Config.SystemCooldown > 0 {
+			return time.Duration(Config.SystemCooldown) * time.Second
+		}
 		return 2 * time.Hour
 	case SourceScraper:
-		return 2 * time.Hour
+		if Config.ScraperCooldown > 0 {
+			return time.Duration(Config.ScraperCooldown) * time.Second
+		}
+		return 6 * time.Hour
 	default:
 		return 5 * time.Minute
 	}

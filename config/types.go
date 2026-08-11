@@ -77,13 +77,16 @@ type AppConfig struct {
 }
 
 type EmailConfig struct {
-	Enabled      bool     `mapstructure:"enabled"`
-	From         string   `mapstructure:"from"`
-	To           []string `mapstructure:"to"`
-	AuthCode     string   `mapstructure:"auth_code"`
-	SMTPServer   string   `mapstructure:"smtp_server"`
-	SMTPPort     int      `mapstructure:"smtp_port"`
-	ErrorSubject string   `mapstructure:"error_subject"`
+	Enabled         bool     `mapstructure:"enabled"`
+	From            string   `mapstructure:"from"`
+	To              []string `mapstructure:"to"`
+	AuthCode        string   `mapstructure:"auth_code"`
+	SMTPServer      string   `mapstructure:"smtp_server"`
+	SMTPPort        int      `mapstructure:"smtp_port"`
+	ErrorSubject    string   `mapstructure:"error_subject"`
+	ScraperCooldown int      `mapstructure:"scraper_cooldown"`
+	APICooldown     int      `mapstructure:"api_cooldown"`
+	SystemCooldown  int      `mapstructure:"system_cooldown"`
 }
 
 type CleanupConfig struct {

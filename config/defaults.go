@@ -148,3 +148,18 @@ func setSystemMonitorDefaults() {
 
 	GlobalConfig.SystemMon = sm
 }
+
+// setEmailDefaults 设置邮件模块的默认告警冷却时间（秒）。
+func setEmailDefaults() {
+	em := &GlobalConfig.Email
+
+	if em.ScraperCooldown <= 0 {
+		em.ScraperCooldown = 21600
+	}
+	if em.APICooldown <= 0 {
+		em.APICooldown = 21600
+	}
+	if em.SystemCooldown <= 0 {
+		em.SystemCooldown = 7200
+	}
+}

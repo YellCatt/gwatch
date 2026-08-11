@@ -34,14 +34,17 @@ func InitApp() {
 	logger.Info("当前可用变量", zap.Any("vars", vars.GetAll()))
 
 	email.InitEmail(email.EmailConfig{
-		Enabled:      config.GlobalConfig.Email.Enabled,
-		FromEmail:    config.GlobalConfig.Email.From,
-		ToEmail:      config.GlobalConfig.Email.To,
-		AuthCode:     config.GlobalConfig.Email.AuthCode,
-		SMTPServer:   config.GlobalConfig.Email.SMTPServer,
-		SMTPPort:     config.GlobalConfig.Email.SMTPPort,
-		DeviceName:   config.GlobalConfig.App.HostName,
-		ErrorSubject: config.GlobalConfig.Email.ErrorSubject,
+		Enabled:         config.GlobalConfig.Email.Enabled,
+		FromEmail:       config.GlobalConfig.Email.From,
+		ToEmail:         config.GlobalConfig.Email.To,
+		AuthCode:        config.GlobalConfig.Email.AuthCode,
+		SMTPServer:      config.GlobalConfig.Email.SMTPServer,
+		SMTPPort:        config.GlobalConfig.Email.SMTPPort,
+		DeviceName:      config.GlobalConfig.App.HostName,
+		ErrorSubject:    config.GlobalConfig.Email.ErrorSubject,
+		ScraperCooldown: config.GlobalConfig.Email.ScraperCooldown,
+		APICooldown:     config.GlobalConfig.Email.APICooldown,
+		SystemCooldown:  config.GlobalConfig.Email.SystemCooldown,
 	})
 }
 
@@ -127,6 +130,9 @@ email:
   auth_code: ""
   smtp_server: "smtp.example.com"
   smtp_port: 465
+  scraper_cooldown: 21600
+  api_cooldown: 21600
+  system_cooldown: 7200
 
 sys_monitor:
   enabled: true

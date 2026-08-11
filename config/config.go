@@ -39,6 +39,7 @@ func InitConfig() {
 	setMonitorDefaults()
 	setScraperDefaults()
 	setSystemMonitorDefaults()
+	setEmailDefaults()
 
 	GlobalConfig.Vars = loadRawVars()
 }
@@ -61,6 +62,7 @@ func ReloadConfig() bool {
 	setMonitorDefaults()
 	setScraperDefaults()
 	setSystemMonitorDefaults()
+	setEmailDefaults()
 
 	GlobalConfig.Vars = loadRawVars()
 

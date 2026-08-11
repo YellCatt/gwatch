@@ -91,6 +91,59 @@ func StartLoop() {
 			result, err := Scrape(scraperTarget)
 			if err != nil {
 				logger.Error("采集失败", zap.String("target", target.Name), zap.Error(err))
+
+				errMsg := err.Error()
+				now := time.Now()
+				dateStr := now.Format("2006-01-02")
+				timestampStr := now.Format("2006-01-02 15:04:05")
+
+				for _, metric := range target.Metrics {
+					alertName := metric.Name
+					if metric.Alias != "" {
+						alertName = metric.Alias
+					}
+
+					email.DispatchAlert(email.UnifiedAlert{
+						Source:      email.SourceScraper,
+						SourceName:  "远程资源采集",
+						TargetName:  target.Name,
+						MetricName:  metric.Name,
+						MetricAlias: metric.Alias,
+						Value:       0,
+						Unit:        metric.Unit,
+						Threshold:   metric.Threshold,
+						AlertLevel:  "CRITICAL",
+						Message:     fmt.Sprintf("%s: 采集失败 - %s", alertName, errMsg),
+						Timestamp:   now,
+					})
+
+					storage.UpdateScraperAlertSummary(storage.ScraperAlertRecord{
+						Date:            dateStr,
+						TargetName:      target.Name,
+						TargetURL:       target.URL,
+						MetricName:      metric.Name,
+						MetricAlias:     metric.Alias,
+						Value:           0,
+						Threshold:       0,
+						Unit:            metric.Unit,
+						AlertLevel:      "CRITICAL",
+						FirstOccurrence: timestampStr,
+						LastOccurrence:  timestampStr,
+						Message:         fmt.Sprintf("%s: 采集失败 - %s", alertName, errMsg),
+					})
+
+					storage.RecordScraperMetric(storage.ScraperMetricRecord{
+						TargetName:  target.Name,
+						TargetURL:   target.URL,
+						MetricName:  metric.Name,
+						MetricAlias: metric.Alias,
+						Value:       0,
+						Unit:        metric.Unit,
+						Success:     false,
+						Timestamp:   now,
+					})
+				}
+
 				continue
 			}
 

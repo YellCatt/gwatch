@@ -17,14 +17,17 @@ import (
 
 // EmailConfig 邮件配置结构体
 type EmailConfig struct {
-	Enabled      bool
-	FromEmail    string
-	ToEmail      []string
-	AuthCode     string
-	SMTPServer   string
-	SMTPPort     int
-	DeviceName   string
-	ErrorSubject string
+	Enabled         bool
+	FromEmail       string
+	ToEmail         []string
+	AuthCode        string
+	SMTPServer      string
+	SMTPPort        int
+	DeviceName      string
+	ErrorSubject    string
+	ScraperCooldown int
+	APICooldown     int
+	SystemCooldown  int
 }
 
 var Config EmailConfig

@@ -418,22 +418,54 @@ func (r *Report) GenerateContent() string {
 	}
 }
 
-// loadSystemMetrics 采集当前系统指标，生成 SystemMetricsSnapshot 用于日报中的系统状态展示。
+// loadSystemMetrics 采集当前系统指标，加载历史数据生成趋势图表，返回 SystemMetricsSnapshot。
 func loadSystemMetrics() *SystemMetricsSnapshot {
-	metric, err := sysmon.CollectMetrics()
+	current, err := sysmon.CollectMetrics()
 	if err != nil {
 		logger.Warn("Failed to collect system metrics for report", zap.Error(err))
 		return nil
 	}
-	return &SystemMetricsSnapshot{
-		CPUPercent:     metric.CPUPercent,
-		MemoryPercent:  metric.MemoryPercent,
-		DiskPercent:    metric.DiskPercent,
-		NetDownKBps:    metric.NetDownKBps,
-		NetUpKBps:      metric.NetUpKBps,
-		MemUsedBytes:   metric.MemoryUsed,
-		MemTotalBytes:  metric.MemoryTotal,
-		DiskUsedBytes:  metric.DiskUsed,
-		DiskTotalBytes: metric.DiskTotal,
+
+	snapshot := &SystemMetricsSnapshot{
+		CPUPercent:     current.CPUPercent,
+		MemoryPercent:  current.MemoryPercent,
+		DiskPercent:    current.DiskPercent,
+		NetDownKBps:    current.NetDownKBps,
+		NetUpKBps:      current.NetUpKBps,
+		MemUsedBytes:   current.MemoryUsed,
+		MemTotalBytes:  current.MemoryTotal,
+		DiskUsedBytes:  current.DiskUsed,
+		DiskTotalBytes: current.DiskTotal,
 	}
+
+	hourlyMetrics, err := sysmon.LoadRecentMetrics(24)
+	if err != nil || len(hourlyMetrics) == 0 {
+		logger.Info("No hourly metrics data available for chart generation")
+		return snapshot
+	}
+
+	labels := make([]string, len(hourlyMetrics))
+	cpuData := make([]float64, len(hourlyMetrics))
+	memData := make([]float64, len(hourlyMetrics))
+	diskData := make([]float64, len(hourlyMetrics))
+	netDownData := make([]float64, len(hourlyMetrics))
+	netUpData := make([]float64, len(hourlyMetrics))
+
+	for i, m := range hourlyMetrics {
+		labels[i] = m.Timestamp.Format("15:04")
+		cpuData[i] = m.CPUPercent
+		memData[i] = m.MemoryPercent
+		diskData[i] = m.DiskPercent
+		netDownData[i] = m.NetDownKBps
+		netUpData[i] = m.NetUpKBps
+	}
+
+	cfg := config.GlobalConfig.SystemMon
+	snapshot.CPUChart = sysmon.GenerateASCIIChartWithTime(cpuData, 20, "%", labels, cfg.CPUThreshold)
+	snapshot.MemoryChart = sysmon.GenerateASCIIChartWithTime(memData, 20, "%", labels, cfg.MemoryThreshold)
+	snapshot.DiskChart = sysmon.GenerateASCIIChartWithTime(diskData, 20, "%", labels, cfg.DiskUsageThreshold)
+	snapshot.NetDownChart = sysmon.GenerateASCIIChartWithTime(netDownData, 20, "KB/s", labels, cfg.NetworkDownThreshold)
+	snapshot.NetUpChart = sysmon.GenerateASCIIChartWithTime(netUpData, 20, "KB/s", labels, cfg.NetworkUpThreshold)
+
+	return snapshot
 }
