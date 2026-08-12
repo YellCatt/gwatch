@@ -253,7 +253,7 @@ func ExecuteTestCase(tc psv.TestCase) TestResult {
 		return finishTestCase(tc, result, startTime)
 	}
 
-	result.ResponseBody = string(resp.Body())
+	result.ResponseBody = assert.CompactBody(string(resp.Body()))
 	result.ActualStatus = resp.StatusCode()
 
 	if tc.StreamMode {
@@ -274,7 +274,8 @@ func ExecuteTestCase(tc psv.TestCase) TestResult {
 		}
 
 		if tc.ExpectedBody != "" {
-			if ok, errMsg := assert.JSONMatch(vars.Replace(tc.ExpectedBody), result.ResponseBody, tc.MatchMode); !ok {
+			expectedBody := assert.CompactBody(vars.Replace(tc.ExpectedBody))
+			if ok, errMsg := assert.JSONMatch(expectedBody, result.ResponseBody, tc.MatchMode); !ok {
 				result.Error = errMsg
 				result.Passed = false
 				return finishTestCase(tc, result, startTime)
@@ -369,11 +370,12 @@ func executeStreamAssert(tc psv.TestCase, resp *resty.Response, startTime time.T
 
 	}
 
-	aggregatedResult := assert.BuildAggregatedResult(aggregatedContent.String(), chunkCount)
+	aggregatedResult := assert.CompactBody(assert.BuildAggregatedResult(aggregatedContent.String(), chunkCount))
 	result.ResponseBody = aggregatedResult
 
 	if tc.ExpectedBody != "" {
-		if ok, errMsg := assert.JSONMatch(vars.Replace(tc.ExpectedBody), aggregatedResult, tc.MatchMode); !ok {
+		expectedBody := assert.CompactBody(vars.Replace(tc.ExpectedBody))
+		if ok, errMsg := assert.JSONMatch(expectedBody, aggregatedResult, tc.MatchMode); !ok {
 			result.Error = errMsg
 			result.Passed = false
 			result.EndTime = timeutil.Now()

@@ -9,6 +9,7 @@ import (
 	"go.uber.org/zap"
 
 	"gwatch/config"
+	"gwatch/internal/assert"
 	"gwatch/internal/logger"
 	"gwatch/internal/timeutil"
 	"gwatch/internal/vars"
@@ -41,7 +42,7 @@ func GenerateReport(results []TestResult) (string, string) {
 		diff := result.Error
 
 		processedURL := vars.Replace(result.TestCase.URL)
-		processedExpectedBody := vars.Replace(result.TestCase.ExpectedBody)
+		processedExpectedBody := assert.CompactBody(vars.Replace(result.TestCase.ExpectedBody))
 
 		startTime := timeutil.FormatDateTime(result.StartTime)
 		endTime := timeutil.FormatDateTime(result.EndTime)

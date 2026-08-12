@@ -1,6 +1,7 @@
 package assert
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"regexp"
@@ -11,6 +12,22 @@ import (
 
 	"gwatch/internal/logger"
 )
+
+// CompactBody 将响应体压缩为单行。
+// 如果是合法 JSON，使用 json.Compact 压缩；否则移除换行符和回车符。
+func CompactBody(body string) string {
+	if body == "" {
+		return body
+	}
+	var buf bytes.Buffer
+	if err := json.Compact(&buf, []byte(body)); err != nil {
+		body = strings.ReplaceAll(body, "\r\n", " ")
+		body = strings.ReplaceAll(body, "\n", " ")
+		body = strings.ReplaceAll(body, "\r", "")
+		return strings.TrimSpace(body)
+	}
+	return buf.String()
+}
 
 // BodyRegexMatch 使用正则表达式匹配响应体内容，支持 "!" 前缀取反。
 func BodyRegexMatch(body string, pattern string) (bool, string) {
