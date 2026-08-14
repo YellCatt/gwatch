@@ -48,7 +48,7 @@ func setupSystemMonitor() bool {
 	}
 
 	if err := EnsureStorage(); err != nil {
-		logger.Error("Failed to initialize system monitor storage", zap.Error(err))
+		logger.Warn("Failed to initialize system monitor storage", zap.Error(err))
 		return false
 	}
 
@@ -103,7 +103,7 @@ func collectLoop(interval time.Duration) {
 		case <-ticker.C:
 			metric, err := CollectMetrics()
 			if err != nil {
-				logger.Error("Failed to collect system metrics", zap.Error(err))
+				logger.Warn("Failed to collect system metrics", zap.Error(err))
 				continue
 			}
 

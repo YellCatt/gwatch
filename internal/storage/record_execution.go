@@ -32,7 +32,7 @@ func RecordExecutionTime(testCaseID, testCaseDesc, fileName, url string, duratio
 	}
 
 	if err := appendRecord(executionCSVPath(), record); err != nil {
-		logger.Error("Failed to record execution time", zap.Error(err))
+		logger.Warn("Failed to record execution time", zap.Error(err))
 		return err
 	}
 	return nil
@@ -260,7 +260,7 @@ func CalculateAndStoreAverages() error {
 	}
 
 	if err := writeRecords(averageCSVPath(), averageHeader, avgRecords); err != nil {
-		logger.Error("Failed to store averages", zap.Error(err))
+		logger.Warn("Failed to store averages", zap.Error(err))
 		return err
 	}
 

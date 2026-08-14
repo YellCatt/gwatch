@@ -126,7 +126,7 @@ func (c *Cleaner) cleanup() error {
 	if c.config.LogDir != "" {
 		count, err := c.cleanupDirectory(c.config.LogDir, threshold)
 		if err != nil {
-			logger.Error("Failed to cleanup log directory", zap.String("dir", c.config.LogDir), zap.Error(err))
+			logger.Warn("Failed to cleanup log directory", zap.String("dir", c.config.LogDir), zap.Error(err))
 		} else {
 			totalDeleted += count
 		}
@@ -136,7 +136,7 @@ func (c *Cleaner) cleanup() error {
 	if c.config.ReportDir != "" {
 		count, err := c.cleanupDirectory(c.config.ReportDir, threshold)
 		if err != nil {
-			logger.Error("Failed to cleanup report directory", zap.String("dir", c.config.ReportDir), zap.Error(err))
+			logger.Warn("Failed to cleanup report directory", zap.String("dir", c.config.ReportDir), zap.Error(err))
 		} else {
 			totalDeleted += count
 		}
@@ -146,7 +146,7 @@ func (c *Cleaner) cleanup() error {
 	if c.config.DataDir != "" {
 		count, err := c.cleanupDirectory(c.config.DataDir, threshold)
 		if err != nil {
-			logger.Error("Failed to cleanup data directory", zap.String("dir", c.config.DataDir), zap.Error(err))
+			logger.Warn("Failed to cleanup data directory", zap.String("dir", c.config.DataDir), zap.Error(err))
 		} else {
 			totalDeleted += count
 		}

@@ -77,7 +77,7 @@ func generateAndSendReport(period ReportPeriod, date time.Time, sender EmailSend
 		startDate = time.Date(date.Year(), 1, 1, 0, 0, 0, 0, date.Location())
 		endDate = startDate.AddDate(1, 0, 0)
 	default:
-		logger.Error("Unknown report period", zap.String("period", string(period)))
+		logger.Warn("Unknown report period", zap.String("period", string(period)))
 		return
 	}
 
@@ -85,7 +85,7 @@ func generateAndSendReport(period ReportPeriod, date time.Time, sender EmailSend
 
 	_, err := r.SaveReport()
 	if err != nil {
-		logger.Error("Failed to save report", zap.Error(err))
+		logger.Warn("Failed to save report", zap.Error(err))
 		return
 	}
 
@@ -93,7 +93,7 @@ func generateAndSendReport(period ReportPeriod, date time.Time, sender EmailSend
 	if sender != nil {
 		err = sender(subject, body)
 		if err != nil {
-			logger.Error("Failed to send report email", zap.Error(err))
+			logger.Warn("Failed to send report email", zap.Error(err))
 		}
 	}
 }

@@ -63,7 +63,7 @@ func InitStorage() bool {
 	ok := true
 	for _, p := range paths {
 		if err := ensureCSV(p); err != nil {
-			logger.Error("Failed to init metrics storage", zap.String("path", p), zap.Error(err))
+			logger.Warn("Failed to init metrics storage", zap.String("path", p), zap.Error(err))
 			ok = false
 		}
 	}

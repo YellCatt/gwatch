@@ -274,7 +274,7 @@ func SaveSystemReport(metrics []SystemMetric, alerts []AlertItem) (string, error
 
 	sysReportDir := filepath.Join(reportDir, "system")
 	if err := os.MkdirAll(sysReportDir, 0755); err != nil {
-		logger.Error("Failed to create system report directory", zap.Error(err))
+		logger.Warn("Failed to create system report directory", zap.Error(err))
 		return "", err
 	}
 
@@ -284,7 +284,7 @@ func SaveSystemReport(metrics []SystemMetric, alerts []AlertItem) (string, error
 	filePath := filepath.Join(sysReportDir, filename)
 
 	if err := os.WriteFile(filePath, []byte(content), 0644); err != nil {
-		logger.Error("Failed to save system report", zap.Error(err))
+		logger.Warn("Failed to save system report", zap.Error(err))
 		return "", err
 	}
 

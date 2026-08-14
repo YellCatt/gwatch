@@ -82,50 +82,50 @@ func SendEmail(subject, body string) error {
 
 	conn, err := tls.Dial("tcp", addr, tlsConfig)
 	if err != nil {
-		logger.Error("TLS connection failed", zap.Error(err))
+		logger.Warn("TLS connection failed", zap.Error(err))
 		return err
 	}
 	defer conn.Close()
 
 	client, err := smtp.NewClient(conn, Config.SMTPServer)
 	if err != nil {
-		logger.Error("SMTP client creation failed", zap.Error(err))
+		logger.Warn("SMTP client creation failed", zap.Error(err))
 		return err
 	}
 	defer client.Close()
 
 	if err := client.Auth(auth); err != nil {
-		logger.Error("SMTP auth failed", zap.Error(err))
+		logger.Warn("SMTP auth failed", zap.Error(err))
 		return err
 	}
 
 	if err := client.Mail(Config.FromEmail); err != nil {
-		logger.Error("Setting sender failed", zap.Error(err))
+		logger.Warn("Setting sender failed", zap.Error(err))
 		return err
 	}
 
 	for _, to := range Config.ToEmail {
 		if err := client.Rcpt(to); err != nil {
-			logger.Error("Setting recipient failed", zap.String("to", to), zap.Error(err))
+			logger.Warn("Setting recipient failed", zap.String("to", to), zap.Error(err))
 			return err
 		}
 	}
 
 	w, err := client.Data()
 	if err != nil {
-		logger.Error("Getting data writer failed", zap.Error(err))
+		logger.Warn("Getting data writer failed", zap.Error(err))
 		return err
 	}
 
 	_, err = w.Write(msg)
 	if err != nil {
-		logger.Error("Writing email content failed", zap.Error(err))
+		logger.Warn("Writing email content failed", zap.Error(err))
 		return err
 	}
 
 	err = w.Close()
 	if err != nil {
-		logger.Error("Closing data writer failed", zap.Error(err))
+		logger.Warn("Closing data writer failed", zap.Error(err))
 		return err
 	}
 

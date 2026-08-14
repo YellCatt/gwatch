@@ -177,53 +177,53 @@ func initCSVInternal(dir string) error {
 	}
 
 	if err := os.MkdirAll(dir, 0755); err != nil {
-		logger.Error("创建数据目录失败", zap.String("dataDir", dir), zap.Error(err))
+		logger.Warn("创建数据目录失败", zap.String("dataDir", dir), zap.Error(err))
 		return err
 	}
 
 	absDir, err := filepath.Abs(dir)
 	if err != nil {
-		logger.Error("获取数据目录绝对路径失败", zap.String("dir", dir), zap.Error(err))
+		logger.Warn("获取数据目录绝对路径失败", zap.String("dir", dir), zap.Error(err))
 		return err
 	}
 	dataDir = absDir
 	logger.Info("数据目录创建成功", zap.String("dataDir", dataDir))
 
 	if err := ensureCSV(executionCSVPath(), executionHeader); err != nil {
-		logger.Error("初始化执行记录 CSV 失败", zap.Error(err))
+		logger.Warn("初始化执行记录 CSV 失败", zap.Error(err))
 		return err
 	}
 	if err := ensureCSV(averageCSVPath(), averageHeader); err != nil {
-		logger.Error("初始化平均时间 CSV 失败", zap.Error(err))
+		logger.Warn("初始化平均时间 CSV 失败", zap.Error(err))
 		return err
 	}
 	if err := ensureCSV(monitorCSVPath(), monitorHeader); err != nil {
-		logger.Error("初始化监控记录 CSV 失败", zap.Error(err))
+		logger.Warn("初始化监控记录 CSV 失败", zap.Error(err))
 		return err
 	}
 	if err := ensureCSV(monitorSummaryCSVPath(), monitorSummaryHeader); err != nil {
-		logger.Error("初始化监控汇总 CSV 失败", zap.Error(err))
+		logger.Warn("初始化监控汇总 CSV 失败", zap.Error(err))
 		return err
 	}
 	if err := ensureCSV(alertSummaryCSVPath(), alertSummaryHeader); err != nil {
-		logger.Error("初始化告警汇总 CSV 失败", zap.Error(err))
+		logger.Warn("初始化告警汇总 CSV 失败", zap.Error(err))
 		return err
 	}
 	if err := ensureCSV(scraperMetricCSVPath(), scraperMetricHeader); err != nil {
-		logger.Error("初始化采集指标 CSV 失败", zap.Error(err))
+		logger.Warn("初始化采集指标 CSV 失败", zap.Error(err))
 		return err
 	}
 	if err := ensureCSV(systemAlertCSVPath(), systemAlertHeader); err != nil {
-		logger.Error("初始化系统告警 CSV 失败", zap.Error(err))
+		logger.Warn("初始化系统告警 CSV 失败", zap.Error(err))
 		return err
 	}
 	if err := ensureCSV(scraperAlertCSVPath(), scraperAlertHeader); err != nil {
-		logger.Error("初始化采集告警 CSV 失败", zap.Error(err))
+		logger.Warn("初始化采集告警 CSV 失败", zap.Error(err))
 		return err
 	}
 
 	if err := writeIndexCSV(); err != nil {
-		logger.Error("生成 CSV 数据表总表失败", zap.Error(err))
+		logger.Warn("生成 CSV 数据表总表失败", zap.Error(err))
 		return err
 	}
 
