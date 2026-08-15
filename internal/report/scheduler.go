@@ -83,9 +83,14 @@ func generateAndSendReport(period ReportPeriod, date time.Time, sender EmailSend
 
 	r := GenerateReportFromStorage(period, startDate, endDate)
 
+	reportName := PeriodNames[period]
 	_, err := r.SaveReport()
 	if err != nil {
-		logger.Error("Failed to save report", zap.Error(err))
+		logger.Error("Failed to save report",
+			zap.String("period", reportName),
+			zap.String("start_date", startDate.Format("2006-01-02")),
+			zap.String("end_date", endDate.Format("2006-01-02")),
+			zap.Error(err))
 		return
 	}
 
@@ -93,7 +98,16 @@ func generateAndSendReport(period ReportPeriod, date time.Time, sender EmailSend
 	if sender != nil {
 		err = sender(subject, body)
 		if err != nil {
-			logger.Error("Failed to send report email", zap.Error(err))
+			logger.Error("Failed to send report email",
+				zap.String("period", reportName),
+				zap.String("start_date", startDate.Format("2006-01-02")),
+				zap.String("end_date", endDate.Format("2006-01-02")),
+				zap.Error(err))
 		}
+	} else {
+		logger.Error("Failed to send report email: sender is not configured",
+			zap.String("period", reportName),
+			zap.String("start_date", startDate.Format("2006-01-02")),
+			zap.String("end_date", endDate.Format("2006-01-02")))
 	}
 }
