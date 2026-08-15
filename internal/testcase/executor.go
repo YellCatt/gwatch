@@ -26,7 +26,7 @@ func executePreConditions(preIDs []string) (TestResult, error) {
 		preTC := findTestCaseByID(preID)
 		if preTC == nil {
 			errMsg := fmt.Sprintf("前置条件测试用例未找到: %s", preID)
-			logger.Error(errMsg)
+			logger.Warn(errMsg)
 			return TestResult{}, fmt.Errorf(errMsg)
 		}
 
@@ -34,7 +34,7 @@ func executePreConditions(preIDs []string) (TestResult, error) {
 		preResult := ExecuteTestCase(*preTC)
 		if !preResult.Passed {
 			errMsg := fmt.Sprintf("前置条件失败: %s - %s", preID, preResult.Error)
-			logger.Error(errMsg)
+			logger.Warn(errMsg)
 			return preResult, fmt.Errorf(errMsg)
 		}
 		fmt.Printf("[前置条件] ✅ 成功\n")
@@ -47,7 +47,7 @@ func executePostConditions(postIDs []string) {
 	for _, postID := range postIDs {
 		postTC := findTestCaseByID(postID)
 		if postTC == nil {
-			logger.Error(fmt.Sprintf("后置条件测试用例未找到: %s", postID))
+			logger.Warn(fmt.Sprintf("后置条件测试用例未找到: %s", postID))
 			continue
 		}
 
@@ -72,7 +72,7 @@ func finishTestCase(tc psv.TestCase, result TestResult, startTime time.Time) Tes
 		fmt.Printf("[%s] [%s] %s ... PASS (%.3fs)\n", timeutil.FormatDateTime(result.EndTime), tc.ID, tc.Desc, result.Duration.Seconds())
 		go storage.RecordExecutionTime(tc.ID, tc.Desc, tc.FileName, vars.Replace(tc.URL), result.Duration, true)
 	} else {
-		logger.Error("Test failed", zap.String("id", tc.ID), zap.String("error", result.Error))
+		logger.Warn("Test failed", zap.String("id", tc.ID), zap.String("error", result.Error))
 		fmt.Printf("[%s] [%s] %s ... FAIL (%.3fs)\n", timeutil.FormatDateTime(result.EndTime), tc.ID, tc.Desc, result.Duration.Seconds())
 		if result.Error != "" {
 			fmt.Printf("            Error: %s\n", result.Error)

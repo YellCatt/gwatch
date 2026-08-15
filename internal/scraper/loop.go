@@ -90,7 +90,7 @@ func StartLoop() {
 
 			result, err := Scrape(scraperTarget)
 			if err != nil {
-				logger.Error("采集失败", zap.String("target", target.Name), zap.Error(err))
+				logger.Warn("采集失败", zap.String("target", target.Name), zap.Error(err))
 
 				errMsg := err.Error()
 				now := time.Now()

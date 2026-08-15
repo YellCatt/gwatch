@@ -147,7 +147,7 @@ func Scrape(target TargetConfig) (ScrapeResult, error) {
 
 	if err != nil {
 		result.Error = fmt.Sprintf("请求失败: %v", err)
-		logger.Error(result.Error,
+		logger.Warn(result.Error,
 			zap.String("target", target.Name),
 			zap.Duration("duration", result.Duration))
 		return result, fmt.Errorf(result.Error)
@@ -163,7 +163,7 @@ func Scrape(target TargetConfig) (ScrapeResult, error) {
 
 	if resp.StatusCode() < 200 || resp.StatusCode() >= 300 {
 		result.Error = fmt.Sprintf("HTTP 状态码异常: %d", resp.StatusCode())
-		logger.Error(result.Error,
+		logger.Warn(result.Error,
 			zap.String("target", target.Name),
 			zap.String("response_body", string(resp.Body())))
 		return result, fmt.Errorf(result.Error)

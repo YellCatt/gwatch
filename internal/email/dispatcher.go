@@ -96,7 +96,7 @@ func flushAndSend() {
 	}
 
 	if err := sendUnifiedAlertEmail(filtered); err != nil {
-		logger.Error("Failed to send unified alert email", zap.Error(err))
+		logger.Warn("Failed to send unified alert email", zap.Error(err))
 	}
 }
 

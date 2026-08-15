@@ -37,7 +37,7 @@ func RunSystemReport() {
 	if config.GlobalConfig.SystemMon.ChartEnabled {
 		path, err := SaveSystemReport(metrics, alerts)
 		if err != nil {
-			logger.Error("Failed to save report", zap.Error(err))
+			logger.Warn("Failed to save report", zap.Error(err))
 		} else {
 			fmt.Printf("\n报告已保存: %s\n", path)
 		}

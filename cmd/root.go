@@ -49,7 +49,7 @@ var (
 
 func Execute() {
 	if err := rootCmd.Execute(); err != nil {
-		logger.Error("Failed to execute command", zap.Error(err))
+		logger.Warn("Failed to execute command", zap.Error(err))
 		errorMsg := fmt.Sprintf("命令执行失败: %v", err)
 		if email.Config.Enabled && email.Config.FromEmail != "" && len(email.Config.ToEmail) > 0 {
 			if sendErr := email.SendErrorReportEmail(errorMsg); sendErr != nil {

@@ -16,7 +16,7 @@ func checkAlerts(result *MonitorResult) {
 	if !result.Result.Passed && tc.AlertOnFailure {
 		result.AlertType = "failure"
 		result.AlertMsg = fmt.Sprintf("接口监控告警: [%s] %s 执行失败 - %s", tc.ID, tc.Desc, result.Result.Error)
-		logger.Error(result.AlertMsg)
+		logger.Warn(result.AlertMsg)
 		return
 	}
 

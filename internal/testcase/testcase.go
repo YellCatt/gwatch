@@ -71,7 +71,7 @@ func RunAll() {
 		logger.Info("Running test", zap.String("name", tc.Name))
 		err := tc.Run()
 		if err != nil {
-			logger.Error("Test failed", zap.String("name", tc.Name), zap.Error(err))
+			logger.Warn("Test failed", zap.String("name", tc.Name), zap.Error(err))
 			results = append(results, testResult{name: tc.Name, failed: true, err: err})
 		} else {
 			logger.Info("Test passed", zap.String("name", tc.Name))
@@ -115,7 +115,7 @@ func summarizeResults(results []testResult) {
 		zap.Int("skipped", skipped))
 
 	if failed > 0 {
-		logger.Error("Some tests failed")
+		logger.Warn("Some tests failed")
 	} else {
 		logger.Info("All tests passed!")
 	}

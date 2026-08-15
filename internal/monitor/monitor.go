@@ -173,15 +173,15 @@ func persistMonitorResult(tc psv.TestCase, result testcase.TestResult, monitorRe
 	}
 
 	if err := storage.RecordMonitorResult(record); err != nil {
-		logger.Error("Failed to record monitor result to CSV", zap.Error(err))
+		logger.Warn("Failed to record monitor result to CSV", zap.Error(err))
 	}
 
 	if err := storage.UpdateMonitorSummary(record); err != nil {
-		logger.Error("Failed to update monitor summary", zap.Error(err))
+		logger.Warn("Failed to update monitor summary", zap.Error(err))
 	}
 
 	if err := storage.UpdateAlertSummary(record); err != nil {
-		logger.Error("Failed to update alert summary", zap.Error(err))
+		logger.Warn("Failed to update alert summary", zap.Error(err))
 	}
 }
 
@@ -238,14 +238,14 @@ func generateAndSendStartupReport(cases []psv.TestCase, maxWorkers int) {
 
 	_, err := r.SaveReport()
 	if err != nil {
-		logger.Error("Failed to save startup report", zap.Error(err))
+		logger.Warn("Failed to save startup report", zap.Error(err))
 		return
 	}
 
 	subject, body := r.PrepareReportEmail()
 	err = email.SendCustomEmail(subject, body)
 	if err != nil {
-		logger.Error("Failed to send startup report email", zap.Error(err))
+		logger.Warn("Failed to send startup report email", zap.Error(err))
 	}
 }
 
@@ -309,7 +309,7 @@ func StartMonitorMode(paths []string, tags []string) {
 
 	testCases, err := psv.ParseFiles(paths)
 	if err != nil {
-		logger.Error("Failed to parse PSV files", zap.Error(err))
+		logger.Warn("Failed to parse PSV files", zap.Error(err))
 		errorMsg := fmt.Sprintf("解析测试用例文件失败: %v", err)
 		if err := email.SendErrorReportEmail(errorMsg); err != nil {
 			logger.Warn("Failed to send error report email", zap.Error(err))
