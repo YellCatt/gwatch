@@ -86,15 +86,11 @@ func generateAndSendReport(period ReportPeriod, date time.Time, sender EmailSend
 	reportName := PeriodNames[period]
 	_, err := r.SaveReport()
 	if err != nil {
-<<<<<<< HEAD
 		logger.Error("Failed to save report",
 			zap.String("period", reportName),
 			zap.String("start_date", startDate.Format("2006-01-02")),
 			zap.String("end_date", endDate.Format("2006-01-02")),
 			zap.Error(err))
-=======
-		logger.Warn("Failed to save report", zap.Error(err))
->>>>>>> 239065f13a41e7f6fae3fe18fe572915c4eb0ee5
 		return
 	}
 
@@ -102,15 +98,11 @@ func generateAndSendReport(period ReportPeriod, date time.Time, sender EmailSend
 	if sender != nil {
 		err = sender(subject, body)
 		if err != nil {
-<<<<<<< HEAD
 			logger.Error("Failed to send report email",
 				zap.String("period", reportName),
 				zap.String("start_date", startDate.Format("2006-01-02")),
 				zap.String("end_date", endDate.Format("2006-01-02")),
 				zap.Error(err))
-=======
-			logger.Warn("Failed to send report email", zap.Error(err))
->>>>>>> 239065f13a41e7f6fae3fe18fe572915c4eb0ee5
 		}
 	} else {
 		logger.Error("Failed to send report email: sender is not configured",
