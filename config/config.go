@@ -13,7 +13,7 @@ import (
 
 var CfgFile string
 
-const Version = "v1.0.0_20260817-2"
+const Version = "v1.0.0_20260817-3"
 
 var GlobalConfig Config
 
@@ -37,6 +37,7 @@ func InitConfig() {
 		os.Exit(1)
 	}
 
+	setLogDefaults()
 	setCleanerDefaults()
 	setMonitorDefaults()
 	setScraperDefaults()
@@ -60,6 +61,7 @@ func ReloadConfig() bool {
 		return false
 	}
 
+	setLogDefaults()
 	setCleanerDefaults()
 	setMonitorDefaults()
 	setScraperDefaults()

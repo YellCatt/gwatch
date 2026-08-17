@@ -18,9 +18,10 @@ func InitApp() {
 	config.InitConfig()
 
 	logger.InitLogger(logger.LogConfig{
-		Level:    config.GlobalConfig.Log.Level,
-		Encoding: config.GlobalConfig.Log.Encoding,
-		Output:   config.GlobalConfig.Log.Output,
+		Level:     config.GlobalConfig.Log.Level,
+		Encoding:  config.GlobalConfig.Log.Encoding,
+		Output:    config.GlobalConfig.Log.Output,
+		MaxSizeMB: config.GlobalConfig.Log.MaxSizeMB,
 	})
 
 	logger.Info("gwatch started", zap.String("version", config.Version))
@@ -102,6 +103,7 @@ log:
   level: "info"
   encoding: "json"
   output: "./logs/gwatch.log"
+  max_size_mb: 20
 
 app:
   report_dir: "./reports"

@@ -10,6 +10,7 @@ log:
   level: "info"                             # 日志级别: debug, info, warn, error
   encoding: "json"                          # 日志编码: json, console
   output: "./logs/gwatch.log"               # 日志输出路径
+  max_size_mb: 20                           # 单个日志文件最大大小（MB），超过后自动分割
 
 app:
   report_dir: "./reports"                   # 报告输出目录

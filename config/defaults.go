@@ -6,6 +6,22 @@ import (
 	"github.com/spf13/viper"
 )
 
+// setLogDefaults 设置日志模块的默认配置。
+func setLogDefaults() {
+	if GlobalConfig.Log.Level == "" {
+		GlobalConfig.Log.Level = "info"
+	}
+	if GlobalConfig.Log.Encoding == "" {
+		GlobalConfig.Log.Encoding = "json"
+	}
+	if GlobalConfig.Log.Output == "" {
+		GlobalConfig.Log.Output = "./logs/gwatch.log"
+	}
+	if GlobalConfig.Log.MaxSizeMB <= 0 {
+		GlobalConfig.Log.MaxSizeMB = 20
+	}
+}
+
 // setCleanerDefaults 设置清理模块的默认配置（保留天数、日志目录、清理间隔等）。
 func setCleanerDefaults() {
 	hasCleanerConfig := viper.IsSet("cleaner")
