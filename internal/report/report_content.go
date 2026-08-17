@@ -39,8 +39,3 @@ func boolToEnabled(b bool) string {
 	}
 	return "❌ 已禁用"
 }
-
-// DisplayReport 在控制台打印报告内容。
-func DisplayReport(report *Report) {
-	fmt.Println(report.GenerateContent())
-}

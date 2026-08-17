@@ -251,9 +251,8 @@ func groupBySource(alerts []UnifiedAlert) []alertGroup {
 			delete(groups, src)
 		}
 	}
-	for src, g := range groups {
+	for _, g := range groups {
 		result = append(result, *g)
-		_ = src
 	}
 
 	return result

@@ -289,15 +289,3 @@ func hasFileField(form map[string]string) bool {
 func escapePipe(s string) string {
 	return strings.ReplaceAll(s, "|", "\\|")
 }
-
-// RunParallel 串行执行所有测试用例（保留接口名以支持未来并行扩展）。
-func RunParallel(testCases []psv.TestCase) []TestResult {
-	var results []TestResult
-
-	for _, tc := range testCases {
-		result := ExecuteTestCase(tc)
-		results = append(results, result)
-	}
-
-	return results
-}

@@ -52,15 +52,9 @@ func formatSubject(subject string) string {
 	return subject
 }
 
-// formatBody 格式化邮件正文（预留扩展点）。
-func formatBody(body string) string {
-	return body
-}
-
 // SendEmail 通过 TLS 加密连接 SMTP 服务器发送纯文本邮件。
 func SendEmail(subject, body string) error {
 	subject = formatSubject(subject)
-	body = formatBody(body)
 
 	toEmails := strings.Join(Config.ToEmail, ", ")
 	msg := []byte("From: " + Config.FromEmail + "\r\n" +

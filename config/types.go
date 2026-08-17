@@ -18,10 +18,8 @@ type HTTPConfig struct {
 }
 
 type TargetConfig struct {
-	BaseURL       string `mapstructure:"base_url"`
-	Timeout       int    `mapstructure:"timeout"`
-	Authorization string `mapstructure:"authorization"`
-	UserId        string `mapstructure:"user_id"`
+	BaseURL string `mapstructure:"base_url"`
+	Timeout int    `mapstructure:"timeout"`
 }
 
 type ScraperMetricConfig struct {
@@ -70,10 +68,9 @@ type AppConfig struct {
 	CaseDir   string `mapstructure:"case_dir"`
 	DataDir   string `mapstructure:"data_dir"`
 
-	SevereStatus []int    `mapstructure:"severe_status"`
-	GlobalPre    []string `mapstructure:"global_pre"`
-	GlobalPost   []string `mapstructure:"global_post"`
-	HostName     string   `mapstructure:"host_name"`
+	GlobalPre  []string `mapstructure:"global_pre"`
+	GlobalPost []string `mapstructure:"global_post"`
+	HostName   string   `mapstructure:"host_name"`
 }
 
 type EmailConfig struct {
