@@ -17,7 +17,7 @@ func startTask(tc psv.TestCase) {
 	defer tasksMu.Unlock()
 
 	if _, exists := tasks[tc.ID]; exists {
-		logger.Warn("Task already exists", zap.String("id", tc.ID))
+		logger.Info("监控任务已存在", zap.String("id", tc.ID))
 		return
 	}
 
@@ -62,6 +62,6 @@ func removeTask(id string) {
 	tasksMu.Unlock()
 
 	if exists {
-		logger.Info("Removed monitor task", zap.String("id", id))
+		logger.Info("已移除监控任务", zap.String("id", id))
 	}
 }

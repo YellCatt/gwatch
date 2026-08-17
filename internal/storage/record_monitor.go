@@ -36,7 +36,7 @@ func RecordMonitorResult(record MonitorResultRecord) error {
 	}
 
 	if err := appendRecord(monitorCSVPath(), rec); err != nil {
-		logger.Warn("Failed to record monitor result", zap.Error(err))
+		logger.Warn("记录监控结果失败", zap.Error(err))
 		return err
 	}
 	return nil

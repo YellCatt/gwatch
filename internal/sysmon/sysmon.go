@@ -36,7 +36,7 @@ func StartSystemMonitor() {
 	running = false
 	runningMu.Unlock()
 
-	logger.Info("System monitor stopped")
+	logger.Info("系统监控已停止")
 }
 
 // setupSystemMonitor 初始化系统监控但不等待信号，由外部统一管理生命周期。
@@ -44,12 +44,12 @@ func StartSystemMonitor() {
 func setupSystemMonitor() bool {
 	cfg := config.GlobalConfig.SystemMon
 	if !cfg.Enabled {
-		logger.Info("System monitor is disabled")
+		logger.Info("系统监控未启用")
 		return false
 	}
 
 	if err := EnsureStorage(); err != nil {
-		logger.Warn("Failed to initialize system monitor storage", zap.Error(err))
+		logger.Warn("初始化系统监控存储失败", zap.Error(err))
 		return false
 	}
 
@@ -94,7 +94,7 @@ func collectLoop(interval time.Duration) {
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 
-	logger.Info("System monitor collection started", zap.Duration("interval", interval))
+	logger.Info("系统监控采集已启动", zap.Duration("间隔", interval))
 
 	for {
 		select {
@@ -104,7 +104,7 @@ func collectLoop(interval time.Duration) {
 		case <-ticker.C:
 			metric, err := CollectMetrics()
 			if err != nil {
-				logger.Warn("Failed to collect system metrics", zap.Error(err))
+				logger.Warn("采集系统指标失败", zap.Error(err))
 				continue
 			}
 
@@ -121,11 +121,11 @@ func collectLoop(interval time.Duration) {
 				hourlyMu.Unlock()
 
 				if err := RecordHourlyMetric(avg, sampleCount); err != nil {
-					logger.Warn("Failed to record hourly metric", zap.Error(err))
-				}
-				logger.Info("Hourly metric flushed",
-					zap.Time("hour", avg.Timestamp),
-					zap.Int("samples", sampleCount))
+					logger.Warn("记录小时指标失败", zap.Error(err))
+			}
+				logger.Info("小时指标已落盘",
+					zap.Time("小时", avg.Timestamp),
+					zap.Int("采样数", sampleCount))
 
 				aggregateUpperTiers(prevHour, currentHour)
 			} else {
@@ -139,10 +139,10 @@ func collectLoop(interval time.Duration) {
 			alerts := CheckAlerts(metric)
 			if len(alerts) > 0 {
 				for _, a := range alerts {
-					logger.Warn("System threshold exceeded",
-						zap.String("metric", a.Metric),
-						zap.Float64("value", a.Value),
-						zap.Float64("threshold", a.Threshold))
+					logger.Warn("系统阈值已超过",
+					zap.String("指标", a.Metric),
+					zap.Float64("当前值", a.Value),
+					zap.Float64("阈值", a.Threshold))
 				}
 
 				DispatchSystemAlerts(alerts)
@@ -181,7 +181,7 @@ func aggregateDay(day time.Time) {
 	dayEnd := day.Add(24 * time.Hour)
 	metrics, err := loadMetrics(hourlyPath(), dayStart)
 	if err != nil {
-		logger.Warn("Failed to load hourly metrics for daily aggregation", zap.Error(err))
+		logger.Warn("加载小时指标用于日聚合失败", zap.Error(err))
 		return
 	}
 
@@ -197,11 +197,11 @@ func aggregateDay(day time.Time) {
 	}
 
 	if err := aggregateAndRecord(dailyPath(), dayMetrics); err != nil {
-		logger.Warn("Failed to record daily metric", zap.Error(err))
+		logger.Warn("记录日指标失败", zap.Error(err))
 	} else {
-		logger.Info("Daily metric aggregated",
-			zap.Time("day", day),
-			zap.Int("hourly_records", len(dayMetrics)))
+		logger.Info("日指标已聚合",
+			zap.Time("日期", day),
+			zap.Int("小时记录数", len(dayMetrics)))
 	}
 }
 
@@ -211,7 +211,7 @@ func aggregateMonth(month time.Time) {
 	monthEnd := month.AddDate(0, 1, 0)
 	metrics, err := loadMetrics(dailyPath(), monthStart)
 	if err != nil {
-		logger.Warn("Failed to load daily metrics for monthly aggregation", zap.Error(err))
+		logger.Warn("加载日指标用于月聚合失败", zap.Error(err))
 		return
 	}
 
@@ -227,11 +227,11 @@ func aggregateMonth(month time.Time) {
 	}
 
 	if err := aggregateAndRecord(monthlyPath(), monthMetrics); err != nil {
-		logger.Warn("Failed to record monthly metric", zap.Error(err))
+		logger.Warn("记录月指标失败", zap.Error(err))
 	} else {
-		logger.Info("Monthly metric aggregated",
-			zap.Time("month", month),
-			zap.Int("daily_records", len(monthMetrics)))
+		logger.Info("月指标已聚合",
+			zap.Time("月份", month),
+			zap.Int("日记录数", len(monthMetrics)))
 	}
 }
 
@@ -241,7 +241,7 @@ func aggregateYear(year time.Time) {
 	yearEnd := year.AddDate(1, 0, 0)
 	metrics, err := loadMetrics(monthlyPath(), yearStart)
 	if err != nil {
-		logger.Warn("Failed to load monthly metrics for yearly aggregation", zap.Error(err))
+		logger.Warn("加载月指标用于年聚合失败", zap.Error(err))
 		return
 	}
 
@@ -257,11 +257,11 @@ func aggregateYear(year time.Time) {
 	}
 
 	if err := aggregateAndRecord(yearlyPath(), yearMetrics); err != nil {
-		logger.Warn("Failed to record yearly metric", zap.Error(err))
+		logger.Warn("记录年指标失败", zap.Error(err))
 	} else {
-		logger.Info("Yearly metric aggregated",
-			zap.Time("year", year),
-			zap.Int("monthly_records", len(yearMetrics)))
+		logger.Info("年指标已聚合",
+			zap.Time("年份", year),
+			zap.Int("月记录数", len(yearMetrics)))
 	}
 }
 
@@ -333,11 +333,11 @@ func flushHourlyAgg() {
 	avg := hourlyAgg.toSystemMetric()
 	sampleCount := hourlyAgg.cpuCount
 	if err := RecordHourlyMetric(avg, sampleCount); err != nil {
-		logger.Warn("Failed to flush hourly metric on shutdown", zap.Error(err))
+		logger.Warn("关机时刷新小时指标失败", zap.Error(err))
 	} else {
-		logger.Info("Hourly metric flushed on shutdown",
-			zap.Time("hour", avg.Timestamp),
-			zap.Int("samples", sampleCount))
+		logger.Info("关机时小时指标已落盘",
+			zap.Time("小时", avg.Timestamp),
+			zap.Int("采样数", sampleCount))
 	}
 	hourlyAgg.reset(time.Time{})
 }

@@ -61,7 +61,7 @@ func (s *PeriodicScheduler) Start() {
 			if now.Year() != next.Year() ||
 				now.Month() != next.Month() ||
 				now.Day() != next.Day() {
-				logger.Warn("We've missed the report day, advancing",
+				logger.Warn("已错过报告发送时间，顺延至下一天",
 					zap.Time("missed_report", next))
 				next = next.Add(24 * time.Hour)
 				continue
@@ -69,13 +69,13 @@ func (s *PeriodicScheduler) Start() {
 		}
 
 		if duration > 0 {
-			logger.Info("Scheduling reports", zap.Time("next_run", next))
+			logger.Info("报告调度中", zap.Time("next_run", next))
 			time.Sleep(duration)
 		}
 
 		today := timeutil.Now().Format("2006-01-02")
 		if today == s.lastSentDate {
-			logger.Info("Reports already sent today, skipping", zap.String("date", today))
+			logger.Info("今日报告已发送，跳过", zap.String("date", today))
 			next = next.Add(24 * time.Hour)
 			continue
 		}

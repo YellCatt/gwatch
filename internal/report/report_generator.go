@@ -29,7 +29,7 @@ func GenerateReportFromStorage(period ReportPeriod, startDate, endDate time.Time
 
 	alertSummaries, err := storage.GetAlertSummaryByPeriod(startDate, endDate)
 	if err != nil {
-		logger.Warn("Failed to get alert summary from storage", zap.Error(err))
+		logger.Warn("从存储获取告警汇总失败", zap.Error(err))
 	} else {
 		for _, summary := range alertSummaries {
 			firstOccurrence, _ := time.Parse("2006-01-02 15:04:05", summary.FirstOccurrence)
@@ -53,7 +53,7 @@ func GenerateReportFromStorage(period ReportPeriod, startDate, endDate time.Time
 
 	monitorSummaries, err := storage.GetMonitorSummaryByPeriod(startDate, endDate)
 	if err != nil {
-		logger.Warn("Failed to get monitor summary from storage", zap.Error(err))
+		logger.Warn("从存储获取监控汇总失败", zap.Error(err))
 		return report
 	}
 
@@ -88,7 +88,7 @@ func GenerateReportFromStorage(period ReportPeriod, startDate, endDate time.Time
 
 	systemAlerts, err := storage.GetSystemAlertsByPeriod(startDate, endDate)
 	if err != nil {
-		logger.Warn("Failed to get system alerts from storage", zap.Error(err))
+		logger.Warn("从存储获取系统告警失败", zap.Error(err))
 	} else {
 		for _, a := range systemAlerts {
 			report.SystemAlerts = append(report.SystemAlerts, SystemAlertItem{
@@ -108,7 +108,7 @@ func GenerateReportFromStorage(period ReportPeriod, startDate, endDate time.Time
 
 	scraperAlerts, err := storage.GetScraperAlertsByPeriod(startDate, endDate)
 	if err != nil {
-		logger.Warn("Failed to get scraper alerts from storage", zap.Error(err))
+		logger.Warn("从存储获取采集器告警失败", zap.Error(err))
 	} else {
 		for _, a := range scraperAlerts {
 			report.ScraperAlerts = append(report.ScraperAlerts, ScraperAlertItem{
@@ -153,7 +153,7 @@ func loadResourceMetricsByPeriod(report *Report, period ReportPeriod, startDate,
 func loadHourlyResourceMetrics(startDate, endDate time.Time) []HourlyResourceMetric {
 	hourlyAvgs, err := storage.GetScraperMetricsHourlyAvg(startDate, endDate)
 	if err != nil {
-		logger.Warn("Failed to get scraper metrics hourly avg", zap.Error(err))
+		logger.Warn("获取采集器小时平均指标失败", zap.Error(err))
 		return nil
 	}
 
@@ -203,7 +203,7 @@ func loadHourlyResourceMetrics(startDate, endDate time.Time) []HourlyResourceMet
 func loadDailyResourceMetrics(startDate, endDate time.Time) []DailyResourceMetric {
 	dailyAvgs, err := storage.GetScraperMetricsDailyAvg(startDate, endDate)
 	if err != nil {
-		logger.Warn("Failed to get scraper metrics daily avg", zap.Error(err))
+		logger.Warn("获取采集器日平均指标失败", zap.Error(err))
 		return nil
 	}
 
@@ -258,7 +258,7 @@ func loadDailyResourceMetrics(startDate, endDate time.Time) []DailyResourceMetri
 func loadMonthlyResourceMetrics(startDate, endDate time.Time) []MonthlyResourceMetric {
 	monthlyAvgs, err := storage.GetScraperMetricsMonthlyAvg(startDate, endDate)
 	if err != nil {
-		logger.Warn("Failed to get scraper metrics monthly avg", zap.Error(err))
+		logger.Warn("获取采集器月平均指标失败", zap.Error(err))
 		return nil
 	}
 
@@ -360,7 +360,7 @@ func (r *Report) SaveReport() (string, error) {
 	}
 
 	if err := os.MkdirAll(reportDir, 0755); err != nil {
-		logger.Error("Failed to create report directory", zap.Error(err))
+		logger.Error("创建报告目录失败", zap.Error(err))
 		return "", err
 	}
 
@@ -369,11 +369,11 @@ func (r *Report) SaveReport() (string, error) {
 
 	content := r.GenerateContent()
 	if err := os.WriteFile(filePath, []byte(content), 0644); err != nil {
-		logger.Error("Failed to save report", zap.String("file", filePath), zap.Error(err))
+		logger.Error("保存报告失败", zap.String("文件", filePath), zap.Error(err))
 		return "", err
 	}
 
-	logger.Info("Report saved", zap.String("file", filePath))
+	logger.Info("报告已保存", zap.String("文件", filePath))
 	return filePath, nil
 }
 
@@ -396,7 +396,7 @@ func (r *Report) PrepareReportEmail() (string, string) {
 	}
 	body := r.GenerateContent()
 
-	logger.Info("Preparing report email", zap.String("period", string(r.Period)))
+	logger.Info("正在准备报告邮件", zap.String("周期", string(r.Period)))
 	return subject, body
 }
 
@@ -422,7 +422,7 @@ func (r *Report) GenerateContent() string {
 func loadSystemMetrics() *SystemMetricsSnapshot {
 	current, err := sysmon.CollectMetrics()
 	if err != nil {
-		logger.Error("Failed to collect system metrics for report", zap.Error(err))
+		logger.Error("报告采集系统指标失败", zap.Error(err))
 		return nil
 	}
 
@@ -440,7 +440,7 @@ func loadSystemMetrics() *SystemMetricsSnapshot {
 
 	hourlyMetrics, err := sysmon.LoadRecentMetrics(24)
 	if err != nil || len(hourlyMetrics) == 0 {
-		logger.Info("No hourly metrics data available for chart generation")
+		logger.Info("暂无小时级指标数据，跳过图表生成")
 		return snapshot
 	}
 

@@ -22,7 +22,7 @@ func startHotReload() {
 		case <-ticker.C:
 			hotReload()
 		case <-stopChan:
-			logger.Info("Hot reload stopped")
+			logger.Info("热加载已停止")
 			return
 		}
 	}
@@ -31,12 +31,12 @@ func startHotReload() {
 // hotReload 执行一次热加载流程：重载配置、重新解析 PSV 文件、添加新用例、
 // 重启已修改用例、移除已删除用例。
 func hotReload() {
-	logger.Debug("Checking for hot reload changes")
+	logger.Debug("检查热加载变更")
 
 	if config.ReloadConfig() {
 		newLevel := config.GlobalConfig.Log.Level
 		logger.SetLogLevel(newLevel)
-		logger.Info("Log level updated via config file", zap.String("new_level", newLevel))
+		logger.Info("日志级别已通过配置文件更新", zap.String("new_level", newLevel))
 		fmt.Printf("\n[热加载] 配置文件已更新，日志级别已切换为: %s\n", newLevel)
 	}
 
@@ -47,7 +47,7 @@ func hotReload() {
 
 	newCases, err := psv.ParseFiles([]string{caseDir})
 	if err != nil {
-		logger.Warn("Failed to parse files during hot reload", zap.Error(err))
+		logger.Warn("热加载期间文件解析失败", zap.Error(err))
 		return
 	}
 
@@ -83,7 +83,7 @@ func hotReload() {
 	removeDeletedTestCases(newMonitorCases)
 
 	if newCount > 0 {
-		logger.Info("Hot reload completed", zap.Int("new_tasks", newCount))
+		logger.Info("热加载完成", zap.Int("new_tasks", newCount))
 		fmt.Printf("\n[热加载] 发现 %d 个新测试用例，已自动添加到监控\n", newCount)
 	}
 	_ = modifiedCount

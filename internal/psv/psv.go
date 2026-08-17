@@ -74,7 +74,7 @@ type TestCase struct {
 func ParseFile(filePath string) ([]TestCase, error) {
 	file, err := os.Open(filePath)
 	if err != nil {
-		logger.Warn("Failed to open PSV file", zap.String("path", filePath), zap.Error(err))
+		logger.Warn("打开 PSV 文件失败", zap.String("path", filePath), zap.Error(err))
 		return nil, err
 	}
 	defer file.Close()
@@ -90,14 +90,14 @@ func ParseFiles(paths []string) ([]TestCase, error) {
 	for _, path := range paths {
 		files, err := expandPath(path)
 		if err != nil {
-			logger.Warn("Failed to expand path", zap.String("path", path), zap.Error(err))
+			logger.Warn("路径展开失败", zap.String("path", path), zap.Error(err))
 			continue
 		}
 
 		for _, file := range files {
 			cases, err := ParseFile(file)
 			if err != nil {
-				logger.Warn("Failed to parse PSV file", zap.String("path", file), zap.Error(err))
+				logger.Warn("解析 PSV 文件失败", zap.String("path", file), zap.Error(err))
 				continue
 			}
 			allCases = append(allCases, cases...)
@@ -164,7 +164,7 @@ func parseReader(reader io.Reader, filePath string) ([]TestCase, error) {
 		fields := parseLine(line)
 		tc, err := parseTestCase(header, fields)
 		if err != nil {
-			logger.Warn("Failed to parse test case", zap.String("file", filePath), zap.Int("line", lineNum), zap.Error(err))
+			logger.Warn("解析测试用例失败", zap.String("file", filePath), zap.Int("line", lineNum), zap.Error(err))
 			continue
 		}
 		tc.FileName = fileName
@@ -172,11 +172,11 @@ func parseReader(reader io.Reader, filePath string) ([]TestCase, error) {
 	}
 
 	if err := scanner.Err(); err != nil {
-		logger.Warn("Error reading PSV file", zap.String("file", filePath), zap.Error(err))
+		logger.Warn("读取 PSV 文件出错", zap.String("file", filePath), zap.Error(err))
 		return nil, err
 	}
 
-	logger.Info("Successfully parsed PSV file", zap.String("path", filePath), zap.Int("count", len(testCases)))
+	logger.Info("PSV 文件解析成功", zap.String("path", filePath), zap.Int("count", len(testCases)))
 	return testCases, nil
 }
 

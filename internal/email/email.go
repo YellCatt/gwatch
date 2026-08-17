@@ -73,7 +73,7 @@ func SendEmail(subject, body string) error {
 	addr := fmt.Sprintf("%s:%d", Config.SMTPServer, Config.SMTPPort)
 	auth := smtp.PlainAuth("", Config.FromEmail, Config.AuthCode, Config.SMTPServer)
 
-	logger.Info("Connecting to SMTP server", zap.String("addr", addr))
+	logger.Info("正在连接 SMTP 服务器", zap.String("addr", addr))
 
 	tlsConfig := &tls.Config{
 		InsecureSkipVerify: true,
@@ -82,54 +82,54 @@ func SendEmail(subject, body string) error {
 
 	conn, err := tls.Dial("tcp", addr, tlsConfig)
 	if err != nil {
-		logger.Warn("TLS connection failed", zap.Error(err))
+		logger.Warn("TLS 连接失败", zap.Error(err))
 		return err
 	}
 	defer conn.Close()
 
 	client, err := smtp.NewClient(conn, Config.SMTPServer)
 	if err != nil {
-		logger.Warn("SMTP client creation failed", zap.Error(err))
+		logger.Warn("SMTP 客户端创建失败", zap.Error(err))
 		return err
 	}
 	defer client.Close()
 
 	if err := client.Auth(auth); err != nil {
-		logger.Warn("SMTP auth failed", zap.Error(err))
+		logger.Warn("SMTP 认证失败", zap.Error(err))
 		return err
 	}
 
 	if err := client.Mail(Config.FromEmail); err != nil {
-		logger.Warn("Setting sender failed", zap.Error(err))
+		logger.Warn("设置发件人失败", zap.Error(err))
 		return err
 	}
 
 	for _, to := range Config.ToEmail {
 		if err := client.Rcpt(to); err != nil {
-			logger.Warn("Setting recipient failed", zap.String("to", to), zap.Error(err))
+			logger.Warn("设置收件人失败", zap.String("to", to), zap.Error(err))
 			return err
 		}
 	}
 
 	w, err := client.Data()
 	if err != nil {
-		logger.Warn("Getting data writer failed", zap.Error(err))
+		logger.Warn("获取数据写入器失败", zap.Error(err))
 		return err
 	}
 
 	_, err = w.Write(msg)
 	if err != nil {
-		logger.Warn("Writing email content failed", zap.Error(err))
+		logger.Warn("写入邮件内容失败", zap.Error(err))
 		return err
 	}
 
 	err = w.Close()
 	if err != nil {
-		logger.Warn("Closing data writer failed", zap.Error(err))
+		logger.Warn("关闭数据写入器失败", zap.Error(err))
 		return err
 	}
 
-	logger.Info("Email sent successfully")
+	logger.Info("邮件发送成功")
 	return nil
 }
 
@@ -146,11 +146,11 @@ func buildErrorSubject() string {
 // SendErrorReportEmail 发送异常退出报告邮件
 func SendErrorReportEmail(errorMessage string) error {
 	if !Config.Enabled {
-		logger.Info("Email sending disabled, skipped")
+		logger.Info("邮件发送已禁用，跳过")
 		return nil
 	}
 	if Config.FromEmail == "" || len(Config.ToEmail) == 0 || Config.AuthCode == "" {
-		logger.Info("Email config not set, skipped")
+		logger.Info("邮件配置未设置，跳过")
 		return nil
 	}
 
@@ -165,21 +165,21 @@ func SendErrorReportEmail(errorMessage string) error {
 	body.WriteString("\n===== 报告结束 =====\n")
 	body.WriteString("来自 gwatch 监控系统")
 
-	logger.Info("Sending error report email...")
+	logger.Info("正在发送错误报告邮件...")
 	return SendEmail(subject, body.String())
 }
 
 // SendCustomEmail 发送自定义邮件
 func SendCustomEmail(subject, body string) error {
 	if !Config.Enabled {
-		logger.Info("Email sending disabled, skipped")
+		logger.Info("邮件发送已禁用，跳过")
 		return nil
 	}
 	if Config.FromEmail == "" || len(Config.ToEmail) == 0 || Config.AuthCode == "" {
-		logger.Info("Email config not set, skipped")
+		logger.Info("邮件配置未设置，跳过")
 		return nil
 	}
 
-	logger.Info("Sending custom email...")
+	logger.Info("正在发送自定义邮件...")
 	return SendEmail(subject, body)
 }

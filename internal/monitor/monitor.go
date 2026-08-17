@@ -73,13 +73,13 @@ func StartMonitor(testCases []psv.TestCase) {
 // SetupMonitor 初始化监控任务但不等待信号，由外部统一管理生命周期。
 // 返回 false 表示没有可监控的测试用例。
 func SetupMonitor(testCases []psv.TestCase) bool {
-	logger.Info("Starting monitor mode")
+	logger.Info("启动监控模式")
 
 	testcase.ExecuteGlobalPreConditions(testCases)
 
 	monitorCases := filterMonitorCases(testCases)
 	if len(monitorCases) == 0 {
-		logger.Warn("No test cases with monitor_enabled=true found")
+		logger.Info("未找到启用了监控的测试用例（monitor_enabled=true）")
 		return false
 	}
 
@@ -112,13 +112,13 @@ func SetupMonitor(testCases []psv.TestCase) bool {
 
 // worker 监控 worker 协程：从 taskChan 接收任务并执行，直到从 stopChan 收到停止信号。
 func worker(id int) {
-	logger.Info("Worker started", zap.Int("id", id))
+	logger.Info("Worker 协程已启动", zap.Int("id", id))
 	for {
 		select {
 		case tc := <-taskChan:
 			executeAndMonitorTask(tc)
 		case <-stopChan:
-			logger.Info("Worker stopped", zap.Int("id", id))
+			logger.Info("Worker 协程已停止", zap.Int("id", id))
 			return
 		}
 	}
@@ -127,7 +127,7 @@ func worker(id int) {
 // executeAndMonitorTask 执行单个监控任务：调用 testcase 执行、告警检查、结果记录，
 // 并异步持久化存储。失败或慢响应时按用例配置触发告警邮件。
 func executeAndMonitorTask(tc psv.TestCase) {
-	logger.Info("Executing monitor task", zap.String("id", tc.ID))
+	logger.Info("执行监控任务", zap.String("id", tc.ID))
 
 	result := testcase.ExecuteTestCase(tc)
 
@@ -173,15 +173,15 @@ func persistMonitorResult(tc psv.TestCase, result testcase.TestResult, monitorRe
 	}
 
 	if err := storage.RecordMonitorResult(record); err != nil {
-		logger.Warn("Failed to record monitor result to CSV", zap.Error(err))
+		logger.Warn("监控结果记录到 CSV 失败", zap.Error(err))
 	}
 
 	if err := storage.UpdateMonitorSummary(record); err != nil {
-		logger.Warn("Failed to update monitor summary", zap.Error(err))
+		logger.Warn("更新监控汇总失败", zap.Error(err))
 	}
 
 	if err := storage.UpdateAlertSummary(record); err != nil {
-		logger.Warn("Failed to update alert summary", zap.Error(err))
+		logger.Warn("更新告警汇总失败", zap.Error(err))
 	}
 }
 
@@ -205,7 +205,7 @@ func StopAllTasks() {
 		close(task.StopChan)
 		task.Running = false
 		delete(tasks, id)
-		logger.Info("Stopped monitor task", zap.String("id", id))
+		logger.Info("已停止监控任务", zap.String("id", id))
 	}
 	tasksMu.Unlock()
 
@@ -238,13 +238,13 @@ func generateAndSendStartupReport(cases []psv.TestCase, maxWorkers int) {
 
 	_, err := r.SaveReport()
 	if err != nil {
-		logger.Error("Failed to save startup report", zap.Error(err))
+		logger.Error("保存启动报告失败", zap.Error(err))
 	}
 
 	subject, body := r.PrepareReportEmail()
 	err = email.SendCustomEmail(subject, body)
 	if err != nil {
-		logger.Error("Failed to send startup report email", zap.Error(err))
+		logger.Warn("发送启动报告邮件失败", zap.Error(err))
 	}
 }
 
@@ -308,10 +308,10 @@ func StartMonitorMode(paths []string, tags []string) {
 
 	testCases, err := psv.ParseFiles(paths)
 	if err != nil {
-		logger.Warn("Failed to parse PSV files", zap.Error(err))
+		logger.Warn("PSV 文件解析失败", zap.Error(err))
 		errorMsg := fmt.Sprintf("解析测试用例文件失败: %v", err)
 		if err := email.SendErrorReportEmail(errorMsg); err != nil {
-			logger.Error("Failed to send error report email", zap.Error(err))
+			logger.Warn("发送错误报告邮件失败", zap.Error(err))
 		}
 		os.Exit(1)
 	}

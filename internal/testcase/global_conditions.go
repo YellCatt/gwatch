@@ -32,7 +32,7 @@ func ExecuteGlobalPreConditions(testCases []psv.TestCase) {
 					fmt.Printf("\n全局前置条件失败，终止执行\n")
 					errorMsg := fmt.Sprintf("全局前置条件 '%s' 执行失败: %s", tc.ID, result.Error)
 					if err := email.SendErrorReportEmail(errorMsg); err != nil {
-						logger.Error("Failed to send error report email", zap.Error(err))
+						logger.Warn("发送错误报告邮件失败", zap.Error(err))
 					}
 					os.Exit(1)
 				}

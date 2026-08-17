@@ -286,7 +286,7 @@ func StartLoop() {
 					zap.Float64("value", metric.Value),
 					zap.Bool("success", metric.Success))
 				if err := storage.RecordScraperMetric(record); err != nil {
-					logger.Warn("Failed to record scraper metric", zap.Error(err))
+					logger.Warn("采集指标记录失败", zap.Error(err))
 				}
 			}
 		}

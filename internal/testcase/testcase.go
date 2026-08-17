@@ -56,30 +56,28 @@ func RunAll() {
 	// 初始化 HTTP 客户端
 	httpclient.InitClient()
 
-	logger.Info("Starting API tests...")
+	logger.Info("开始执行接口测试...")
 
 	var results []testResult
 
-	// 串行执行每个测试用例
 	for _, tc := range testCases {
 		if tc.Skip {
-			logger.Info("Skipping test", zap.String("name", tc.Name), zap.String("reason", tc.SkipReason))
+			logger.Info("跳过测试", zap.String("name", tc.Name), zap.String("reason", tc.SkipReason))
 			results = append(results, testResult{name: tc.Name, skipped: true, skipReason: tc.SkipReason})
 			continue
 		}
 
-		logger.Info("Running test", zap.String("name", tc.Name))
+		logger.Info("执行测试", zap.String("name", tc.Name))
 		err := tc.Run()
 		if err != nil {
-			logger.Warn("Test failed", zap.String("name", tc.Name), zap.Error(err))
+			logger.Info("测试失败", zap.String("name", tc.Name), zap.Error(err))
 			results = append(results, testResult{name: tc.Name, failed: true, err: err})
 		} else {
-			logger.Info("Test passed", zap.String("name", tc.Name))
+			logger.Info("测试通过", zap.String("name", tc.Name))
 			results = append(results, testResult{name: tc.Name, passed: true})
 		}
 	}
 
-	// 汇总测试结果
 	summarizeResults(results)
 }
 
@@ -108,15 +106,15 @@ func summarizeResults(results []testResult) {
 		}
 	}
 
-	logger.Info("Test summary",
+	logger.Info("测试汇总",
 		zap.Int("total", passed+failed+skipped),
 		zap.Int("passed", passed),
 		zap.Int("failed", failed),
 		zap.Int("skipped", skipped))
 
 	if failed > 0 {
-		logger.Warn("Some tests failed")
+		logger.Info("部分测试失败")
 	} else {
-		logger.Info("All tests passed!")
+		logger.Info("所有测试通过！")
 	}
 }

@@ -26,7 +26,7 @@ func executePreConditions(preIDs []string) (TestResult, error) {
 		preTC := findTestCaseByID(preID)
 		if preTC == nil {
 			errMsg := fmt.Sprintf("前置条件测试用例未找到: %s", preID)
-			logger.Warn(errMsg)
+			logger.Info(errMsg)
 			return TestResult{}, fmt.Errorf(errMsg)
 		}
 
@@ -34,7 +34,7 @@ func executePreConditions(preIDs []string) (TestResult, error) {
 		preResult := ExecuteTestCase(*preTC)
 		if !preResult.Passed {
 			errMsg := fmt.Sprintf("前置条件失败: %s - %s", preID, preResult.Error)
-			logger.Warn(errMsg)
+			logger.Info(errMsg)
 			return preResult, fmt.Errorf(errMsg)
 		}
 		fmt.Printf("[前置条件] ✅ 成功\n")
@@ -47,7 +47,7 @@ func executePostConditions(postIDs []string) {
 	for _, postID := range postIDs {
 		postTC := findTestCaseByID(postID)
 		if postTC == nil {
-			logger.Warn(fmt.Sprintf("后置条件测试用例未找到: %s", postID))
+			logger.Info(fmt.Sprintf("后置条件测试用例未找到: %s", postID))
 			continue
 		}
 
@@ -55,7 +55,7 @@ func executePostConditions(postIDs []string) {
 		postResult := ExecuteTestCase(*postTC)
 		if !postResult.Passed {
 			fmt.Printf("[后置条件] ❌ 失败: %s\n", postResult.Error)
-			logger.Warn(fmt.Sprintf("后置条件失败: %s - %s", postID, postResult.Error))
+			logger.Info(fmt.Sprintf("后置条件失败: %s - %s", postID, postResult.Error))
 		} else {
 			fmt.Printf("[后置条件] ✅ 成功\n")
 		}
@@ -68,11 +68,11 @@ func finishTestCase(tc psv.TestCase, result TestResult, startTime time.Time) Tes
 	result.Duration = result.EndTime.Sub(startTime)
 
 	if result.Passed {
-		logger.Info("Test passed", zap.String("id", tc.ID), zap.Duration("duration", result.Duration))
+		logger.Info("测试通过", zap.String("用例ID", tc.ID), zap.Duration("耗时", result.Duration))
 		fmt.Printf("[%s] [%s] %s ... PASS (%.3fs)\n", timeutil.FormatDateTime(result.EndTime), tc.ID, tc.Desc, result.Duration.Seconds())
 		go storage.RecordExecutionTime(tc.ID, tc.Desc, tc.FileName, vars.Replace(tc.URL), result.Duration, true)
 	} else {
-		logger.Warn("Test failed", zap.String("id", tc.ID), zap.String("error", result.Error))
+		logger.Info("测试失败", zap.String("用例ID", tc.ID), zap.String("错误", result.Error))
 		fmt.Printf("[%s] [%s] %s ... FAIL (%.3fs)\n", timeutil.FormatDateTime(result.EndTime), tc.ID, tc.Desc, result.Duration.Seconds())
 		if result.Error != "" {
 			fmt.Printf("            Error: %s\n", result.Error)
@@ -95,14 +95,14 @@ func finishTestCase(tc psv.TestCase, result TestResult, startTime time.Time) Tes
 				varName := strings.TrimSpace(part[:idx])
 				delete(globalVars, varName)
 				vars.Delete(varName)
-				logger.Debug("Cleaned up variable", zap.String("name", varName), zap.String("test", tc.ID))
+				logger.Debug("已清理变量", zap.String("变量名", varName), zap.String("用例", tc.ID))
 			}
 		}
 		globalVarsMu.Unlock()
 	}
 
 	if tc.DelayAfterMs > 0 {
-		logger.Info("Waiting after executing test", zap.String("id", tc.ID), zap.Int("delay_after_ms", tc.DelayAfterMs))
+		logger.Info("测试执行后等待延迟", zap.String("用例ID", tc.ID), zap.Int("延迟毫秒", tc.DelayAfterMs))
 		time.Sleep(time.Duration(tc.DelayAfterMs) * time.Millisecond)
 	}
 
@@ -118,10 +118,10 @@ func ExecuteTestCase(tc psv.TestCase) TestResult {
 		StartTime: startTime,
 	}
 
-	logger.Info("Running test", zap.String("id", tc.ID), zap.String("desc", tc.Desc))
+	logger.Info("正在运行测试", zap.String("用例ID", tc.ID), zap.String("描述", tc.Desc))
 
 	if tc.Skip {
-		logger.Info("Skipping test", zap.String("id", tc.ID))
+		logger.Info("跳过测试", zap.String("用例ID", tc.ID))
 		result.Passed = true
 		result.EndTime = timeutil.Now()
 		result.Duration = result.EndTime.Sub(startTime)
@@ -298,7 +298,7 @@ func ExecuteTestCase(tc psv.TestCase) TestResult {
 			globalVarsMu.Unlock()
 			extractedVarsJSON, _ := json.Marshal(extractedVars)
 			result.ExtractedVars = string(extractedVarsJSON)
-			logger.Info("Extracted variables", zap.String("id", tc.ID), zap.Any("vars", extractedVars))
+			logger.Info("已提取变量", zap.String("用例ID", tc.ID), zap.Any("变量", extractedVars))
 		}
 	}
 
@@ -355,7 +355,7 @@ func executeStreamAssert(tc psv.TestCase, resp *resty.Response, startTime time.T
 			result.Passed = true
 			result.EndTime = timeutil.Now()
 			result.Duration = result.EndTime.Sub(startTime)
-			logger.Info("Stream assertion passed", zap.String("id", tc.ID))
+			logger.Info("流式断言通过", zap.String("用例ID", tc.ID))
 			fmt.Printf("[%s] [%s] %s ... PASS (%.3fs)\n", timeutil.FormatDateTime(result.EndTime), tc.ID, tc.Desc, result.Duration.Seconds())
 			return result
 		} else {

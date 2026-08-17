@@ -152,7 +152,7 @@ func SendSystemStatusEmail(metrics []SystemMetric) error {
 		return nil
 	}
 	if !email.Config.Enabled {
-		logger.Info("Email is disabled globally, skipping system monitor email")
+		logger.Info("全局邮件已禁用，跳过系统监控邮件")
 		return nil
 	}
 
@@ -195,7 +195,7 @@ func SendSystemStatusEmail(metrics []SystemMetric) error {
 	} else {
 		recent, err := LoadRecentMetrics(24)
 		if err != nil {
-			logger.Error("Failed to load recent metrics for system email", zap.Error(err))
+			logger.Error("加载近期指标用于系统邮件失败", zap.Error(err))
 		} else {
 			reportMetrics = recent
 		}
@@ -223,7 +223,7 @@ func SendSystemStatusEmail(metrics []SystemMetric) error {
 		subject = "[gwatch] 系统资源监控服务已启动"
 	}
 
-	logger.Info("Sending system status email", zap.String("subject", subject))
+	logger.Info("正在发送系统状态邮件", zap.String("主题", subject))
 	return email.SendCustomEmail(subject, bodyBuilder.String())
 }
 

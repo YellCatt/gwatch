@@ -49,12 +49,12 @@ func ReloadConfig() bool {
 	oldLogLevel := GlobalConfig.Log.Level
 
 	if err := viper.ReadInConfig(); err != nil {
-		logger.Warn("Failed to reload config file", zap.Error(err))
+		logger.Warn("重载配置文件失败", zap.Error(err))
 		return false
 	}
 
 	if err := viper.Unmarshal(&GlobalConfig); err != nil {
-		logger.Warn("Failed to unmarshal config", zap.Error(err))
+		logger.Warn("解析配置文件失败", zap.Error(err))
 		return false
 	}
 

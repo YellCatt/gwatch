@@ -107,7 +107,7 @@ func flushAndSend() {
 		zap.Int("filtered_count", len(filtered)))
 
 	if err := sendUnifiedAlertEmail(filtered); err != nil {
-		logger.Warn("Failed to send unified alert email", zap.Error(err))
+		logger.Warn("发送统一告警邮件失败", zap.Error(err))
 	} else {
 		logger.Debug("告警邮件发送成功", zap.Int("count", len(filtered)))
 	}
@@ -125,7 +125,7 @@ func filterByCooldown(alerts []UnifiedAlert) []UnifiedAlert {
 		cooldown := getCooldownForSource(a.Source)
 
 		if last, ok := lastAlertKeys[key]; ok && now.Sub(last) < cooldown {
-			logger.Debug("Alert suppressed by cooldown",
+			logger.Debug("告警被冷却抑制",
 				zap.String("key", key),
 				zap.Duration("since_last", now.Sub(last)),
 				zap.Duration("cooldown", cooldown))
@@ -162,11 +162,11 @@ func getCooldownForSource(source AlertSource) time.Duration {
 
 func sendUnifiedAlertEmail(alerts []UnifiedAlert) error {
 	if !Config.Enabled {
-		logger.Info("Email disabled, skipping unified alert email")
+		logger.Info("邮件功能已禁用，跳过统一告警邮件")
 		return nil
 	}
 	if Config.FromEmail == "" || len(Config.ToEmail) == 0 || Config.AuthCode == "" {
-		logger.Info("Email not configured, skipping unified alert email")
+		logger.Info("邮件未配置，跳过统一告警邮件")
 		return nil
 	}
 	if len(alerts) == 0 {
@@ -219,7 +219,7 @@ func sendUnifiedAlertEmail(alerts []UnifiedAlert) error {
 	body := RenderUnifiedAlertBody(data)
 	subject := BuildUnifiedAlertSubject(allRows, criticalCount, warningCount)
 
-	logger.Info("Sending unified alert email", zap.Int("alerts", len(alerts)))
+	logger.Info("发送统一告警邮件", zap.Int("alerts", len(alerts)))
 	return SendEmail(subject, body)
 }
 

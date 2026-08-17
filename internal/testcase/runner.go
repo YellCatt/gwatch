@@ -24,9 +24,9 @@ func RunTests(paths []string, tags []string) {
 		logger.Info("CSV 存储初始化成功")
 		count, err := storage.GetTotalExecutionCount()
 		if err != nil {
-			logger.Warn("Failed to get execution count", zap.Error(err))
+			logger.Warn("获取执行次数失败", zap.Error(err))
 		} else {
-			logger.Info("Historical execution records found", zap.Int("count", count))
+			logger.Info("发现历史执行记录", zap.Int("数量", count))
 		}
 	}
 
@@ -36,10 +36,10 @@ func RunTests(paths []string, tags []string) {
 
 	testCases, err := psv.ParseFiles(paths)
 	if err != nil {
-		logger.Warn("Failed to parse PSV files", zap.Error(err))
+		logger.Warn("解析 PSV 文件失败", zap.Error(err))
 		errorMsg := fmt.Sprintf("解析测试用例文件失败: %v", err)
 		if err := email.SendErrorReportEmail(errorMsg); err != nil {
-			logger.Error("Failed to send error report email", zap.Error(err))
+			logger.Warn("发送错误报告邮件失败", zap.Error(err))
 		}
 		os.Exit(1)
 	}
@@ -51,11 +51,11 @@ func RunTests(paths []string, tags []string) {
 	testCases = FilterByTags(testCases, tags)
 
 	if len(testCases) == 0 {
-		logger.Info("No test cases to run", zap.Strings("paths", paths))
+		logger.Info("没有可执行的测试用例", zap.Strings("路径", paths))
 		return
 	}
 
-	logger.Info("Starting API tests", zap.Int("count", len(testCases)))
+	logger.Info("开始执行 API 测试", zap.Int("用例数", len(testCases)))
 
 	estimatedDuration := CalculateEstimatedDuration(testCases)
 
@@ -100,15 +100,15 @@ func RunTests(paths []string, tags []string) {
 	PrintSummary(results)
 
 	if err := storage.CalculateAndStoreAverages(); err != nil {
-		logger.Warn("Failed to calculate and store average durations", zap.Error(err))
+		logger.Warn("计算并存储平均耗时失败", zap.Error(err))
 	} else {
-		logger.Info("Successfully calculated and stored average durations")
+		logger.Info("成功计算并存储平均耗时")
 	}
 
 	ExecuteGlobalPostConditions(testCases)
 
 	vars.CleanupGlobalPreVariables()
-	logger.Info("Cleaned up global pre variables")
+	logger.Info("已清理全局前置变量")
 
 	failedCount := 0
 	for _, r := range results {
@@ -148,7 +148,7 @@ func PrintTaskSummary(totalTestCaseCount, totalChainCount, totalIndependentCount
 func CalculateEstimatedDuration(testCases []psv.TestCase) time.Duration {
 	averages, err := storage.GetAllAverageDurations()
 	if err != nil {
-		logger.Warn("Failed to get average durations", zap.Error(err))
+		logger.Warn("获取平均耗时失败", zap.Error(err))
 		return 0
 	}
 

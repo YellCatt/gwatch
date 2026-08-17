@@ -95,24 +95,24 @@ func SaveReports(allReport, errorReport string, timestamp ...string) (string, st
 	reportDir := config.GlobalConfig.App.ReportDir
 
 	if err := os.MkdirAll(reportDir, 0755); err != nil {
-		logger.Error("Failed to create report directory", zap.Error(err))
+		logger.Error("创建报告目录失败", zap.Error(err))
 		return "", ""
 	}
 
 	allPath := fmt.Sprintf("%s/report_%s.csv", reportDir, ts)
 	if err := os.WriteFile(allPath, []byte(allReport), 0644); err != nil {
-		logger.Error("Failed to save report", zap.Error(err))
+		logger.Error("保存报告失败", zap.Error(err))
 	}
 
 	var errorPath string
 	if errorReport != "" {
 		errorPath = fmt.Sprintf("%s/report_%s_error.csv", reportDir, ts)
 		if err := os.WriteFile(errorPath, []byte(errorReport), 0644); err != nil {
-			logger.Error("Failed to save error report", zap.Error(err))
+			logger.Error("保存错误报告失败", zap.Error(err))
 		}
 	}
 
-	logger.Info("Reports saved", zap.String("all", allPath), zap.String("error", errorPath))
+	logger.Info("报告已保存", zap.String("all", allPath), zap.String("error", errorPath))
 	return allPath, errorPath
 }
 

@@ -35,27 +35,27 @@ func (rs *ReportScheduler) generateAllReports() {
 
 	if config.GlobalConfig.Monitor.DailyReport {
 		yesterday := now.Add(-24 * time.Hour)
-		logger.Info("Generating daily report for", zap.String("date", yesterday.Format("2006-01-02")))
+		logger.Info("正在生成日报", zap.String("日期", yesterday.Format("2006-01-02")))
 		generateAndSendReport(PeriodDaily, yesterday, rs.sender)
 	}
 
 	if config.GlobalConfig.Monitor.WeeklyReport {
 		if scheduler.ShouldTriggerWeekly(now) {
-			logger.Info("Generating weekly report for week starting", zap.String("date", scheduler.GetWeekStart(now).Format("2006-01-02")))
+			logger.Info("正在生成周报", zap.String("起始日期", scheduler.GetWeekStart(now).Format("2006-01-02")))
 			generateAndSendReport(PeriodWeekly, now, rs.sender)
 		}
 	}
 
 	if config.GlobalConfig.Monitor.MonthlyReport {
 		if scheduler.ShouldTriggerMonthly(now) {
-			logger.Info("Generating monthly report for", zap.String("month", now.Format("2006-01")))
+			logger.Info("正在生成月报", zap.String("月份", now.Format("2006-01")))
 			generateAndSendReport(PeriodMonthly, now, rs.sender)
 		}
 	}
 
 	if config.GlobalConfig.Monitor.YearlyReport {
 		if scheduler.ShouldTriggerYearly(now) {
-			logger.Info("Generating yearly report for", zap.String("year", now.Format("2006")))
+			logger.Info("正在生成年报", zap.String("年份", now.Format("2006")))
 			generateAndSendReport(PeriodYearly, now, rs.sender)
 		}
 	}
@@ -77,7 +77,7 @@ func generateAndSendReport(period ReportPeriod, date time.Time, sender EmailSend
 		startDate = time.Date(date.Year(), 1, 1, 0, 0, 0, 0, date.Location())
 		endDate = startDate.AddDate(1, 0, 0)
 	default:
-		logger.Warn("Unknown report period", zap.String("period", string(period)))
+		logger.Warn("未知的报告周期", zap.String("周期", string(period)))
 		return
 	}
 
@@ -86,10 +86,10 @@ func generateAndSendReport(period ReportPeriod, date time.Time, sender EmailSend
 	reportName := PeriodNames[period]
 	_, err := r.SaveReport()
 	if err != nil {
-		logger.Error("Failed to save report",
-			zap.String("period", string(period)),
-			zap.String("start_date", startDate.Format("2006-01-02")),
-			zap.String("end_date", endDate.Format("2006-01-02")),
+		logger.Error("保存报告失败",
+			zap.String("周期", string(period)),
+			zap.String("开始日期", startDate.Format("2006-01-02")),
+			zap.String("结束日期", endDate.Format("2006-01-02")),
 			zap.Error(err))
 	}
 
@@ -97,14 +97,14 @@ func generateAndSendReport(period ReportPeriod, date time.Time, sender EmailSend
 	if sender != nil {
 		err = sender(subject, body)
 		if err != nil {
-			logger.Error("Failed to send report email",
-				zap.String("period", string(period)),
+			logger.Warn("发送报告邮件失败",
+				zap.String("周期", string(period)),
 				zap.Error(err))
 		}
 	} else {
-		logger.Error("Failed to send report email: sender is not configured",
-			zap.String("period", reportName),
-			zap.String("start_date", startDate.Format("2006-01-02")),
-			zap.String("end_date", endDate.Format("2006-01-02")))
+		logger.Warn("发送报告邮件失败：邮件发送器未配置",
+			zap.String("周期", reportName),
+			zap.String("开始日期", startDate.Format("2006-01-02")),
+			zap.String("结束日期", endDate.Format("2006-01-02")))
 	}
 }

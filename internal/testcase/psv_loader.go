@@ -35,7 +35,7 @@ func LoadFromPSV(filePath string) error {
 
 // runPSVTestCase 执行单个 PSV 测试用例（发送 HTTP 请求并校验状态码）。
 func runPSVTestCase(tc *psv.TestCase) error {
-	logger.Info("Running PSV test", zap.String("name", tc.Name), zap.String("endpoint", tc.Endpoint))
+	logger.Info("执行 PSV 测试", zap.String("name", tc.Name), zap.String("endpoint", tc.Endpoint))
 
 	req := httpclient.Client.R()
 
@@ -71,7 +71,7 @@ func runPSVTestCase(tc *psv.TestCase) error {
 		return err
 	}
 
-	logger.Debug("Response",
+	logger.Debug("响应",
 		zap.Int("status", resp.StatusCode()),
 		zap.String("body", string(resp.Body())))
 

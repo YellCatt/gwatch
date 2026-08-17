@@ -298,7 +298,7 @@ func ExtractVariables(responseBody string, extractExpr string) (map[string]strin
 	for _, part := range parts {
 		kv := strings.SplitN(strings.TrimSpace(part), "=", 2)
 		if len(kv) != 2 {
-			logger.Warn("extract 表达式格式错误，跳过", zap.String("part", part))
+			logger.Info("extract 表达式格式错误，跳过", zap.String("part", part))
 			continue
 		}
 
@@ -312,7 +312,7 @@ func ExtractVariables(responseBody string, extractExpr string) (map[string]strin
 			result[key] = value.String()
 			logger.Info("变量提取成功", zap.String("key", key), zap.String("path", path), zap.String("value", maskValue(value.String())))
 		} else {
-			logger.Warn("变量提取失败，路径不存在", zap.String("key", key), zap.String("path", path))
+			logger.Info("变量提取失败，路径不存在", zap.String("key", key), zap.String("path", path))
 		}
 	}
 

@@ -33,7 +33,7 @@ func RecordScraperMetric(record ScraperMetricRecord) error {
 	}
 
 	if err := appendRecord(scraperMetricCSVPath(), rec); err != nil {
-		logger.Warn("Failed to record scraper metric", zap.Error(err))
+		logger.Warn("记录采集器指标失败", zap.Error(err))
 		return err
 	}
 	return nil

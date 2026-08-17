@@ -14,7 +14,7 @@ import (
 
 func RunSystemReport() {
 	if err := storage.InitDB(config.GlobalConfig.App.DataDir); err != nil {
-		logger.Warn("Storage init failed", zap.Error(err))
+		logger.Warn("存储初始化失败", zap.Error(err))
 	}
 
 	InitStorage()
@@ -36,7 +36,7 @@ func RunSystemReport() {
 	if config.GlobalConfig.SystemMon.ChartEnabled {
 		path, err := SaveSystemReport(metrics, alerts)
 		if err != nil {
-			logger.Error("Failed to save report", zap.Error(err))
+			logger.Error("保存报告失败", zap.Error(err))
 		} else {
 			fmt.Printf("\n报告已保存: %s\n", path)
 		}
