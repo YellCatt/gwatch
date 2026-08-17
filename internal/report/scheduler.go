@@ -85,15 +85,20 @@ func generateAndSendReport(period ReportPeriod, date time.Time, sender EmailSend
 
 	_, err := r.SaveReport()
 	if err != nil {
-		logger.Warn("Failed to save report", zap.Error(err))
-		return
+		logger.Error("Failed to save report",
+			zap.String("period", string(period)),
+			zap.String("start_date", startDate.Format("2006-01-02")),
+			zap.String("end_date", endDate.Format("2006-01-02")),
+			zap.Error(err))
 	}
 
 	subject, body := r.PrepareReportEmail()
 	if sender != nil {
 		err = sender(subject, body)
 		if err != nil {
-			logger.Warn("Failed to send report email", zap.Error(err))
+			logger.Error("Failed to send report email",
+				zap.String("period", string(period)),
+				zap.Error(err))
 		}
 	}
 }

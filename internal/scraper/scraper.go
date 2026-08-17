@@ -132,6 +132,9 @@ func Scrape(target TargetConfig) (ScrapeResult, error) {
 
 	if target.Proxy != "" {
 		client.SetProxy(target.Proxy)
+		logger.Debug("使用代理",
+			zap.String("target", target.Name),
+			zap.String("proxy", target.Proxy))
 	}
 
 	startTime := time.Now()
@@ -192,7 +195,13 @@ func Scrape(target TargetConfig) (ScrapeResult, error) {
 func extractMetrics(jsonStr string, metrics []MetricConfig) []MetricResult {
 	var results []MetricResult
 
+	logger.Debug("开始提取指标", zap.Int("metrics_count", len(metrics)))
+
 	for _, metric := range metrics {
+		logger.Debug("处理指标",
+			zap.String("metric", metric.Name),
+			zap.String("path", metric.Path))
+
 		result := MetricResult{
 			Name:      metric.Name,
 			Alias:     metric.Alias,
@@ -416,14 +425,28 @@ func applyConsecutiveAlerts(targetName string, metricConfigs []MetricConfig, res
 			consecutiveMu.Unlock()
 
 			if count < mc.Consecutive {
+				logger.Debug("连续告警未达阈值，暂不触发",
+					zap.String("target", targetName),
+					zap.String("metric", mc.Name),
+					zap.Int("consecutive_count", count),
+					zap.Int("consecutive_required", mc.Consecutive))
 				results[i].OverThreshold = false
 				results[i].IsWarning = false
 				results[i].Alert = false
+			} else {
+				logger.Debug("连续告警达到阈值，触发告警",
+					zap.String("target", targetName),
+					zap.String("metric", mc.Name),
+					zap.Int("consecutive_count", count),
+					zap.Int("consecutive_required", mc.Consecutive))
 			}
 		} else {
 			consecutiveMu.Lock()
 			delete(consecutiveAlertCounts, key)
 			consecutiveMu.Unlock()
+			logger.Debug("指标恢复正常，重置连续告警计数",
+				zap.String("target", targetName),
+				zap.String("metric", mc.Name))
 		}
 	}
 }

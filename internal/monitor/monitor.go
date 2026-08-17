@@ -238,14 +238,13 @@ func generateAndSendStartupReport(cases []psv.TestCase, maxWorkers int) {
 
 	_, err := r.SaveReport()
 	if err != nil {
-		logger.Warn("Failed to save startup report", zap.Error(err))
-		return
+		logger.Error("Failed to save startup report", zap.Error(err))
 	}
 
 	subject, body := r.PrepareReportEmail()
 	err = email.SendCustomEmail(subject, body)
 	if err != nil {
-		logger.Warn("Failed to send startup report email", zap.Error(err))
+		logger.Error("Failed to send startup report email", zap.Error(err))
 	}
 }
 
@@ -312,7 +311,7 @@ func StartMonitorMode(paths []string, tags []string) {
 		logger.Warn("Failed to parse PSV files", zap.Error(err))
 		errorMsg := fmt.Sprintf("解析测试用例文件失败: %v", err)
 		if err := email.SendErrorReportEmail(errorMsg); err != nil {
-			logger.Warn("Failed to send error report email", zap.Error(err))
+			logger.Error("Failed to send error report email", zap.Error(err))
 		}
 		os.Exit(1)
 	}

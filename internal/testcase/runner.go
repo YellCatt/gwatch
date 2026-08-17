@@ -39,7 +39,7 @@ func RunTests(paths []string, tags []string) {
 		logger.Warn("Failed to parse PSV files", zap.Error(err))
 		errorMsg := fmt.Sprintf("解析测试用例文件失败: %v", err)
 		if err := email.SendErrorReportEmail(errorMsg); err != nil {
-			logger.Warn("Failed to send error report email", zap.Error(err))
+			logger.Error("Failed to send error report email", zap.Error(err))
 		}
 		os.Exit(1)
 	}

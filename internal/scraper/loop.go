@@ -52,10 +52,18 @@ func StartLoop() {
 		default:
 		}
 
+		logger.Debug("开始新一轮采集", zap.Int("total_targets", len(cfg.Targets)))
+
 		for _, target := range cfg.Targets {
 			if !target.Enabled {
+				logger.Debug("跳过已禁用的目标", zap.String("target", target.Name))
 				continue
 			}
+
+			logger.Debug("开始处理目标",
+				zap.String("target", target.Name),
+				zap.String("url", target.URL),
+				zap.Int("metrics_count", len(target.Metrics)))
 
 			scraperTarget := TargetConfig{
 				Name:               target.Name,
@@ -87,6 +95,10 @@ func StartLoop() {
 					WarningThreshold: metric.WarningThreshold,
 				})
 			}
+
+			logger.Debug("调用Scrape发起请求",
+				zap.String("target", target.Name),
+				zap.String("url", target.URL))
 
 			result, err := Scrape(scraperTarget)
 			if err != nil {
@@ -152,6 +164,12 @@ func StartLoop() {
 			fmt.Printf("状态码: %d\n", result.StatusCode)
 			fmt.Printf("耗时: %.2fms\n", float64(result.Duration.Microseconds())/1000)
 
+			logger.Debug("采集结果汇总",
+				zap.String("target", result.TargetName),
+				zap.Int("status_code", result.StatusCode),
+				zap.Duration("duration", result.Duration),
+				zap.Int("metrics_count", len(result.Metrics)))
+
 			for _, metric := range result.Metrics {
 				status := "OK"
 				alertLevel := ""
@@ -209,6 +227,13 @@ func StartLoop() {
 							}
 						}
 
+						logger.Debug("触发告警",
+							zap.String("target", target.Name),
+							zap.String("metric", metric.Name),
+							zap.String("alert_level", alertLevel),
+							zap.Float64("value", metric.Value),
+							zap.Float64("threshold", alertThreshold))
+
 						email.DispatchAlert(email.UnifiedAlert{
 							Source:      email.SourceScraper,
 							SourceName:  "远程资源采集",
@@ -254,12 +279,18 @@ func StartLoop() {
 					Success:     metric.Success,
 					Timestamp:   result.Timestamp,
 				}
+				logger.Debug("记录指标数据",
+					zap.String("target", result.TargetName),
+					zap.String("metric", metric.Name),
+					zap.Float64("value", metric.Value),
+					zap.Bool("success", metric.Success))
 				if err := storage.RecordScraperMetric(record); err != nil {
 					logger.Warn("Failed to record scraper metric", zap.Error(err))
 				}
 			}
 		}
 
+		logger.Debug("本轮采集完成，等待下次采集", zap.Duration("interval", 10*time.Second))
 		time.Sleep(10 * time.Second)
 	}
 }

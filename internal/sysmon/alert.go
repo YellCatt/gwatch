@@ -195,7 +195,7 @@ func SendSystemStatusEmail(metrics []SystemMetric) error {
 	} else {
 		recent, err := LoadRecentMetrics(24)
 		if err != nil {
-			logger.Warn("Failed to load recent metrics for system email", zap.Error(err))
+			logger.Error("Failed to load recent metrics for system email", zap.Error(err))
 		} else {
 			reportMetrics = recent
 		}

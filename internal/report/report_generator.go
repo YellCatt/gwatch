@@ -360,7 +360,7 @@ func (r *Report) SaveReport() (string, error) {
 	}
 
 	if err := os.MkdirAll(reportDir, 0755); err != nil {
-		logger.Warn("Failed to create report directory", zap.Error(err))
+		logger.Error("Failed to create report directory", zap.Error(err))
 		return "", err
 	}
 
@@ -369,7 +369,7 @@ func (r *Report) SaveReport() (string, error) {
 
 	content := r.GenerateContent()
 	if err := os.WriteFile(filePath, []byte(content), 0644); err != nil {
-		logger.Warn("Failed to save report", zap.String("file", filePath), zap.Error(err))
+		logger.Error("Failed to save report", zap.String("file", filePath), zap.Error(err))
 		return "", err
 	}
 
@@ -422,7 +422,7 @@ func (r *Report) GenerateContent() string {
 func loadSystemMetrics() *SystemMetricsSnapshot {
 	current, err := sysmon.CollectMetrics()
 	if err != nil {
-		logger.Warn("Failed to collect system metrics for report", zap.Error(err))
+		logger.Error("Failed to collect system metrics for report", zap.Error(err))
 		return nil
 	}
 

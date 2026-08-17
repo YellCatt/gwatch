@@ -46,6 +46,12 @@ var (
 )
 
 func DispatchAlert(alert UnifiedAlert) {
+	logger.Debug("收到告警通知",
+		zap.String("target", alert.TargetName),
+		zap.String("metric", alert.MetricName),
+		zap.String("alert_level", alert.AlertLevel),
+		zap.String("message", alert.Message))
+
 	dispatcherMu.Lock()
 	if !dispatcherRunning {
 		dispatcherRunning = true
@@ -92,11 +98,18 @@ func flushAndSend() {
 
 	filtered := filterByCooldown(alerts)
 	if len(filtered) == 0 {
+		logger.Debug("所有告警被冷却抑制，跳过发送", zap.Int("original_count", len(alerts)))
 		return
 	}
 
+	logger.Debug("开始发送告警邮件",
+		zap.Int("original_count", len(alerts)),
+		zap.Int("filtered_count", len(filtered)))
+
 	if err := sendUnifiedAlertEmail(filtered); err != nil {
 		logger.Warn("Failed to send unified alert email", zap.Error(err))
+	} else {
+		logger.Debug("告警邮件发送成功", zap.Int("count", len(filtered)))
 	}
 }
 
