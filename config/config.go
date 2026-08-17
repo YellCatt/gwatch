@@ -13,6 +13,8 @@ import (
 
 var CfgFile string
 
+const Version = "v1.0.0_20260817"
+
 var GlobalConfig Config
 
 // InitConfig 初始化应用配置：读取 YAML 配置文件、解析到 GlobalConfig 结构体、设置默认值和加载变量。

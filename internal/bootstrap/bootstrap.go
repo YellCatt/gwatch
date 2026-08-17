@@ -23,6 +23,8 @@ func InitApp() {
 		Output:   config.GlobalConfig.Log.Output,
 	})
 
+	logger.Info("gwatch started", zap.String("version", config.Version))
+
 	vars.Set("base_url", config.GlobalConfig.Target.BaseURL)
 
 	if len(config.GlobalConfig.Vars) > 0 {
