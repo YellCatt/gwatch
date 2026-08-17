@@ -8,12 +8,14 @@ import (
 	"github.com/shirou/gopsutil/v3/host"
 	"github.com/shirou/gopsutil/v3/mem"
 	"github.com/shirou/gopsutil/v3/net"
+
+	"gwatch/internal/timeutil"
 )
 
 // CollectMetrics 采集一次系统指标快照，包括 CPU、内存、磁盘使用率以及网络/磁盘的读写速度。
 func CollectMetrics() (SystemMetric, error) {
 	metric := SystemMetric{
-		Timestamp: time.Now(),
+		Timestamp: timeutil.Now(),
 	}
 
 	cpuPct, err := cpu.Percent(0, false)

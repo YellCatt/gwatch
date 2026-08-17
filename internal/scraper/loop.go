@@ -15,6 +15,7 @@ import (
 	"gwatch/internal/email"
 	"gwatch/internal/logger"
 	"gwatch/internal/storage"
+	"gwatch/internal/timeutil"
 	"gwatch/internal/util"
 )
 
@@ -105,7 +106,7 @@ func StartLoop() {
 				logger.Warn("采集失败", zap.String("target", target.Name), zap.Error(err))
 
 				errMsg := err.Error()
-				now := time.Now()
+				now := timeutil.Now()
 				dateStr := now.Format("2006-01-02")
 				timestampStr := now.Format("2006-01-02 15:04:05")
 

@@ -43,6 +43,6 @@ func RunSystemReport() {
 		}
 	}
 
-	fmt.Printf("\n生成时间: %s\n", timeutil.FormatDateTime(time.Now()))
+	fmt.Printf("\n生成时间: %s\n", timeutil.FormatDateTime(timeutil.Now()))
 	os.Exit(0)
 }

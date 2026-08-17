@@ -10,6 +10,7 @@ import (
 	"go.uber.org/zap"
 
 	"gwatch/internal/logger"
+	"gwatch/internal/timeutil"
 )
 
 // RecordExecutionTime 记录一次测试/监控执行的耗时到 CSV 存储中。
@@ -28,7 +29,7 @@ func RecordExecutionTime(testCaseID, testCaseDesc, fileName, url string, duratio
 		url,
 		strconv.FormatInt(int64(duration/time.Millisecond), 10),
 		strconv.FormatBool(success),
-		time.Now().Format("2006-01-02 15:04:05"),
+		timeutil.FormatDateTime(timeutil.Now()),
 	}
 
 	if err := appendRecord(executionCSVPath(), record); err != nil {
@@ -234,7 +235,7 @@ func CalculateAndStoreAverages() error {
 	}
 	sort.Strings(keys)
 
-	now := time.Now().Format("2006-01-02 15:04:05")
+	now := timeutil.FormatDateTime(timeutil.Now())
 	var avgRecords [][]string
 	for _, k := range keys {
 		g := groups[k]

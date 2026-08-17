@@ -118,7 +118,7 @@ func filterByCooldown(alerts []UnifiedAlert) []UnifiedAlert {
 	defer lastAlertMu.Unlock()
 
 	var filtered []UnifiedAlert
-	now := time.Now()
+	now := timeutil.Now()
 
 	for _, a := range alerts {
 		key := fmt.Sprintf("%s:%s:%s", a.Source, a.TargetName, a.MetricName)

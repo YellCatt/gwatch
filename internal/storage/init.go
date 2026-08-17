@@ -12,6 +12,7 @@ import (
 	"go.uber.org/zap"
 
 	"gwatch/internal/logger"
+	"gwatch/internal/timeutil"
 )
 
 var (
@@ -306,7 +307,7 @@ func csvFileMetas() []csvFileMeta {
 
 // writeIndexCSV 生成 CSV 数据总表文件，列出所有数据表的信息。
 func writeIndexCSV() error {
-	now := time.Now().Format("2006-01-02 15:04:05")
+	now := timeutil.FormatDateTime(timeutil.Now())
 
 	var records [][]string
 	for _, m := range csvFileMetas() {

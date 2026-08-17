@@ -82,7 +82,7 @@ func GenerateASCIIChartWithTime(data []float64, width int, unit string, timeLabe
 	if len(timeLabels) >= 2 {
 		timeRange = fmt.Sprintf("  时间范围: %s → %s (过去24小时)\n", timeLabels[0], timeLabels[len(timeLabels)-1])
 	} else {
-		now := time.Now()
+		now := timeutil.Now()
 		timeRange = fmt.Sprintf("  时间范围: %s → %s (过去24小时)\n",
 			formatHourLabel(now.Add(-24*time.Hour)),
 			formatHourLabel(now))
@@ -112,7 +112,7 @@ func GenerateASCIIChartWithTime(data []float64, width int, unit string, timeLabe
 		if len(timeLabels) > i && timeLabels[i] != "" {
 			timeLabel = timeLabels[i]
 		} else {
-			now := time.Now()
+			now := timeutil.Now()
 			ts := now.Add(-24*time.Hour + time.Duration(binStartIdx[i])*24*time.Hour/time.Duration(len(data)))
 			timeLabel = formatHourLabel(ts)
 		}
@@ -235,7 +235,7 @@ func generateTimeLabels(metrics []SystemMetric, width int) []string {
 		return nil
 	}
 
-	now := time.Now()
+	now := timeutil.Now()
 	startTime := now.Add(-24 * time.Hour)
 
 	labels := make([]string, width)
@@ -279,7 +279,7 @@ func SaveSystemReport(metrics []SystemMetric, alerts []AlertItem) (string, error
 	}
 
 	content := GenerateSystemReport(metrics, alerts)
-	timestamp := time.Now().Format("20060102_150405")
+	timestamp := timeutil.FormatCompact(timeutil.Now())
 	filename := fmt.Sprintf("system_monitor_%s.txt", timestamp)
 	filePath := filepath.Join(sysReportDir, filename)
 

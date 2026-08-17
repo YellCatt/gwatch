@@ -266,7 +266,7 @@ func aggregateYear(year time.Time) {
 
 // backfillAggregatedMetrics 系统启动时回填历史缺失的日/月/年聚合记录。
 func backfillAggregatedMetrics() {
-	now := time.Now()
+	now := timeutil.Now()
 
 	backfillDays(now)
 	backfillMonths(now)

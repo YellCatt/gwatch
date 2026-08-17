@@ -352,7 +352,7 @@ func buildStartupData(r *Report, info *StartupInfo) startupReportData {
 	data := startupReportData{
 		GeneratedAt:        timeutil.FormatDateTime(r.GeneratedAt),
 		DeviceName:         util.GetDeviceName(),
-		Now:                timeutil.FormatDateTime(time.Now()),
+		Now:                timeutil.FormatDateTime(timeutil.Now()),
 		DataDir:            cfg.App.DataDir,
 		ReportDir:          cfg.App.ReportDir,
 		CaseDir:            cfg.App.CaseDir,

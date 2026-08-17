@@ -13,6 +13,7 @@ import (
 	"go.uber.org/zap"
 
 	"gwatch/config"
+	"gwatch/internal/timeutil"
 	"gwatch/internal/logger"
 )
 
@@ -213,7 +214,7 @@ func LoadRecentMetrics(hours int) ([]SystemMetric, error) {
 	if hours <= 0 {
 		hours = 24
 	}
-	cutoff := time.Now().Add(-time.Duration(hours) * time.Hour)
+	cutoff := timeutil.Now().Add(-time.Duration(hours) * time.Hour)
 	return loadMetrics(hourlyPath(), cutoff)
 }
 

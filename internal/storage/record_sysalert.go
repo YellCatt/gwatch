@@ -5,6 +5,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"gwatch/internal/timeutil"
 )
 
 func UpdateSystemAlertSummary(record SystemAlertRecord) error {
@@ -18,7 +20,7 @@ func UpdateSystemAlertSummary(record SystemAlertRecord) error {
 	dateStr := record.Date
 	timestampStr := record.LastOccurrence
 	if timestampStr == "" {
-		timestampStr = time.Now().Format("2006-01-02 15:04:05")
+		timestampStr = timeutil.FormatDateTime(timeutil.Now())
 	}
 
 	header, records, err := readRecords(systemAlertCSVPath())
@@ -210,7 +212,7 @@ func UpdateScraperAlertSummary(record ScraperAlertRecord) error {
 	dateStr := record.Date
 	timestampStr := record.LastOccurrence
 	if timestampStr == "" {
-		timestampStr = time.Now().Format("2006-01-02 15:04:05")
+		timestampStr = timeutil.FormatDateTime(timeutil.Now())
 	}
 
 	_, records, err := readRecords(scraperAlertCSVPath())
