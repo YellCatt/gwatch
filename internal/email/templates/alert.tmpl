@@ -7,7 +7,7 @@
 
 {{range .Groups}}
 ━━━ {{.SourceName}} ━━━
-{{range .Alerts}}{{if eq .Level "CRITICAL"}}🚨{{else}}⚠️{{end}} [{{.Level}}] {{.MetricAlias}}
+{{range .Alerts}}{{if eq .Level "CRITICAL"}}🚨{{else}}⚠️{{end}} [{{levelDisplay .Level}}] {{.MetricAlias}}
    目标:     {{.TargetName}}
 {{- if ne .Value 0.0}}
    当前值:   {{formatValue .Value .Unit}}

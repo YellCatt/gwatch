@@ -344,9 +344,9 @@ func alertLevelRank(level string) int {
 func alertLevelDisplay(level string) (string, string) {
 	switch strings.ToUpper(strings.TrimSpace(level)) {
 	case storage.AlertLevelCritical:
-		return "🚨", "CRITICAL（严重）"
+		return "🚨", "严重"
 	case storage.AlertLevelWarning:
-		return "⚠️", "WARNING（警告）"
+		return "⚠️", "警告"
 	default:
 		return "🔔", level
 	}

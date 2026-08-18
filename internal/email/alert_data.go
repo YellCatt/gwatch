@@ -22,11 +22,19 @@ func formatValue(v float64, unit string) string {
 	return fmt.Sprintf("%.2f %s", v, unit)
 }
 
+func levelDisplay(level string) string {
+	if strings.EqualFold(level, "CRITICAL") {
+		return "严重"
+	}
+	return "警告"
+}
+
 func init() {
 	funcMap := template.FuncMap{
-		"formatSpeed": util.FormatSpeed,
-		"formatValue": formatValue,
-		"printf":      fmt.Sprintf,
+		"formatSpeed":  util.FormatSpeed,
+		"formatValue":  formatValue,
+		"printf":       fmt.Sprintf,
+		"levelDisplay": levelDisplay,
 	}
 	alertTmpl = template.Must(template.New("").Funcs(funcMap).ParseFS(alertTemplateFS, "templates/*.tmpl"))
 }

@@ -39,8 +39,8 @@ gwatch {{.Period}}运维报告
   信息: {{.ErrorMsg}}
 
 {{end}}
-  接口告警: CRITICAL {{.CriticalAlertCount}} 项
-        WARNING {{.WarningAlertCount}} 项
+  接口告警: 严重 {{.CriticalAlertCount}} 项
+        警告 {{.WarningAlertCount}} 项
         共 {{.TotalAlertCount}} 项
 {{else}}  ✅ 接口监控无告警
 {{end}}
@@ -56,8 +56,8 @@ gwatch {{.Period}}运维报告
   信息: {{.Message}}
 
 {{end}}
-  系统告警: CRITICAL {{.SystemCriticalCount}} 项
-        WARNING {{.SystemWarningCount}} 项
+  系统告警: 严重 {{.SystemCriticalCount}} 项
+        警告 {{.SystemWarningCount}} 项
         共 {{.SystemAlertTotal}} 项
 {{end}}
 
@@ -73,8 +73,8 @@ gwatch {{.Period}}运维报告
   信息: {{.Message}}
 
 {{end}}
-  采集告警: CRITICAL {{.ScraperCriticalCount}} 项
-        WARNING {{.ScraperWarningCount}} 项
+  采集告警: 严重 {{.ScraperCriticalCount}} 项
+        警告 {{.ScraperWarningCount}} 项
         共 {{.ScraperAlertTotal}} 项
 {{end}}
 
