@@ -18,6 +18,12 @@ var (
 	varsMu               sync.Mutex
 	globalPreVariables   = make(map[string]bool) // 记录全局前置脚本提取的变量
 	globalPreVariablesMu sync.Mutex
+
+	// reservedKeys 断言专用指令，不作为变量替换
+	reservedKeys = map[string]bool{
+		"skip":       true,
+		"not_exists": true,
+	}
 )
 
 // Set 设置全局变量
@@ -74,6 +80,10 @@ func Replace(text string) string {
 	re := regexp.MustCompile(`\{\{([a-zA-Z][a-zA-Z0-9_]*)\}\}`)
 	result := re.ReplaceAllStringFunc(text, func(match string) string {
 		key := strings.TrimSuffix(strings.TrimPrefix(match, "{{"), "}}")
+		if reservedKeys[key] {
+			logger.Debug("变量替换：跳过断言指令", zap.String("match", match))
+			return match
+		}
 		logger.Debug("变量替换：发现变量引用", zap.String("match", match), zap.String("key", key))
 		if value, ok := vars[key]; ok {
 			logger.Info("变量替换成功", zap.String("key", key), zap.String("value", maskValue(value)))
