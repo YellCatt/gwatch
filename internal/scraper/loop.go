@@ -177,10 +177,10 @@ func StartLoop() {
 				if !metric.Success {
 					status = "FAIL"
 				} else if metric.OverThreshold {
-					status = "CRITICAL"
+					status = "严重"
 					alertLevel = "CRITICAL"
 				} else if metric.IsWarning {
-					status = "WARNING"
+					status = "警告"
 					alertLevel = "WARNING"
 				}
 
@@ -209,11 +209,6 @@ func StartLoop() {
 						} else {
 							fmt.Printf(" (严重阈值: %.2f %s)", metric.Threshold, metric.Unit)
 						}
-					}
-					if metric.OverThreshold {
-						fmt.Printf(" [严重告警]")
-					} else if metric.IsWarning {
-						fmt.Printf(" [警告]")
 					}
 					fmt.Println()
 
