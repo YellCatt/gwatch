@@ -10,6 +10,7 @@ import (
 	"gwatch/config"
 	"gwatch/internal/logger"
 	"gwatch/internal/timeutil"
+	"gwatch/internal/util"
 )
 
 var (
@@ -394,7 +395,15 @@ func PrintCurrentStatus() {
 	fmt.Printf("║ MEM:    %6.2f%%  ║", metric.MemoryPercent)
 	fmt.Printf("║ DISK:   %6.2f%%  ║", metric.DiskPercent)
 	fmt.Printf("║ NET↓:   %6.2f KB/s  ║", metric.NetDownKBps)
-	fmt.Printf("║ NET↑:   %6.2f KB/s  ║", metric.NetUpKBps)
+	fmt.Printf("║ NET↑:   %6.2f KB/s  ║\n", metric.NetUpKBps)
+	if len(metric.Partitions) > 0 {
+		fmt.Printf("║ 分区信息: ║\n")
+		for _, p := range metric.Partitions {
+			fmt.Printf("║   %s: %.2f%% (%s / %s) ║\n",
+				p.MountPoint, p.Percent,
+				util.FormatBytes(p.Used), util.FormatBytes(p.Total))
+		}
+	}
 	fmt.Printf("╚══════════════════╝\n")
 }
 

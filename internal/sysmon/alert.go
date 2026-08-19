@@ -55,6 +55,20 @@ func CheckAlerts(metric SystemMetric) []AlertItem {
 		})
 	}
 
+	for _, p := range metric.Partitions {
+		if p.Percent >= cfg.DiskUsageThreshold {
+			alerts = append(alerts, AlertItem{
+				Metric:    fmt.Sprintf("分区使用率(%s)", p.MountPoint),
+				Value:     p.Percent,
+				Threshold: cfg.DiskUsageThreshold,
+				Unit:      "%",
+				Message:   fmt.Sprintf("分区 %s 使用率 %.2f%% 超过阈值 %.2f%%", p.MountPoint, p.Percent, cfg.DiskUsageThreshold),
+				Level:     "WARNING",
+				Timestamp: metric.Timestamp,
+			})
+		}
+	}
+
 	if metric.NetDownKBps >= cfg.NetworkDownThreshold {
 		alerts = append(alerts, AlertItem{
 			Metric:    "网络下行速度",

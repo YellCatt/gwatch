@@ -439,6 +439,16 @@ func loadSystemMetrics() *SystemMetricsSnapshot {
 		DiskTotalBytes: current.DiskTotal,
 	}
 
+	for _, p := range current.Partitions {
+		snapshot.Partitions = append(snapshot.Partitions, PartitionInfo{
+			MountPoint: p.MountPoint,
+			Fstype:     p.Fstype,
+			Percent:    p.Percent,
+			UsedBytes:  p.Used,
+			TotalBytes: p.Total,
+		})
+	}
+
 	hourlyMetrics, err := sysmon.LoadRecentMetrics(24)
 	if err != nil || len(hourlyMetrics) == 0 {
 		logger.Info("暂无小时级指标数据，跳过图表生成")

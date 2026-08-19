@@ -2,9 +2,11 @@ package sysmon
 
 import (
 	"encoding/csv"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -35,6 +37,7 @@ var metricsHeader = []string{
 	"disk_used",
 	"disk_total",
 	"sample_count",
+	"partitions_json",
 }
 
 // hourlyPath 返回小时级指标 CSV 文件路径。
@@ -107,6 +110,13 @@ func recordMetric(path string, metric SystemMetric, sampleCount int) error {
 	}
 	defer file.Close()
 
+	partitionsJSON := ""
+	if len(metric.Partitions) > 0 {
+		if data, err := json.Marshal(metric.Partitions); err == nil {
+			partitionsJSON = string(data)
+		}
+	}
+
 	rec := []string{
 		metric.Timestamp.Format("2006-01-02 15:04:05"),
 		strconv.FormatFloat(metric.CPUPercent, 'f', 2, 64),
@@ -121,6 +131,7 @@ func recordMetric(path string, metric SystemMetric, sampleCount int) error {
 		strconv.FormatUint(metric.DiskUsed, 10),
 		strconv.FormatUint(metric.DiskTotal, 10),
 		strconv.Itoa(sampleCount),
+		partitionsJSON,
 	}
 
 	w := csv.NewWriter(file)
@@ -190,7 +201,7 @@ func loadMetrics(path string, since time.Time) ([]SystemMetric, error) {
 			continue
 		}
 
-		results = append(results, SystemMetric{
+		m := SystemMetric{
 			CPUPercent:    parseFloat(getCol(rec, colIndex, "cpu_percent")),
 			MemoryPercent: parseFloat(getCol(rec, colIndex, "memory_percent")),
 			MemoryUsed:    parseUint64(getCol(rec, colIndex, "memory_used")),
@@ -203,7 +214,16 @@ func loadMetrics(path string, since time.Time) ([]SystemMetric, error) {
 			DiskReadKBps:  parseFloat(getCol(rec, colIndex, "disk_read_kbps")),
 			DiskWriteKBps: parseFloat(getCol(rec, colIndex, "disk_write_kbps")),
 			Timestamp:     ts,
-		})
+		}
+
+		if pj := getCol(rec, colIndex, "partitions_json"); pj != "" {
+			var partitions []DiskPartition
+			if err := json.Unmarshal([]byte(pj), &partitions); err == nil {
+				m.Partitions = partitions
+			}
+		}
+
+		results = append(results, m)
 	}
 
 	return results, nil

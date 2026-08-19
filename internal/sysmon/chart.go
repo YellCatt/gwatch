@@ -170,6 +170,17 @@ func GenerateSystemReport(metrics []SystemMetric, alerts []AlertItem) string {
 		latest.DiskPercent, "%",
 		util.FormatBytes(latest.DiskUsed),
 		util.FormatBytes(latest.DiskTotal)))
+
+	if len(latest.Partitions) > 0 {
+		builder.WriteString("  各分区使用率:\n")
+		for _, p := range latest.Partitions {
+			builder.WriteString(fmt.Sprintf("    %s (%s): %.2f%% (%s / %s)\n",
+				p.MountPoint, p.Fstype, p.Percent,
+				util.FormatBytes(p.Used),
+				util.FormatBytes(p.Total)))
+		}
+	}
+
 	builder.WriteString(fmt.Sprintf("  网络下行速度:   %s\n", util.FormatSpeed(latest.NetDownKBps)))
 	builder.WriteString(fmt.Sprintf("  网络上行速度:   %s\n", util.FormatSpeed(latest.NetUpKBps)))
 	builder.WriteString(fmt.Sprintf("  磁盘读取速度:   %s\n", util.FormatSpeed(latest.DiskReadKBps)))

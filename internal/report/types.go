@@ -144,6 +144,15 @@ type SystemMetricsSnapshot struct {
 	NetUpChart     string
 	StartTime      string
 	EndTime        string
+	Partitions     []PartitionInfo
+}
+
+type PartitionInfo struct {
+	MountPoint string
+	Fstype     string
+	Percent    float64
+	UsedBytes  uint64
+	TotalBytes uint64
 }
 
 type SystemAlertItem struct {

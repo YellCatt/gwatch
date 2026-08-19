@@ -34,7 +34,10 @@
   内存: {{printf "%.2f" .MemoryPercent}}% ({{formatBytes .MemUsedBytes}} / {{formatBytes .MemTotalBytes}})
   磁盘: {{printf "%.2f" .DiskPercent}}% ({{formatBytes .DiskUsedBytes}} / {{formatBytes .DiskTotalBytes}})
   网络: ↓{{printf "%.2f" .NetDownKBps}} KB/s  ↑{{printf "%.2f" .NetUpKBps}} KB/s
-
+{{if .Partitions}}
+  各分区:
+{{range .Partitions}}    {{.MountPoint}} ({{.Fstype}}): {{printf "%.2f" .Percent}}% ({{formatBytes .UsedBytes}} / {{formatBytes .TotalBytes}})
+{{end}}{{end}}
 {{if .CPUChart}}
 📈 系统资源趋势 ({{.StartTime}} ~ {{.EndTime}})
   【CPU 使用率趋势】

@@ -1,6 +1,7 @@
 package sysmon
 
 import (
+	"strings"
 	"time"
 
 	"github.com/shirou/gopsutil/v3/cpu"
@@ -8,7 +9,9 @@ import (
 	"github.com/shirou/gopsutil/v3/host"
 	"github.com/shirou/gopsutil/v3/mem"
 	"github.com/shirou/gopsutil/v3/net"
+	"go.uber.org/zap"
 
+	"gwatch/internal/logger"
 	"gwatch/internal/timeutil"
 )
 
@@ -30,11 +33,18 @@ func CollectMetrics() (SystemMetric, error) {
 		metric.MemoryTotal = memStat.Total
 	}
 
-	diskStat, err := disk.Usage("/")
-	if err == nil {
-		metric.DiskPercent = diskStat.UsedPercent
-		metric.DiskUsed = diskStat.Used
-		metric.DiskTotal = diskStat.Total
+	metric.Partitions = collectPartitions()
+	if len(metric.Partitions) > 0 {
+		rootIdx := 0
+		for i, p := range metric.Partitions {
+			if p.MountPoint == "/" || p.MountPoint == "\\" || p.Name == "C:" {
+				rootIdx = i
+				break
+			}
+		}
+		metric.DiskPercent = metric.Partitions[rootIdx].Percent
+		metric.DiskUsed = metric.Partitions[rootIdx].Used
+		metric.DiskTotal = metric.Partitions[rootIdx].Total
 	}
 
 	netSpeed := calcNetworkSpeed()
@@ -125,4 +135,68 @@ func GetHostInfo() (string, string) {
 		return "", ""
 	}
 	return info.Hostname, info.Platform
+}
+
+// virtualFstypes 虚拟/特殊文件系统类型，不参与分区使用率监控。
+var virtualFstypes = map[string]bool{
+	"tmpfs":         true,
+	"devtmpfs":      true,
+	"overlay":       true,
+	"squashfs":      true,
+	"proc":          true,
+	"sysfs":         true,
+	"cgroup":        true,
+	"cgroup2":       true,
+	"devpts":        true,
+	"mqueue":        true,
+	"pstore":        true,
+	"bpf":           true,
+	"configfs":      true,
+	"debugfs":       true,
+	"hugetlbfs":     true,
+	"fusectl":       true,
+	"autofs":        true,
+	"binfmt_misc":   true,
+	"securityfs":    true,
+	"pstorefs":      true,
+	"rpc_pipefs":    true,
+	"nfsd":          true,
+	"tracefs":       true,
+	"binderfs":      true,
+}
+
+// collectPartitions 采集所有物理分区的使用率信息，过滤掉虚拟/特殊文件系统。
+func collectPartitions() []DiskPartition {
+	partitions, err := disk.Partitions(false)
+	if err != nil {
+		logger.Warn("获取分区列表失败", zap.Error(err))
+		return nil
+	}
+
+	var result []DiskPartition
+	for _, p := range partitions {
+		if virtualFstypes[strings.ToLower(p.Fstype)] {
+			continue
+		}
+
+		usage, err := disk.Usage(p.Mountpoint)
+		if err != nil {
+			continue
+		}
+
+		if usage.Total == 0 {
+			continue
+		}
+
+		result = append(result, DiskPartition{
+			Name:       p.Device,
+			MountPoint: p.Mountpoint,
+			Fstype:     p.Fstype,
+			Percent:    usage.UsedPercent,
+			Used:       usage.Used,
+			Total:      usage.Total,
+		})
+	}
+
+	return result
 }
