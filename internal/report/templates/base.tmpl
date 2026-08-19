@@ -6,16 +6,12 @@ gwatch {{.Period}}运维报告
 【生成】{{formatDateTime .GeneratedAt}}
 【设备】{{deviceName}}
 
-
-
 📊 执行概览
   总次数:  {{.TotalTasks}}
   成功:    {{.SuccessTasks}}
   失败:    {{.FailedTasks}}
   成功率:  {{printf "%.2f" .SuccessRate}}%
   平均耗时: {{.AvgDuration}}
-
-
 
 🔧 接口状态
 {{- if .InterfaceStats}}
@@ -25,7 +21,6 @@ gwatch {{.Period}}运维报告
 
 {{end}}{{else}}  暂无接口数据
 {{end}}
-
 
 📢 告警汇总
 {{- if .AggregatedErrors}}
@@ -39,12 +34,11 @@ gwatch {{.Period}}运维报告
   信息: {{.ErrorMsg}}
 
 {{end}}
-  接口告警: 严重 {{.CriticalAlertCount}} 项, 警告 {{.WarningAlertCount}} 项, 共 {{.TotalAlertCount}} 项
+  接口告警: 严重 {{.CriticalAlertCount}} 项{{if gt .WarningAlertCount 0}}, 警告 {{.WarningAlertCount}} 项{{end}}, 共 {{.TotalAlertCount}} 项
 {{else}}  ✅ 接口监控无告警
 {{end}}
 
 {{- if .SystemAlerts}}
-
 🖥️ 系统资源告警
 {{range .SystemAlerts}}▸ {{.Icon}} 【{{.Level}}】{{.Metric}}
   当前值: {{.Value}} {{.Unit}}  阈值: {{.Threshold}} {{.Unit}}
@@ -54,11 +48,10 @@ gwatch {{.Period}}运维报告
   信息: {{.Message}}
 
 {{end}}
-  系统告警: 严重 {{.SystemCriticalCount}} 项, 警告 {{.SystemWarningCount}} 项, 共 {{.SystemAlertTotal}} 项
+  系统告警: 严重 {{.SystemCriticalCount}} 项{{if gt .SystemWarningCount 0}}, 警告 {{.SystemWarningCount}} 项{{end}}, 共 {{.SystemAlertTotal}} 项
 {{end}}
 
 {{- if .ScraperAlerts}}
-
 🔍 远程资源告警
 {{range .ScraperAlerts}}▸ {{.Icon}} 【{{.Level}}】{{.TargetName}} - {{.MetricName}}
   目标: {{.TargetURL}}
@@ -69,11 +62,7 @@ gwatch {{.Period}}运维报告
   信息: {{.Message}}
 
 {{end}}
-  采集告警: 严重 {{.ScraperCriticalCount}} 项, 警告 {{.ScraperWarningCount}} 项, 共 {{.ScraperAlertTotal}} 项
-{{end}}
-
-{{- if or .SystemAlerts .ScraperAlerts}}
-
+  采集告警: 严重 {{.ScraperCriticalCount}} 项{{if gt .ScraperWarningCount 0}}, 警告 {{.ScraperWarningCount}} 项{{end}}, 共 {{.ScraperAlertTotal}} 项
 {{end}}
 
 {{- if and (not .AggregatedErrors) (not .SystemAlerts) (not .ScraperAlerts)}}

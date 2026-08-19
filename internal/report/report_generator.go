@@ -452,7 +452,7 @@ func loadSystemMetrics() *SystemMetricsSnapshot {
 	netUpData := make([]float64, len(hourlyMetrics))
 
 	for i, m := range hourlyMetrics {
-		labels[i] = m.Timestamp.Format("15:04")
+		labels[i] = m.Timestamp.Format("01-02 15:04")
 		cpuData[i] = m.CPUPercent
 		memData[i] = m.MemoryPercent
 		diskData[i] = m.DiskPercent
@@ -466,6 +466,9 @@ func loadSystemMetrics() *SystemMetricsSnapshot {
 	snapshot.DiskChart = sysmon.GenerateASCIIChartWithTime(diskData, 20, "%", labels, cfg.DiskUsageThreshold)
 	snapshot.NetDownChart = sysmon.GenerateASCIIChartWithTime(netDownData, 20, "KB/s", labels, cfg.NetworkDownThreshold)
 	snapshot.NetUpChart = sysmon.GenerateASCIIChartWithTime(netUpData, 20, "KB/s", labels, cfg.NetworkUpThreshold)
+
+	snapshot.StartTime = hourlyMetrics[0].Timestamp.Format("2006-01-02 15:04")
+	snapshot.EndTime = hourlyMetrics[len(hourlyMetrics)-1].Timestamp.Format("2006-01-02 15:04")
 
 	return snapshot
 }

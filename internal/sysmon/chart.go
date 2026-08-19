@@ -80,10 +80,10 @@ func GenerateASCIIChartWithTime(data []float64, width int, unit string, timeLabe
 
 	var timeRange string
 	if len(timeLabels) >= 2 {
-		timeRange = fmt.Sprintf("  时间范围: %s → %s (过去24小时)\n", timeLabels[0], timeLabels[len(timeLabels)-1])
+		timeRange = fmt.Sprintf("  时间范围: %s → %s\n", timeLabels[0], timeLabels[len(timeLabels)-1])
 	} else {
 		now := timeutil.Now()
-		timeRange = fmt.Sprintf("  时间范围: %s → %s (过去24小时)\n",
+		timeRange = fmt.Sprintf("  时间范围: %s → %s\n",
 			formatHourLabel(now.Add(-24*time.Hour)),
 			formatHourLabel(now))
 	}
@@ -109,11 +109,12 @@ func GenerateASCIIChartWithTime(data []float64, width int, unit string, timeLabe
 		barStr := strings.Repeat("█", filled) + strings.Repeat("░", empty)
 
 		var timeLabel string
-		if len(timeLabels) > i && timeLabels[i] != "" {
-			timeLabel = timeLabels[i]
+		idx := binStartIdx[i]
+		if len(timeLabels) > idx && timeLabels[idx] != "" {
+			timeLabel = timeLabels[idx]
 		} else {
 			now := timeutil.Now()
-			ts := now.Add(-24*time.Hour + time.Duration(binStartIdx[i])*24*time.Hour/time.Duration(len(data)))
+			ts := now.Add(-24*time.Hour + time.Duration(idx)*24*time.Hour/time.Duration(len(data)))
 			timeLabel = formatHourLabel(ts)
 		}
 
@@ -245,15 +246,15 @@ func generateTimeLabels(metrics []SystemMetric, width int) []string {
 			offset = 0
 		}
 		ts := startTime.Add(offset)
-		labels[i] = formatHourLabel(ts)
+		labels[i] = ts.Format("01-02 15:04")
 	}
 
 	return labels
 }
 
-// formatHourLabel 将时间格式化为 "HH:00" 形式的小时标签。
+// formatHourLabel 将时间格式化为 "MM-DD HH:00" 形式的带日期小时标签。
 func formatHourLabel(t time.Time) string {
-	return fmt.Sprintf("%02d:00", t.Hour())
+	return t.Format("01-02 15:04")
 }
 
 // extractField 从系统指标列表中提取指定字段值，返回一个 float64 切片。
