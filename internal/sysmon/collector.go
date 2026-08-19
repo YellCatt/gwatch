@@ -24,11 +24,13 @@ func CollectMetrics() (SystemMetric, error) {
 	cpuPct, err := cpu.Percent(0, false)
 	if err == nil && len(cpuPct) > 0 {
 		metric.CPUPercent = cpuPct[0]
+		metric.CPUMaxPercent = cpuPct[0]
 	}
 
 	memStat, err := mem.VirtualMemory()
 	if err == nil {
 		metric.MemoryPercent = memStat.UsedPercent
+		metric.MemoryMaxPercent = memStat.UsedPercent
 		metric.MemoryUsed = memStat.Used
 		metric.MemoryTotal = memStat.Total
 	}

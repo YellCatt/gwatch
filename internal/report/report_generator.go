@@ -429,7 +429,9 @@ func loadSystemMetrics() *SystemMetricsSnapshot {
 
 	snapshot := &SystemMetricsSnapshot{
 		CPUPercent:     current.CPUPercent,
+		CPUMaxPercent:  current.CPUPercent,
 		MemoryPercent:  current.MemoryPercent,
+		MemoryMaxPercent: current.MemoryPercent,
 		DiskPercent:    current.DiskPercent,
 		NetDownKBps:    current.NetDownKBps,
 		NetUpKBps:      current.NetUpKBps,
@@ -459,7 +461,9 @@ func loadSystemMetrics() *SystemMetricsSnapshot {
 
 	labels := make([]string, len(hourlyMetrics))
 	cpuData := make([]float64, len(hourlyMetrics))
+	cpuMaxData := make([]float64, len(hourlyMetrics))
 	memData := make([]float64, len(hourlyMetrics))
+	memMaxData := make([]float64, len(hourlyMetrics))
 	diskData := make([]float64, len(hourlyMetrics))
 	netDownData := make([]float64, len(hourlyMetrics))
 	netUpData := make([]float64, len(hourlyMetrics))
@@ -469,13 +473,21 @@ func loadSystemMetrics() *SystemMetricsSnapshot {
 	for i, m := range hourlyMetrics {
 		labels[i] = m.Timestamp.Format("01-02 15:04")
 		cpuData[i] = m.CPUPercent
+		cpuMaxData[i] = m.CPUMaxPercent
 		memData[i] = m.MemoryPercent
+		memMaxData[i] = m.MemoryMaxPercent
 		diskData[i] = m.DiskPercent
 		netDownData[i] = m.NetDownKBps
 		netUpData[i] = m.NetUpKBps
 		netDownMaxData[i] = m.NetDownMaxKBps
 		netUpMaxData[i] = m.NetUpMaxKBps
 
+		if m.CPUMaxPercent > snapshot.CPUMaxPercent {
+			snapshot.CPUMaxPercent = m.CPUMaxPercent
+		}
+		if m.MemoryMaxPercent > snapshot.MemoryMaxPercent {
+			snapshot.MemoryMaxPercent = m.MemoryMaxPercent
+		}
 		if m.NetDownMaxKBps > snapshot.NetDownMaxKBps {
 			snapshot.NetDownMaxKBps = m.NetDownMaxKBps
 		}
@@ -486,7 +498,9 @@ func loadSystemMetrics() *SystemMetricsSnapshot {
 
 	cfg := config.GlobalConfig.SystemMon
 	snapshot.CPUChart = sysmon.GenerateASCIIChartWithTime(cpuData, 20, "%", labels, cfg.CPUThreshold)
+	snapshot.CPUMaxChart = sysmon.GenerateASCIIChartWithTime(cpuMaxData, 20, "%", labels, cfg.CPUThreshold)
 	snapshot.MemoryChart = sysmon.GenerateASCIIChartWithTime(memData, 20, "%", labels, cfg.MemoryThreshold)
+	snapshot.MemoryMaxChart = sysmon.GenerateASCIIChartWithTime(memMaxData, 20, "%", labels, cfg.MemoryThreshold)
 	snapshot.DiskChart = sysmon.GenerateASCIIChartWithTime(diskData, 20, "%", labels, cfg.DiskUsageThreshold)
 	snapshot.NetDownChart = sysmon.GenerateASCIIChartWithTime(netDownData, 20, "KB/s", labels, cfg.NetworkDownThreshold)
 	snapshot.NetUpChart = sysmon.GenerateASCIIChartWithTime(netUpData, 20, "KB/s", labels, cfg.NetworkUpThreshold)

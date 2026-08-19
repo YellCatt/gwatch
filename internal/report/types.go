@@ -129,7 +129,9 @@ type AggregatedError struct {
 
 type SystemMetricsSnapshot struct {
 	CPUPercent       float64
+	CPUMaxPercent    float64
 	MemoryPercent    float64
+	MemoryMaxPercent float64
 	DiskPercent      float64
 	NetDownKBps      float64
 	NetUpKBps        float64
@@ -140,7 +142,9 @@ type SystemMetricsSnapshot struct {
 	DiskUsedBytes    uint64
 	DiskTotalBytes   uint64
 	CPUChart         string
+	CPUMaxChart      string
 	MemoryChart      string
+	MemoryMaxChart   string
 	DiskChart        string
 	NetDownChart     string
 	NetUpChart       string

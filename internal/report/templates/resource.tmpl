@@ -30,8 +30,8 @@
 {{/* 系统资源状态 */}}
 {{define "system_status"}}
 🖥️ 系统资源状态
-  CPU:  {{printf "%.2f" .CPUPercent}}%
-  内存: {{printf "%.2f" .MemoryPercent}}% ({{formatBytes .MemUsedBytes}} / {{formatBytes .MemTotalBytes}})
+  CPU:  当前 {{printf "%.2f" .CPUPercent}}% | 历史最高 {{printf "%.2f" .CPUMaxPercent}}%
+  内存: 当前 {{printf "%.2f" .MemoryPercent}}% | 历史最高 {{printf "%.2f" .MemoryMaxPercent}}% ({{formatBytes .MemUsedBytes}} / {{formatBytes .MemTotalBytes}})
   磁盘: {{printf "%.2f" .DiskPercent}}% ({{formatBytes .DiskUsedBytes}} / {{formatBytes .DiskTotalBytes}})
   网络下行: 当前 {{formatSpeed .NetDownKBps}} | 历史最高 {{formatSpeed .NetDownMaxKBps}}
   网络上行: 当前 {{formatSpeed .NetUpKBps}} | 历史最高 {{formatSpeed .NetUpMaxKBps}}
@@ -41,10 +41,14 @@
 {{end}}{{end}}
 {{if .CPUChart}}
 📈 系统资源趋势 ({{.StartTime}} ~ {{.EndTime}})
-  【CPU 使用率趋势】
+  【CPU 使用率 - 平均值趋势】
 {{.CPUChart}}
-  【内存使用率趋势】
+  【CPU 使用率 - 最高值趋势】
+{{.CPUMaxChart}}
+  【内存使用率 - 平均值趋势】
 {{.MemoryChart}}
+  【内存使用率 - 最高值趋势】
+{{.MemoryMaxChart}}
   【磁盘使用率趋势】
 {{.DiskChart}}
   【网络下行速度 - 平均值趋势】

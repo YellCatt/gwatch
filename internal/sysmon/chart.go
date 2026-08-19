@@ -161,9 +161,9 @@ func GenerateSystemReport(metrics []SystemMetric, alerts []AlertItem) string {
 	latest := metrics[len(metrics)-1]
 
 	builder.WriteString("  📊 当前状态概览\n\n")
-	builder.WriteString(fmt.Sprintf("  CPU 使用率:     %.2f %s\n", latest.CPUPercent, "%"))
-	builder.WriteString(fmt.Sprintf("  内存使用率:     %.2f %s (%s / %s)\n",
-		latest.MemoryPercent, "%",
+	builder.WriteString(fmt.Sprintf("  CPU 使用率:     当前 %.2f%% | 历史最高 %.2f%%\n", latest.CPUPercent, latest.CPUMaxPercent))
+	builder.WriteString(fmt.Sprintf("  内存使用率:     当前 %.2f%% | 历史最高 %.2f%% (%s / %s)\n",
+		latest.MemoryPercent, latest.MemoryMaxPercent,
 		util.FormatBytes(latest.MemoryUsed),
 		util.FormatBytes(latest.MemoryTotal)))
 	builder.WriteString(fmt.Sprintf("  磁盘使用率:     %.2f %s (%s / %s)\n",
@@ -190,7 +190,9 @@ func GenerateSystemReport(metrics []SystemMetric, alerts []AlertItem) string {
 	builder.WriteString("  📈 历史趋势 (时间 + 进度 + 百分比)\n\n")
 
 	cpuData := extractField(metrics, func(m SystemMetric) float64 { return m.CPUPercent })
+	cpuMaxData := extractField(metrics, func(m SystemMetric) float64 { return m.CPUMaxPercent })
 	memData := extractField(metrics, func(m SystemMetric) float64 { return m.MemoryPercent })
+	memMaxData := extractField(metrics, func(m SystemMetric) float64 { return m.MemoryMaxPercent })
 	diskData := extractField(metrics, func(m SystemMetric) float64 { return m.DiskPercent })
 	netDownData := extractField(metrics, func(m SystemMetric) float64 { return m.NetDownKBps })
 	netUpData := extractField(metrics, func(m SystemMetric) float64 { return m.NetUpKBps })
@@ -199,12 +201,20 @@ func GenerateSystemReport(metrics []SystemMetric, alerts []AlertItem) string {
 
 	timeLabels := generateTimeLabels(metrics, 20)
 
-	builder.WriteString("  【CPU 使用率趋势】\n")
+	builder.WriteString("  【CPU 使用率 - 平均值趋势】\n")
 	builder.WriteString(GenerateASCIIChartWithTime(cpuData, 20, "%", timeLabels, cfg.CPUThreshold))
 	builder.WriteString("\n")
 
-	builder.WriteString("  【内存使用率趋势】\n")
+	builder.WriteString("  【CPU 使用率 - 最高值趋势】\n")
+	builder.WriteString(GenerateASCIIChartWithTime(cpuMaxData, 20, "%", timeLabels, cfg.CPUThreshold))
+	builder.WriteString("\n")
+
+	builder.WriteString("  【内存使用率 - 平均值趋势】\n")
 	builder.WriteString(GenerateASCIIChartWithTime(memData, 20, "%", timeLabels, cfg.MemoryThreshold))
+	builder.WriteString("\n")
+
+	builder.WriteString("  【内存使用率 - 最高值趋势】\n")
+	builder.WriteString(GenerateASCIIChartWithTime(memMaxData, 20, "%", timeLabels, cfg.MemoryThreshold))
 	builder.WriteString("\n")
 
 	builder.WriteString("  【磁盘使用率趋势】\n")

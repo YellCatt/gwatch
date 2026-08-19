@@ -25,7 +25,9 @@ var (
 var metricsHeader = []string{
 	"time",
 	"cpu_percent",
+	"cpu_max_percent",
 	"memory_percent",
+	"memory_max_percent",
 	"disk_percent",
 	"net_down_kbps",
 	"net_up_kbps",
@@ -125,7 +127,7 @@ func migrateCSVHeader(path string) error {
 		colIndex[strings.TrimSpace(h)] = i
 	}
 
-	requiredCols := []string{"net_down_max_kbps", "net_up_max_kbps"}
+	requiredCols := []string{"cpu_max_percent", "memory_max_percent", "net_down_max_kbps", "net_up_max_kbps"}
 	needsRewrite := false
 	for _, col := range requiredCols {
 		if _, ok := colIndex[col]; !ok {
@@ -192,7 +194,9 @@ func recordMetric(path string, metric SystemMetric, sampleCount int) error {
 	rec := []string{
 		metric.Timestamp.Format("2006-01-02 15:04:05"),
 		strconv.FormatFloat(metric.CPUPercent, 'f', 2, 64),
+		strconv.FormatFloat(metric.CPUMaxPercent, 'f', 2, 64),
 		strconv.FormatFloat(metric.MemoryPercent, 'f', 2, 64),
+		strconv.FormatFloat(metric.MemoryMaxPercent, 'f', 2, 64),
 		strconv.FormatFloat(metric.DiskPercent, 'f', 2, 64),
 		strconv.FormatFloat(metric.NetDownKBps, 'f', 2, 64),
 		strconv.FormatFloat(metric.NetUpKBps, 'f', 2, 64),
@@ -277,7 +281,9 @@ func loadMetrics(path string, since time.Time) ([]SystemMetric, error) {
 
 		m := SystemMetric{
 			CPUPercent:     parseFloat(getCol(rec, colIndex, "cpu_percent")),
+			CPUMaxPercent:  parseFloat(getCol(rec, colIndex, "cpu_max_percent")),
 			MemoryPercent:  parseFloat(getCol(rec, colIndex, "memory_percent")),
+			MemoryMaxPercent: parseFloat(getCol(rec, colIndex, "memory_max_percent")),
 			MemoryUsed:     parseUint64(getCol(rec, colIndex, "memory_used")),
 			MemoryTotal:    parseUint64(getCol(rec, colIndex, "memory_total")),
 			DiskPercent:    parseFloat(getCol(rec, colIndex, "disk_percent")),

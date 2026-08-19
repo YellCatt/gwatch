@@ -13,7 +13,9 @@ type DiskPartition struct {
 
 type SystemMetric struct {
 	CPUPercent     float64
+	CPUMaxPercent  float64
 	MemoryPercent  float64
+	MemoryMaxPercent float64
 	MemoryUsed     uint64
 	MemoryTotal    uint64
 	DiskPercent    float64
@@ -42,7 +44,9 @@ type AlertItem struct {
 type ChartData struct {
 	Labels          []string
 	CPUData         []float64
+	CPUMaxData      []float64
 	MemoryData      []float64
+	MemoryMaxData   []float64
 	DiskData        []float64
 	NetDownData     []float64
 	NetUpData       []float64
@@ -52,7 +56,9 @@ type ChartData struct {
 
 type MetricRecord struct {
 	CPUPercent     float64
+	CPUMaxPercent  float64
 	MemoryPercent  float64
+	MemoryMaxPercent float64
 	DiskPercent    float64
 	NetDownKBps    float64
 	NetUpKBps      float64
@@ -64,8 +70,10 @@ type MetricRecord struct {
 type hourlyAggregator struct {
 	hour           time.Time
 	cpuSum         float64
+	cpuMax         float64
 	cpuCount       int
 	memSum         float64
+	memMax         float64
 	memCount       int
 	diskSum        float64
 	diskCount      int
@@ -134,8 +142,22 @@ func (a *hourlyAggregator) getPartitions() []DiskPartition {
 func (a *hourlyAggregator) add(metric SystemMetric) {
 	a.cpuSum += metric.CPUPercent
 	a.cpuCount++
+	cpuVal := metric.CPUPercent
+	if metric.CPUMaxPercent > cpuVal {
+		cpuVal = metric.CPUMaxPercent
+	}
+	if cpuVal > a.cpuMax {
+		a.cpuMax = cpuVal
+	}
 	a.memSum += metric.MemoryPercent
 	a.memCount++
+	memVal := metric.MemoryPercent
+	if metric.MemoryMaxPercent > memVal {
+		memVal = metric.MemoryMaxPercent
+	}
+	if memVal > a.memMax {
+		a.memMax = memVal
+	}
 	a.diskSum += metric.DiskPercent
 	a.diskCount++
 	a.netDownSum += metric.NetDownKBps
@@ -169,7 +191,9 @@ func (a *hourlyAggregator) add(metric SystemMetric) {
 func (a *hourlyAggregator) toSystemMetric() SystemMetric {
 	return SystemMetric{
 		CPUPercent:     safeAvg(a.cpuSum, a.cpuCount),
+		CPUMaxPercent:  a.cpuMax,
 		MemoryPercent:  safeAvg(a.memSum, a.memCount),
+		MemoryMaxPercent: a.memMax,
 		DiskPercent:    safeAvg(a.diskSum, a.diskCount),
 		NetDownKBps:    safeAvg(a.netDownSum, a.netDownCount),
 		NetUpKBps:      safeAvg(a.netUpSum, a.netUpCount),

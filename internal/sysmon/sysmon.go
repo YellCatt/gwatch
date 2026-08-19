@@ -391,8 +391,8 @@ func PrintCurrentStatus() {
 	}
 
 	fmt.Printf("\n╔══ 当前系统状态 ══╗\n")
-	fmt.Printf("║ CPU:    %6.2f%%  ║\n", metric.CPUPercent)
-	fmt.Printf("║ MEM:    %6.2f%%  ║", metric.MemoryPercent)
+	fmt.Printf("║ CPU:    %6.2f%% (最高 %6.2f%%) ║\n", metric.CPUPercent, metric.CPUMaxPercent)
+	fmt.Printf("║ MEM:    %6.2f%% (最高 %6.2f%%) ║\n", metric.MemoryPercent, metric.MemoryMaxPercent)
 	fmt.Printf("║ DISK:   %6.2f%%  ║", metric.DiskPercent)
 	fmt.Printf("║ NET↓:   %s (最高 %s) ║\n", util.FormatSpeed(metric.NetDownKBps), util.FormatSpeed(metric.NetDownMaxKBps))
 	fmt.Printf("║ NET↑:   %s (最高 %s) ║\n", util.FormatSpeed(metric.NetUpKBps), util.FormatSpeed(metric.NetUpMaxKBps))
