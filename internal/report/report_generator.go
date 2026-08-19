@@ -359,13 +359,14 @@ func (r *Report) SaveReport() (string, error) {
 		reportDir = "./reports"
 	}
 
-	if err := os.MkdirAll(reportDir, 0755); err != nil {
+	subDir := filepath.Join(reportDir, PeriodNamesEn[r.Period])
+	if err := os.MkdirAll(subDir, 0755); err != nil {
 		logger.Error("创建报告目录失败", zap.Error(err))
 		return "", err
 	}
 
 	filename := fmt.Sprintf("%s_report_%s_%s.txt", PeriodNamesEn[r.Period], r.StartDate, r.EndDate)
-	filePath := filepath.Join(reportDir, filename)
+	filePath := filepath.Join(subDir, filename)
 
 	content := r.GenerateContent()
 	if err := os.WriteFile(filePath, []byte(content), 0644); err != nil {
