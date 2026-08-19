@@ -142,6 +142,8 @@ type SystemMetricsSnapshot struct {
 	DiskChart      string
 	NetDownChart   string
 	NetUpChart     string
+	StartTime      string
+	EndTime        string
 }
 
 type SystemAlertItem struct {
