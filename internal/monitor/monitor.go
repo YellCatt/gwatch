@@ -135,6 +135,11 @@ func executeAndMonitorTask(tc psv.TestCase) {
 // persistMonitorResult 将单次监控结果持久化到 CSV，包括原始结果、
 // 监控汇总与告警汇总三个维度的存储更新。
 func persistMonitorResult(tc psv.TestCase, result testcase.TestResult, monitorResult MonitorResult) {
+	errMsg := monitorResult.AlertMsg
+	if errMsg == "" {
+		errMsg = result.Error
+	}
+
 	record := storage.MonitorResultRecord{
 		TestCaseID:     tc.ID,
 		TestCaseDesc:   tc.Desc,
@@ -144,7 +149,7 @@ func persistMonitorResult(tc psv.TestCase, result testcase.TestResult, monitorRe
 		ActualStatus:   result.ActualStatus,
 		ExpectedBody:   tc.ExpectedBody,
 		ActualBody:     result.ResponseBody,
-		ErrorMsg:       result.Error,
+		ErrorMsg:       errMsg,
 		DurationMS:     int64(result.Duration / time.Millisecond),
 		Success:        result.Passed,
 		AlertType:      monitorResult.AlertType,
