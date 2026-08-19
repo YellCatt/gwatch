@@ -12,19 +12,21 @@ type DiskPartition struct {
 }
 
 type SystemMetric struct {
-	CPUPercent    float64
-	MemoryPercent float64
-	MemoryUsed    uint64
-	MemoryTotal   uint64
-	DiskPercent   float64
-	DiskUsed      uint64
-	DiskTotal     uint64
-	NetDownKBps   float64
-	NetUpKBps     float64
-	DiskReadKBps  float64
-	DiskWriteKBps float64
-	Partitions    []DiskPartition
-	Timestamp     time.Time
+	CPUPercent     float64
+	MemoryPercent  float64
+	MemoryUsed     uint64
+	MemoryTotal    uint64
+	DiskPercent    float64
+	DiskUsed       uint64
+	DiskTotal      uint64
+	NetDownKBps    float64
+	NetUpKBps      float64
+	NetDownMaxKBps float64
+	NetUpMaxKBps   float64
+	DiskReadKBps   float64
+	DiskWriteKBps  float64
+	Partitions     []DiskPartition
+	Timestamp      time.Time
 }
 
 type AlertItem struct {
@@ -38,21 +40,25 @@ type AlertItem struct {
 }
 
 type ChartData struct {
-	Labels      []string
-	CPUData     []float64
-	MemoryData  []float64
-	DiskData    []float64
-	NetDownData []float64
-	NetUpData   []float64
+	Labels          []string
+	CPUData         []float64
+	MemoryData      []float64
+	DiskData        []float64
+	NetDownData     []float64
+	NetUpData       []float64
+	NetDownMaxData  []float64
+	NetUpMaxData    []float64
 }
 
 type MetricRecord struct {
-	CPUPercent    float64
-	MemoryPercent float64
-	DiskPercent   float64
-	NetDownKBps   float64
-	NetUpKBps     float64
-	Timestamp     time.Time
+	CPUPercent     float64
+	MemoryPercent  float64
+	DiskPercent    float64
+	NetDownKBps    float64
+	NetUpKBps      float64
+	NetDownMaxKBps float64
+	NetUpMaxKBps   float64
+	Timestamp      time.Time
 }
 
 type hourlyAggregator struct {
@@ -65,8 +71,10 @@ type hourlyAggregator struct {
 	diskCount      int
 	netDownSum     float64
 	netDownCount   int
+	netDownMax     float64
 	netUpSum       float64
 	netUpCount     int
+	netUpMax       float64
 	diskReadSum    float64
 	diskReadCount  int
 	diskWriteSum   float64
@@ -122,6 +130,7 @@ func (a *hourlyAggregator) getPartitions() []DiskPartition {
 }
 
 // add 将一条系统指标累加进小时聚合器的对应字段。
+// 若指标已包含 max 值（来自低层聚合），则使用 max 字段参与最大比较。
 func (a *hourlyAggregator) add(metric SystemMetric) {
 	a.cpuSum += metric.CPUPercent
 	a.cpuCount++
@@ -131,8 +140,22 @@ func (a *hourlyAggregator) add(metric SystemMetric) {
 	a.diskCount++
 	a.netDownSum += metric.NetDownKBps
 	a.netDownCount++
+	downVal := metric.NetDownKBps
+	if metric.NetDownMaxKBps > downVal {
+		downVal = metric.NetDownMaxKBps
+	}
+	if downVal > a.netDownMax {
+		a.netDownMax = downVal
+	}
 	a.netUpSum += metric.NetUpKBps
 	a.netUpCount++
+	upVal := metric.NetUpKBps
+	if metric.NetUpMaxKBps > upVal {
+		upVal = metric.NetUpMaxKBps
+	}
+	if upVal > a.netUpMax {
+		a.netUpMax = upVal
+	}
 	a.diskReadSum += metric.DiskReadKBps
 	a.diskReadCount++
 	a.diskWriteSum += metric.DiskWriteKBps
@@ -145,15 +168,17 @@ func (a *hourlyAggregator) add(metric SystemMetric) {
 // toSystemMetric 基于累加结果计算各字段的平均值，生成聚合后的 SystemMetric。
 func (a *hourlyAggregator) toSystemMetric() SystemMetric {
 	return SystemMetric{
-		CPUPercent:    safeAvg(a.cpuSum, a.cpuCount),
-		MemoryPercent: safeAvg(a.memSum, a.memCount),
-		DiskPercent:   safeAvg(a.diskSum, a.diskCount),
-		NetDownKBps:   safeAvg(a.netDownSum, a.netDownCount),
-		NetUpKBps:     safeAvg(a.netUpSum, a.netUpCount),
-		DiskReadKBps:  safeAvg(a.diskReadSum, a.diskReadCount),
-		DiskWriteKBps: safeAvg(a.diskWriteSum, a.diskWriteCount),
-		Partitions:    a.getPartitions(),
-		Timestamp:     a.hour,
+		CPUPercent:     safeAvg(a.cpuSum, a.cpuCount),
+		MemoryPercent:  safeAvg(a.memSum, a.memCount),
+		DiskPercent:    safeAvg(a.diskSum, a.diskCount),
+		NetDownKBps:    safeAvg(a.netDownSum, a.netDownCount),
+		NetUpKBps:      safeAvg(a.netUpSum, a.netUpCount),
+		NetDownMaxKBps: a.netDownMax,
+		NetUpMaxKBps:   a.netUpMax,
+		DiskReadKBps:   safeAvg(a.diskReadSum, a.diskReadCount),
+		DiskWriteKBps:  safeAvg(a.diskWriteSum, a.diskWriteCount),
+		Partitions:     a.getPartitions(),
+		Timestamp:      a.hour,
 	}
 }
 

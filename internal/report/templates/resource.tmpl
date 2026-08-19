@@ -33,7 +33,8 @@
   CPU:  {{printf "%.2f" .CPUPercent}}%
   内存: {{printf "%.2f" .MemoryPercent}}% ({{formatBytes .MemUsedBytes}} / {{formatBytes .MemTotalBytes}})
   磁盘: {{printf "%.2f" .DiskPercent}}% ({{formatBytes .DiskUsedBytes}} / {{formatBytes .DiskTotalBytes}})
-  网络: ↓{{printf "%.2f" .NetDownKBps}} KB/s  ↑{{printf "%.2f" .NetUpKBps}} KB/s
+  网络下行: 当前 {{formatSpeed .NetDownKBps}} | 历史最高 {{formatSpeed .NetDownMaxKBps}}
+  网络上行: 当前 {{formatSpeed .NetUpKBps}} | 历史最高 {{formatSpeed .NetUpMaxKBps}}
 {{if .Partitions}}
   各分区:
 {{range .Partitions}}    {{.MountPoint}} ({{.Fstype}}): {{printf "%.2f" .Percent}}% ({{formatBytes .UsedBytes}} / {{formatBytes .TotalBytes}})
@@ -46,10 +47,14 @@
 {{.MemoryChart}}
   【磁盘使用率趋势】
 {{.DiskChart}}
-  【网络下行速度趋势】
+  【网络下行速度 - 平均值趋势】
 {{.NetDownChart}}
-  【网络上行速度趋势】
+  【网络下行速度 - 最高值趋势】
+{{.NetDownMaxChart}}
+  【网络上行速度 - 平均值趋势】
 {{.NetUpChart}}
+  【网络上行速度 - 最高值趋势】
+{{.NetUpMaxChart}}
 {{end}}
 {{end}}
 

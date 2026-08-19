@@ -29,6 +29,8 @@ var metricsHeader = []string{
 	"disk_percent",
 	"net_down_kbps",
 	"net_up_kbps",
+	"net_down_max_kbps",
+	"net_up_max_kbps",
 	"disk_read_kbps",
 	"disk_write_kbps",
 	"memory_used",
@@ -74,9 +76,13 @@ func InitStorage() bool {
 }
 
 // ensureCSV 确保指定路径的 CSV 文件存在且非空；若不存在则创建并写入表头。
+// 若表头过旧（缺少新增字段），则重写整个文件以适配新表头。
 func ensureCSV(path string) error {
 	info, err := os.Stat(path)
 	if err == nil && info.Size() > 0 {
+		if err := migrateCSVHeader(path); err != nil {
+			return err
+		}
 		return nil
 	}
 
@@ -92,6 +98,73 @@ func ensureCSV(path string) error {
 	}
 	w.Flush()
 	return w.Error()
+}
+
+// migrateCSVHeader 检查现有 CSV 的表头是否包含所有必要字段，若缺失则重写整个文件。
+func migrateCSVHeader(path string) error {
+	file, err := os.Open(path)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	r := csv.NewReader(file)
+	r.FieldsPerRecord = -1
+	all, err := r.ReadAll()
+	if err != nil {
+		return err
+	}
+
+	if len(all) == 0 {
+		return nil
+	}
+
+	header := all[0]
+	colIndex := make(map[string]int)
+	for i, h := range header {
+		colIndex[strings.TrimSpace(h)] = i
+	}
+
+	requiredCols := []string{"net_down_max_kbps", "net_up_max_kbps"}
+	needsRewrite := false
+	for _, col := range requiredCols {
+		if _, ok := colIndex[col]; !ok {
+			needsRewrite = true
+			break
+		}
+	}
+
+	if !needsRewrite {
+		return nil
+	}
+
+	for i, rec := range all {
+		if i == 0 {
+			continue
+		}
+		for _, col := range requiredCols {
+			if _, ok := colIndex[col]; !ok {
+				rec = append(rec, "")
+			}
+		}
+		all[i] = rec
+	}
+
+	all[0] = metricsHeader
+
+	outFile, err := os.Create(path)
+	if err != nil {
+		return err
+	}
+	defer outFile.Close()
+
+	w := csv.NewWriter(outFile)
+	if err := w.WriteAll(all); err != nil {
+		return err
+	}
+
+	logger.Info("CSV 文件表头已迁移", zap.String("路径", path))
+	return nil
 }
 
 // recordMetric 将一条系统指标记录追加写入到指定 CSV 文件（线程安全）。
@@ -123,6 +196,8 @@ func recordMetric(path string, metric SystemMetric, sampleCount int) error {
 		strconv.FormatFloat(metric.DiskPercent, 'f', 2, 64),
 		strconv.FormatFloat(metric.NetDownKBps, 'f', 2, 64),
 		strconv.FormatFloat(metric.NetUpKBps, 'f', 2, 64),
+		strconv.FormatFloat(metric.NetDownMaxKBps, 'f', 2, 64),
+		strconv.FormatFloat(metric.NetUpMaxKBps, 'f', 2, 64),
 		strconv.FormatFloat(metric.DiskReadKBps, 'f', 2, 64),
 		strconv.FormatFloat(metric.DiskWriteKBps, 'f', 2, 64),
 		strconv.FormatUint(metric.MemoryUsed, 10),
@@ -201,18 +276,20 @@ func loadMetrics(path string, since time.Time) ([]SystemMetric, error) {
 		}
 
 		m := SystemMetric{
-			CPUPercent:    parseFloat(getCol(rec, colIndex, "cpu_percent")),
-			MemoryPercent: parseFloat(getCol(rec, colIndex, "memory_percent")),
-			MemoryUsed:    parseUint64(getCol(rec, colIndex, "memory_used")),
-			MemoryTotal:   parseUint64(getCol(rec, colIndex, "memory_total")),
-			DiskPercent:   parseFloat(getCol(rec, colIndex, "disk_percent")),
-			DiskUsed:      parseUint64(getCol(rec, colIndex, "disk_used")),
-			DiskTotal:     parseUint64(getCol(rec, colIndex, "disk_total")),
-			NetDownKBps:   parseFloat(getCol(rec, colIndex, "net_down_kbps")),
-			NetUpKBps:     parseFloat(getCol(rec, colIndex, "net_up_kbps")),
-			DiskReadKBps:  parseFloat(getCol(rec, colIndex, "disk_read_kbps")),
-			DiskWriteKBps: parseFloat(getCol(rec, colIndex, "disk_write_kbps")),
-			Timestamp:     ts,
+			CPUPercent:     parseFloat(getCol(rec, colIndex, "cpu_percent")),
+			MemoryPercent:  parseFloat(getCol(rec, colIndex, "memory_percent")),
+			MemoryUsed:     parseUint64(getCol(rec, colIndex, "memory_used")),
+			MemoryTotal:    parseUint64(getCol(rec, colIndex, "memory_total")),
+			DiskPercent:    parseFloat(getCol(rec, colIndex, "disk_percent")),
+			DiskUsed:       parseUint64(getCol(rec, colIndex, "disk_used")),
+			DiskTotal:      parseUint64(getCol(rec, colIndex, "disk_total")),
+			NetDownKBps:    parseFloat(getCol(rec, colIndex, "net_down_kbps")),
+			NetUpKBps:      parseFloat(getCol(rec, colIndex, "net_up_kbps")),
+			NetDownMaxKBps: parseFloat(getCol(rec, colIndex, "net_down_max_kbps")),
+			NetUpMaxKBps:   parseFloat(getCol(rec, colIndex, "net_up_max_kbps")),
+			DiskReadKBps:   parseFloat(getCol(rec, colIndex, "disk_read_kbps")),
+			DiskWriteKBps:  parseFloat(getCol(rec, colIndex, "disk_write_kbps")),
+			Timestamp:      ts,
 		}
 
 		if pj := getCol(rec, colIndex, "partitions_json"); pj != "" {

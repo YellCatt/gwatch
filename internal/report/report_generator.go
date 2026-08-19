@@ -433,6 +433,8 @@ func loadSystemMetrics() *SystemMetricsSnapshot {
 		DiskPercent:    current.DiskPercent,
 		NetDownKBps:    current.NetDownKBps,
 		NetUpKBps:      current.NetUpKBps,
+		NetDownMaxKBps: current.NetDownKBps,
+		NetUpMaxKBps:   current.NetUpKBps,
 		MemUsedBytes:   current.MemoryUsed,
 		MemTotalBytes:  current.MemoryTotal,
 		DiskUsedBytes:  current.DiskUsed,
@@ -461,6 +463,8 @@ func loadSystemMetrics() *SystemMetricsSnapshot {
 	diskData := make([]float64, len(hourlyMetrics))
 	netDownData := make([]float64, len(hourlyMetrics))
 	netUpData := make([]float64, len(hourlyMetrics))
+	netDownMaxData := make([]float64, len(hourlyMetrics))
+	netUpMaxData := make([]float64, len(hourlyMetrics))
 
 	for i, m := range hourlyMetrics {
 		labels[i] = m.Timestamp.Format("01-02 15:04")
@@ -469,6 +473,15 @@ func loadSystemMetrics() *SystemMetricsSnapshot {
 		diskData[i] = m.DiskPercent
 		netDownData[i] = m.NetDownKBps
 		netUpData[i] = m.NetUpKBps
+		netDownMaxData[i] = m.NetDownMaxKBps
+		netUpMaxData[i] = m.NetUpMaxKBps
+
+		if m.NetDownMaxKBps > snapshot.NetDownMaxKBps {
+			snapshot.NetDownMaxKBps = m.NetDownMaxKBps
+		}
+		if m.NetUpMaxKBps > snapshot.NetUpMaxKBps {
+			snapshot.NetUpMaxKBps = m.NetUpMaxKBps
+		}
 	}
 
 	cfg := config.GlobalConfig.SystemMon
@@ -477,6 +490,8 @@ func loadSystemMetrics() *SystemMetricsSnapshot {
 	snapshot.DiskChart = sysmon.GenerateASCIIChartWithTime(diskData, 20, "%", labels, cfg.DiskUsageThreshold)
 	snapshot.NetDownChart = sysmon.GenerateASCIIChartWithTime(netDownData, 20, "KB/s", labels, cfg.NetworkDownThreshold)
 	snapshot.NetUpChart = sysmon.GenerateASCIIChartWithTime(netUpData, 20, "KB/s", labels, cfg.NetworkUpThreshold)
+	snapshot.NetDownMaxChart = sysmon.GenerateASCIIChartWithTime(netDownMaxData, 20, "KB/s", labels, cfg.NetworkDownThreshold)
+	snapshot.NetUpMaxChart = sysmon.GenerateASCIIChartWithTime(netUpMaxData, 20, "KB/s", labels, cfg.NetworkUpThreshold)
 
 	snapshot.StartTime = hourlyMetrics[0].Timestamp.Format("2006-01-02 15:04")
 	snapshot.EndTime = hourlyMetrics[len(hourlyMetrics)-1].Timestamp.Format("2006-01-02 15:04")

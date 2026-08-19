@@ -181,8 +181,8 @@ func GenerateSystemReport(metrics []SystemMetric, alerts []AlertItem) string {
 		}
 	}
 
-	builder.WriteString(fmt.Sprintf("  网络下行速度:   %s\n", util.FormatSpeed(latest.NetDownKBps)))
-	builder.WriteString(fmt.Sprintf("  网络上行速度:   %s\n", util.FormatSpeed(latest.NetUpKBps)))
+	builder.WriteString(fmt.Sprintf("  网络下行速度:   当前 %s | 历史最高 %s\n", util.FormatSpeed(latest.NetDownKBps), util.FormatSpeed(latest.NetDownMaxKBps)))
+	builder.WriteString(fmt.Sprintf("  网络上行速度:   当前 %s | 历史最高 %s\n", util.FormatSpeed(latest.NetUpKBps), util.FormatSpeed(latest.NetUpMaxKBps)))
 	builder.WriteString(fmt.Sprintf("  磁盘读取速度:   %s\n", util.FormatSpeed(latest.DiskReadKBps)))
 	builder.WriteString(fmt.Sprintf("  磁盘写入速度:   %s\n", util.FormatSpeed(latest.DiskWriteKBps)))
 	builder.WriteString("\n")
@@ -211,12 +211,23 @@ func GenerateSystemReport(metrics []SystemMetric, alerts []AlertItem) string {
 	builder.WriteString(GenerateASCIIChartWithTime(diskData, 20, "%", timeLabels, cfg.DiskUsageThreshold))
 	builder.WriteString("\n")
 
-	builder.WriteString("  【网络下行速度趋势】\n")
+	netDownMaxData := extractField(metrics, func(m SystemMetric) float64 { return m.NetDownMaxKBps })
+	netUpMaxData := extractField(metrics, func(m SystemMetric) float64 { return m.NetUpMaxKBps })
+
+	builder.WriteString("  【网络下行速度 - 平均值趋势】\n")
 	builder.WriteString(GenerateASCIIChartWithTime(netDownData, 20, "KB/s", timeLabels, cfg.NetworkDownThreshold))
 	builder.WriteString("\n")
 
-	builder.WriteString("  【网络上行速度趋势】\n")
+	builder.WriteString("  【网络下行速度 - 最高值趋势】\n")
+	builder.WriteString(GenerateASCIIChartWithTime(netDownMaxData, 20, "KB/s", timeLabels, cfg.NetworkDownThreshold))
+	builder.WriteString("\n")
+
+	builder.WriteString("  【网络上行速度 - 平均值趋势】\n")
 	builder.WriteString(GenerateASCIIChartWithTime(netUpData, 20, "KB/s", timeLabels, cfg.NetworkUpThreshold))
+	builder.WriteString("\n")
+
+	builder.WriteString("  【网络上行速度 - 最高值趋势】\n")
+	builder.WriteString(GenerateASCIIChartWithTime(netUpMaxData, 20, "KB/s", timeLabels, cfg.NetworkUpThreshold))
 	builder.WriteString("\n")
 
 	if len(alerts) > 0 {

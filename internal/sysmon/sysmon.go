@@ -394,8 +394,8 @@ func PrintCurrentStatus() {
 	fmt.Printf("║ CPU:    %6.2f%%  ║\n", metric.CPUPercent)
 	fmt.Printf("║ MEM:    %6.2f%%  ║", metric.MemoryPercent)
 	fmt.Printf("║ DISK:   %6.2f%%  ║", metric.DiskPercent)
-	fmt.Printf("║ NET↓:   %6.2f KB/s  ║", metric.NetDownKBps)
-	fmt.Printf("║ NET↑:   %6.2f KB/s  ║\n", metric.NetUpKBps)
+	fmt.Printf("║ NET↓:   %s (最高 %s) ║\n", util.FormatSpeed(metric.NetDownKBps), util.FormatSpeed(metric.NetDownMaxKBps))
+	fmt.Printf("║ NET↑:   %s (最高 %s) ║\n", util.FormatSpeed(metric.NetUpKBps), util.FormatSpeed(metric.NetUpMaxKBps))
 	if len(metric.Partitions) > 0 {
 		fmt.Printf("║ 分区信息: ║\n")
 		for _, p := range metric.Partitions {

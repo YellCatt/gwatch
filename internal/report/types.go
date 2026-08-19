@@ -128,23 +128,27 @@ type AggregatedError struct {
 }
 
 type SystemMetricsSnapshot struct {
-	CPUPercent     float64
-	MemoryPercent  float64
-	DiskPercent    float64
-	NetDownKBps    float64
-	NetUpKBps      float64
-	MemUsedBytes   uint64
-	MemTotalBytes  uint64
-	DiskUsedBytes  uint64
-	DiskTotalBytes uint64
-	CPUChart       string
-	MemoryChart    string
-	DiskChart      string
-	NetDownChart   string
-	NetUpChart     string
-	StartTime      string
-	EndTime        string
-	Partitions     []PartitionInfo
+	CPUPercent       float64
+	MemoryPercent    float64
+	DiskPercent      float64
+	NetDownKBps      float64
+	NetUpKBps        float64
+	NetDownMaxKBps   float64
+	NetUpMaxKBps     float64
+	MemUsedBytes     uint64
+	MemTotalBytes    uint64
+	DiskUsedBytes    uint64
+	DiskTotalBytes   uint64
+	CPUChart         string
+	MemoryChart      string
+	DiskChart        string
+	NetDownChart     string
+	NetUpChart       string
+	NetDownMaxChart  string
+	NetUpMaxChart    string
+	StartTime        string
+	EndTime          string
+	Partitions       []PartitionInfo
 }
 
 type PartitionInfo struct {
