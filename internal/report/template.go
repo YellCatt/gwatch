@@ -123,6 +123,7 @@ type scraperAlertRow struct {
 }
 
 type startupReportData struct {
+	Version            string
 	GeneratedAt        string
 	DeviceName         string
 	Now                string
@@ -351,6 +352,7 @@ func buildBaseData(r *Report) baseReportData {
 func buildStartupData(r *Report, info *StartupInfo) startupReportData {
 	cfg := config.GlobalConfig
 	data := startupReportData{
+		Version:            config.Version,
 		GeneratedAt:        timeutil.FormatDateTime(r.GeneratedAt),
 		DeviceName:         util.GetDeviceName(),
 		Now:                timeutil.FormatDateTime(timeutil.Now()),
