@@ -17,6 +17,10 @@ import (
 	"gwatch/internal/timeutil"
 )
 
+const (
+	maxProcessNetBytesPerSample uint64 = 1024 * 1024 * 1024
+)
+
 // CollectMetrics 采集一次系统指标快照，包括 CPU、内存、磁盘使用率以及网络/磁盘的读写速度。
 func CollectMetrics() (SystemMetric, error) {
 	metric := SystemMetric{
@@ -91,6 +95,14 @@ func calcNetworkSpeed() netSpeedResult {
 		}
 	}
 
+	const maxNetBytesPerSample uint64 = 1024 * 1024 * 1024 * 1024
+	if downDiff > maxNetBytesPerSample {
+		downDiff = 0
+	}
+	if upDiff > maxNetBytesPerSample {
+		upDiff = 0
+	}
+
 	return netSpeedResult{
 		Down: float64(downDiff) / 1024.0,
 		Up:   float64(upDiff) / 1024.0,
@@ -124,6 +136,14 @@ func calcDiskSpeed() diskSpeedResult {
 				writeDiff += v2.WriteBytes - v1.WriteBytes
 			}
 		}
+	}
+
+	const maxDiskBytesPerSample uint64 = 1024 * 1024 * 1024 * 1024
+	if readDiff > maxDiskBytesPerSample {
+		readDiff = 0
+	}
+	if writeDiff > maxDiskBytesPerSample {
+		writeDiff = 0
 	}
 
 	return diskSpeedResult{
@@ -278,13 +298,17 @@ func CollectAllProcesses() []ProcessInfo {
 		if counters, err := processNetIOCounters(p); err == nil && counters != nil {
 			for _, snap := range netSnaps {
 				if snap.pid == p.Pid {
-					downDiff := counters.BytesRecv - snap.downBytes
-					upDiff := counters.BytesSent - snap.upBytes
-					if downDiff > 1024 {
-						infos[snapIdx].NetDownKBps = float64(downDiff) / 1024.0
+					if counters.BytesRecv >= snap.downBytes {
+						downDiff := counters.BytesRecv - snap.downBytes
+						if downDiff > 1024 && downDiff < maxProcessNetBytesPerSample {
+							infos[snapIdx].NetDownKBps = float64(downDiff) / 1024.0
+						}
 					}
-					if upDiff > 1024 {
-						infos[snapIdx].NetUpKBps = float64(upDiff) / 1024.0
+					if counters.BytesSent >= snap.upBytes {
+						upDiff := counters.BytesSent - snap.upBytes
+						if upDiff > 1024 && upDiff < maxProcessNetBytesPerSample {
+							infos[snapIdx].NetUpKBps = float64(upDiff) / 1024.0
+						}
 					}
 					break
 				}
