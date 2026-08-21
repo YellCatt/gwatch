@@ -54,13 +54,15 @@ type AlertGroupData struct {
 }
 
 type AlertRowData struct {
-	TargetName  string
-	MetricAlias string
-	Level       string
-	Value       float64
-	Threshold   float64
-	Unit        string
-	Message     string
+	TargetName        string
+	MetricAlias       string
+	Level             string
+	Value             float64
+	Threshold         float64
+	Unit              string
+	Message           string
+	TopProcesses      []string
+	TopProcessesLabel string
 }
 
 func renderAlertTemplate(data UnifiedAlertEmailData) string {

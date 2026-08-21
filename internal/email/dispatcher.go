@@ -22,17 +22,19 @@ const (
 )
 
 type UnifiedAlert struct {
-	Source      AlertSource
-	SourceName  string
-	TargetName  string
-	MetricName  string
-	MetricAlias string
-	Value       float64
-	Unit        string
-	Threshold   float64
-	AlertLevel  string
-	Message     string
-	Timestamp   time.Time
+	Source           AlertSource
+	SourceName       string
+	TargetName       string
+	MetricName       string
+	MetricAlias      string
+	Value            float64
+	Unit             string
+	Threshold        float64
+	AlertLevel       string
+	Message          string
+	Timestamp        time.Time
+	TopProcesses     []string
+	TopProcessesLabel string
 }
 
 var (
@@ -190,13 +192,15 @@ func sendUnifiedAlertEmail(alerts []UnifiedAlert) error {
 		var groupRows []AlertRowData
 		for _, a := range g.alerts {
 			row := AlertRowData{
-				TargetName:  a.TargetName,
-				MetricAlias: a.MetricAlias,
-				Level:       a.AlertLevel,
-				Value:       a.Value,
-				Threshold:   a.Threshold,
-				Unit:        a.Unit,
-				Message:     a.Message,
+				TargetName:        a.TargetName,
+				MetricAlias:       a.MetricAlias,
+				Level:             a.AlertLevel,
+				Value:             a.Value,
+				Threshold:         a.Threshold,
+				Unit:              a.Unit,
+				Message:           a.Message,
+				TopProcesses:      a.TopProcesses,
+				TopProcessesLabel: a.TopProcessesLabel,
 			}
 			groupRows = append(groupRows, row)
 			allRows = append(allRows, row)

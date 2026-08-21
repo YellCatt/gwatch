@@ -18,6 +18,14 @@
 {{- if .Message}}
    消息:     {{.Message}}
 {{- end}}
+{{- if .TopProcesses}}
+
+   ===== {{if .TopProcessesLabel}}{{.TopProcessesLabel}}{{else}}CPU 占用 Top 5 进程{{end}} =====
+{{range .TopProcesses}}
+{{.}}
+{{- end}}
+   ================================
+{{- end}}
 
 {{end}}{{end}}
 

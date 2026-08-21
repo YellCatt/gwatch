@@ -31,14 +31,26 @@ type SystemMetric struct {
 	Timestamp      time.Time
 }
 
+type ProcessInfo struct {
+	PID         int32
+	Name        string
+	CPUPercent  float64
+	MemPercent  float64
+	MemUsed     uint64
+	NetDownKBps float64
+	NetUpKBps   float64
+}
+
 type AlertItem struct {
-	Metric    string
-	Value     float64
-	Threshold float64
-	Unit      string
-	Message   string
-	Level     string
-	Timestamp time.Time
+	Metric         string
+	Value          float64
+	Threshold      float64
+	Unit           string
+	Message        string
+	Level          string
+	Timestamp      time.Time
+	TopProcesses   []ProcessInfo
+	ProcessLabel   string
 }
 
 type ChartData struct {

@@ -1,6 +1,7 @@
 package sysmon
 
 import (
+	"sort"
 	"strings"
 	"time"
 
@@ -9,6 +10,7 @@ import (
 	"github.com/shirou/gopsutil/v3/host"
 	"github.com/shirou/gopsutil/v3/mem"
 	"github.com/shirou/gopsutil/v3/net"
+	"github.com/shirou/gopsutil/v3/process"
 	"go.uber.org/zap"
 
 	"gwatch/internal/logger"
@@ -201,4 +203,127 @@ func collectPartitions() []DiskPartition {
 	}
 
 	return result
+}
+
+type ProcessSortBy int
+
+const (
+	SortByCPU ProcessSortBy = iota
+	SortByMem
+	SortByNet
+)
+
+type procNetSnap struct {
+	pid       int32
+	downBytes uint64
+	upBytes   uint64
+}
+
+func CollectAllProcesses() []ProcessInfo {
+	procs, err := process.Processes()
+	if err != nil {
+		logger.Warn("获取进程列表失败", zap.Error(err))
+		return nil
+	}
+
+	pidIndex := make(map[int32]int)
+	var infos []ProcessInfo
+	var netSnaps []procNetSnap
+
+	for _, p := range procs {
+		name, err := p.Name()
+		if err != nil {
+			continue
+		}
+
+		pid := p.Pid
+		cpuPercent, _ := p.CPUPercent()
+		memPercent, _ := p.MemoryPercent()
+		memInfo, _ := p.MemoryInfo()
+		var memUsed uint64
+		if memInfo != nil {
+			memUsed = memInfo.RSS
+		}
+
+		idx := len(infos)
+		pidIndex[pid] = idx
+		infos = append(infos, ProcessInfo{
+			PID:        pid,
+			Name:       name,
+			CPUPercent: cpuPercent,
+			MemPercent: memPercent,
+			MemUsed:    memUsed,
+		})
+
+		if counters, err := p.NetIOCounters(); err == nil && counters != nil {
+			netSnaps = append(netSnaps, procNetSnap{
+				pid:       pid,
+				downBytes: counters.BytesRecv,
+				upBytes:   counters.BytesSent,
+			})
+		}
+	}
+
+	if len(netSnaps) > 0 {
+		time.Sleep(1 * time.Second)
+
+		for _, p := range procs {
+			if counters, err := p.NetIOCounters(); err == nil && counters != nil {
+				snapIdx, ok := pidIndex[p.Pid]
+				if !ok {
+					continue
+				}
+				for _, snap := range netSnaps {
+					if snap.pid == p.Pid {
+						downDiff := counters.BytesRecv - snap.downBytes
+						upDiff := counters.BytesSent - snap.upBytes
+						if downDiff > 1024 {
+							infos[snapIdx].NetDownKBps = float64(downDiff) / 1024.0
+						}
+						if upDiff > 1024 {
+							infos[snapIdx].NetUpKBps = float64(upDiff) / 1024.0
+						}
+						break
+					}
+				}
+			}
+		}
+	}
+
+	return infos
+}
+
+func SortProcesses(procs []ProcessInfo, sortBy ProcessSortBy) []ProcessInfo {
+	sorted := make([]ProcessInfo, len(procs))
+	copy(sorted, procs)
+
+	sort.Slice(sorted, func(i, j int) bool {
+		switch sortBy {
+		case SortByMem:
+			return sorted[i].MemPercent > sorted[j].MemPercent
+		case SortByNet:
+			netI := sorted[i].NetDownKBps + sorted[i].NetUpKBps
+			netJ := sorted[j].NetDownKBps + sorted[j].NetUpKBps
+			return netI > netJ
+		default:
+			return sorted[i].CPUPercent > sorted[j].CPUPercent
+		}
+	})
+
+	return sorted
+}
+
+func CollectTopProcesses(n int) []ProcessInfo {
+	if n <= 0 {
+		n = 5
+	}
+
+	infos := CollectAllProcesses()
+	sorted := SortProcesses(infos, SortByCPU)
+
+	if len(sorted) > n {
+		sorted = sorted[:n]
+	}
+
+	return sorted
 }

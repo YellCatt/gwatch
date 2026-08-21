@@ -250,6 +250,22 @@ func GenerateSystemReport(metrics []SystemMetric, alerts []AlertItem) string {
 				builder.WriteString(fmt.Sprintf("  [%s] %s: %.2f %s (阈值: %.2f %s)\n",
 					a.Level, a.Metric, a.Value, a.Unit, a.Threshold, a.Unit))
 			}
+			if len(a.TopProcesses) > 0 {
+				builder.WriteString(fmt.Sprintf("    %s:\n", a.ProcessLabel))
+				for _, p := range a.TopProcesses {
+					switch a.Metric {
+					case "内存使用率":
+						builder.WriteString(fmt.Sprintf("      %d. %s (MEM:%.2f%%, CPU:%.2f%%, MEM:%s)\n",
+							p.PID, p.Name, p.MemPercent, p.CPUPercent, util.FormatBytes(p.MemUsed)))
+					case "网络下行速度", "网络上行速度":
+						builder.WriteString(fmt.Sprintf("      %d. %s (NET↓:%s, NET↑:%s, CPU:%.2f%%, MEM:%.2f%%)\n",
+							p.PID, p.Name, util.FormatSpeed(p.NetDownKBps), util.FormatSpeed(p.NetUpKBps), p.CPUPercent, p.MemPercent))
+					default:
+						builder.WriteString(fmt.Sprintf("      %d. %s (CPU:%.2f%%, MEM:%.2f%%, NET↓:%s, NET↑:%s)\n",
+							p.PID, p.Name, p.CPUPercent, p.MemPercent, util.FormatSpeed(p.NetDownKBps), util.FormatSpeed(p.NetUpKBps)))
+					}
+				}
+			}
 		}
 		builder.WriteString("\n")
 	}

@@ -393,7 +393,7 @@ func PrintCurrentStatus() {
 	fmt.Printf("\n╔══ 当前系统状态 ══╗\n")
 	fmt.Printf("║ CPU:    %6.2f%% (最高 %6.2f%%) ║\n", metric.CPUPercent, metric.CPUMaxPercent)
 	fmt.Printf("║ MEM:    %6.2f%% (最高 %6.2f%%) ║\n", metric.MemoryPercent, metric.MemoryMaxPercent)
-	fmt.Printf("║ DISK:   %6.2f%%  ║", metric.DiskPercent)
+	fmt.Printf("║ DISK:   %6.2f%%  ║\n", metric.DiskPercent)
 	fmt.Printf("║ NET↓:   %s (最高 %s) ║\n", util.FormatSpeed(metric.NetDownKBps), util.FormatSpeed(metric.NetDownMaxKBps))
 	fmt.Printf("║ NET↑:   %s (最高 %s) ║\n", util.FormatSpeed(metric.NetUpKBps), util.FormatSpeed(metric.NetUpMaxKBps))
 	if len(metric.Partitions) > 0 {
@@ -402,6 +402,39 @@ func PrintCurrentStatus() {
 			fmt.Printf("║   %s: %.2f%% (%s / %s) ║\n",
 				p.MountPoint, p.Percent,
 				util.FormatBytes(p.Used), util.FormatBytes(p.Total))
+		}
+	}
+	topProcs := CollectAllProcesses()
+	if len(topProcs) > 0 {
+		cpuTop := SortProcesses(topProcs, SortByCPU)
+		memTop := SortProcesses(topProcs, SortByMem)
+		netTop := SortProcesses(topProcs, SortByNet)
+
+		if len(cpuTop) > 5 {
+			cpuTop = cpuTop[:5]
+		}
+		if len(memTop) > 5 {
+			memTop = memTop[:5]
+		}
+		if len(netTop) > 5 {
+			netTop = netTop[:5]
+		}
+
+		fmt.Printf("║ 进程占用 Top 5: ║\n")
+		fmt.Printf("║   [CPU] ║\n")
+		for _, p := range cpuTop {
+			fmt.Printf("║     %-20s CPU:%5.2f%% MEM:%5.2f%% NET↓:%s NET↑:%s ║\n",
+				p.Name, p.CPUPercent, p.MemPercent, util.FormatSpeed(p.NetDownKBps), util.FormatSpeed(p.NetUpKBps))
+		}
+		fmt.Printf("║   [MEM] ║\n")
+		for _, p := range memTop {
+			fmt.Printf("║     %-20s MEM:%5.2f%% CPU:%5.2f%% MEM:%s ║\n",
+				p.Name, p.MemPercent, p.CPUPercent, util.FormatBytes(p.MemUsed))
+		}
+		fmt.Printf("║   [NET] ║\n")
+		for _, p := range netTop {
+			fmt.Printf("║     %-20s NET↓:%s NET↑:%s CPU:%5.2f%% MEM:%5.2f%% ║\n",
+				p.Name, util.FormatSpeed(p.NetDownKBps), util.FormatSpeed(p.NetUpKBps), p.CPUPercent, p.MemPercent)
 		}
 	}
 	fmt.Printf("╚══════════════════╝\n")

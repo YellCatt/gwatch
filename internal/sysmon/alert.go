@@ -113,6 +113,33 @@ func CheckAlerts(metric SystemMetric) []AlertItem {
 		})
 	}
 
+	if len(alerts) > 0 {
+		allProcs := CollectAllProcesses()
+		for i := range alerts {
+			var sortBy ProcessSortBy
+			var label string
+			switch alerts[i].Metric {
+			case "CPU使用率":
+				sortBy = SortByCPU
+				label = "CPU 占用 Top 5 进程"
+			case "内存使用率":
+				sortBy = SortByMem
+				label = "内存占用 Top 5 进程"
+			case "网络下行速度", "网络上行速度":
+				sortBy = SortByNet
+				label = "网络占用 Top 5 进程"
+			default:
+				continue
+			}
+			sorted := SortProcesses(allProcs, sortBy)
+			if len(sorted) > 5 {
+				sorted = sorted[:5]
+			}
+			alerts[i].TopProcesses = sorted
+			alerts[i].ProcessLabel = label
+		}
+	}
+
 	return alerts
 }
 
@@ -129,7 +156,7 @@ func DispatchSystemAlerts(alerts []AlertItem) {
 	}
 
 	for _, a := range alerts {
-		email.DispatchAlert(email.UnifiedAlert{
+		emailAlert := email.UnifiedAlert{
 			Source:      email.SourceSystem,
 			SourceName:  "系统资源监控",
 			TargetName:  a.Metric,
@@ -141,7 +168,26 @@ func DispatchSystemAlerts(alerts []AlertItem) {
 			AlertLevel:  a.Level,
 			Message:     a.Message,
 			Timestamp:   a.Timestamp,
-		})
+		}
+		if len(a.TopProcesses) > 0 {
+			var procMsgs []string
+			for i, p := range a.TopProcesses {
+				switch a.Metric {
+				case "内存使用率":
+					procMsgs = append(procMsgs, fmt.Sprintf("  %d. %s (PID:%d, MEM:%.2f%%, CPU:%.2f%%, MEM:%s)",
+						i+1, p.Name, p.PID, p.MemPercent, p.CPUPercent, util.FormatBytes(p.MemUsed)))
+				case "网络下行速度", "网络上行速度":
+					procMsgs = append(procMsgs, fmt.Sprintf("  %d. %s (PID:%d, NET↓: %s, NET↑: %s, CPU:%.2f%%, MEM:%.2f%%)",
+						i+1, p.Name, p.PID, util.FormatSpeed(p.NetDownKBps), util.FormatSpeed(p.NetUpKBps), p.CPUPercent, p.MemPercent))
+				default:
+					procMsgs = append(procMsgs, fmt.Sprintf("  %d. %s (PID:%d, CPU:%.2f%%, MEM:%.2f%%, NET↓: %s, NET↑: %s)",
+						i+1, p.Name, p.PID, p.CPUPercent, p.MemPercent, util.FormatSpeed(p.NetDownKBps), util.FormatSpeed(p.NetUpKBps)))
+				}
+			}
+			emailAlert.TopProcesses = procMsgs
+			emailAlert.TopProcessesLabel = a.ProcessLabel
+		}
+		email.DispatchAlert(emailAlert)
 
 		dateStr := a.Timestamp.Format("2006-01-02")
 		timestampStr := a.Timestamp.Format("2006-01-02 15:04:05")
