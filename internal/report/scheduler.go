@@ -11,17 +11,21 @@ import (
 	"gwatch/internal/timeutil"
 )
 
+// EmailSender 邮件发送器函数类型，接收主题和正文字符串，返回错误。
 type EmailSender func(subject, body string) error
 
+// ReportScheduler 报告调度器，基于周期调度器在指定时间触发各类报告的生成与发送。
 type ReportScheduler struct {
 	scheduler *scheduler.PeriodicScheduler
 	sender    EmailSender
 }
 
+// NewReportScheduler 创建报告调度器实例，传入邮件发送器用于发送报告邮件。
 func NewReportScheduler(sender EmailSender) *ReportScheduler {
 	return &ReportScheduler{sender: sender}
 }
 
+// Start 启动报告调度器，根据全局配置中的报告时间触发 generateAllReports。
 func (rs *ReportScheduler) Start() {
 	rs.scheduler = scheduler.NewPeriodicScheduler(
 		scheduler.WithReportTime(config.GlobalConfig.Monitor.ReportTime),
@@ -30,6 +34,7 @@ func (rs *ReportScheduler) Start() {
 	rs.scheduler.Start()
 }
 
+// generateAllReports 根据全局配置依次生成并发送日、周、月、年报告。
 func (rs *ReportScheduler) generateAllReports() {
 	now := timeutil.Now()
 
@@ -61,6 +66,7 @@ func (rs *ReportScheduler) generateAllReports() {
 	}
 }
 
+// generateAndSendReport 根据报告周期确定时间区间，生成报告、保存文件并尝试发送邮件。
 func generateAndSendReport(period ReportPeriod, date time.Time, sender EmailSender) {
 	var startDate, endDate time.Time
 	switch period {

@@ -18,6 +18,7 @@ var templateFS embed.FS
 
 var tmpl *template.Template
 
+// init 初始化模板系统，注册自定义模板函数并解析嵌入式模板文件。
 func init() {
 	funcMap := template.FuncMap{
 		"formatDuration": formatDuration,
