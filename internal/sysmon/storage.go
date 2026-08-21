@@ -320,6 +320,22 @@ func LoadRecentMetrics(hours int) ([]SystemMetric, error) {
 	return loadMetrics(hourlyPath(), cutoff)
 }
 
+// LoadMetricsByRange 加载指定时间区间 [start, end) 内的小时级指标记录。
+// 若 end 为零值，则加载 start 之后的全部数据。
+func LoadMetricsByRange(start, end time.Time) ([]SystemMetric, error) {
+	all, err := loadMetrics(hourlyPath(), start)
+	if err != nil || end.IsZero() {
+		return all, err
+	}
+	filtered := make([]SystemMetric, 0, len(all))
+	for _, m := range all {
+		if m.Timestamp.Before(end) {
+			filtered = append(filtered, m)
+		}
+	}
+	return filtered, nil
+}
+
 // LoadDailyMetrics 加载自指定时间以来的日级指标记录。
 func LoadDailyMetrics(since time.Time) ([]SystemMetric, error) {
 	return loadMetrics(dailyPath(), since)

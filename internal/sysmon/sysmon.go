@@ -322,6 +322,12 @@ func backfillYears(now time.Time) {
 	}
 }
 
+// FlushHourlyAgg 将当前小时的聚合数据落盘，避免丢失采样数据。
+// 在生成报告前调用，确保当前小时数据已完整写入存储。
+func FlushHourlyAgg() {
+	flushHourlyAgg()
+}
+
 // flushHourlyAgg 停止时将当前小时的聚合数据落盘，避免丢失采样数据。
 func flushHourlyAgg() {
 	hourlyMu.Lock()

@@ -129,7 +129,7 @@ func GenerateReportFromStorage(period ReportPeriod, startDate, endDate time.Time
 	}
 
 	if period == PeriodDaily && config.GlobalConfig.SystemMon.Enabled {
-		report.SystemMetrics = loadSystemMetrics()
+		report.SystemMetrics = loadSystemMetrics(startDate, endDate)
 	}
 
 	return report
@@ -419,8 +419,8 @@ func (r *Report) GenerateContent() string {
 	}
 }
 
-// loadSystemMetrics 采集当前系统指标，加载历史数据生成趋势图表，返回 SystemMetricsSnapshot。
-func loadSystemMetrics() *SystemMetricsSnapshot {
+// loadSystemMetrics 采集当前系统指标，加载报告周期内的历史数据生成趋势图表，返回 SystemMetricsSnapshot。
+func loadSystemMetrics(startDate, endDate time.Time) *SystemMetricsSnapshot {
 	current, err := sysmon.CollectMetrics()
 	if err != nil {
 		logger.Error("报告采集系统指标失败", zap.Error(err))
@@ -453,7 +453,9 @@ func loadSystemMetrics() *SystemMetricsSnapshot {
 		})
 	}
 
-	hourlyMetrics, err := sysmon.LoadRecentMetrics(24)
+	sysmon.FlushHourlyAgg()
+
+	hourlyMetrics, err := sysmon.LoadMetricsByRange(startDate, endDate)
 	if err != nil || len(hourlyMetrics) == 0 {
 		logger.Info("暂无小时级指标数据，跳过图表生成")
 		return snapshot
