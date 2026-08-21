@@ -10,15 +10,5 @@ type procNetCounters struct {
 }
 
 func processNetIOCounters(p *process.Process) (*procNetCounters, error) {
-	counters, err := p.NetIOCounters()
-	if err != nil {
-		return nil, err
-	}
-	if counters == nil {
-		return nil, nil
-	}
-	return &procNetCounters{
-		BytesRecv: counters.BytesRecv,
-		BytesSent: counters.BytesSent,
-	}, nil
+	return nil, nil
 }
