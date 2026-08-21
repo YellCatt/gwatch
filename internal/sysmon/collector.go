@@ -251,11 +251,11 @@ func CollectAllProcesses() []ProcessInfo {
 			PID:        pid,
 			Name:       name,
 			CPUPercent: cpuPercent,
-			MemPercent: memPercent,
+			MemPercent: float64(memPercent),
 			MemUsed:    memUsed,
 		})
 
-		if counters, err := p.NetIOCounters(); err == nil && counters != nil {
+		if counters, err := processNetIOCounters(p); err == nil && counters != nil {
 			netSnaps = append(netSnaps, procNetSnap{
 				pid:       pid,
 				downBytes: counters.BytesRecv,
@@ -268,7 +268,7 @@ func CollectAllProcesses() []ProcessInfo {
 		time.Sleep(1 * time.Second)
 
 		for _, p := range procs {
-			if counters, err := p.NetIOCounters(); err == nil && counters != nil {
+			if counters, err := processNetIOCounters(p); err == nil && counters != nil {
 				snapIdx, ok := pidIndex[p.Pid]
 				if !ok {
 					continue
