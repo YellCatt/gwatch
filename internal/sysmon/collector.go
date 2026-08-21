@@ -237,22 +237,13 @@ func CollectAllProcesses() []ProcessInfo {
 		}
 
 		pid := p.Pid
-		cpuPercent, _ := p.CPUPercent()
-		memPercent, _ := p.MemoryPercent()
-		memInfo, _ := p.MemoryInfo()
-		var memUsed uint64
-		if memInfo != nil {
-			memUsed = memInfo.RSS
-		}
+		p.CPUPercent()
 
 		idx := len(infos)
 		pidIndex[pid] = idx
 		infos = append(infos, ProcessInfo{
-			PID:        pid,
-			Name:       name,
-			CPUPercent: cpuPercent,
-			MemPercent: float64(memPercent),
-			MemUsed:    memUsed,
+			PID:  pid,
+			Name: name,
 		})
 
 		if counters, err := processNetIOCounters(p); err == nil && counters != nil {
@@ -264,27 +255,38 @@ func CollectAllProcesses() []ProcessInfo {
 		}
 	}
 
-	if len(netSnaps) > 0 {
-		time.Sleep(1 * time.Second)
+	time.Sleep(1 * time.Second)
 
-		for _, p := range procs {
-			if counters, err := processNetIOCounters(p); err == nil && counters != nil {
-				snapIdx, ok := pidIndex[p.Pid]
-				if !ok {
-					continue
-				}
-				for _, snap := range netSnaps {
-					if snap.pid == p.Pid {
-						downDiff := counters.BytesRecv - snap.downBytes
-						upDiff := counters.BytesSent - snap.upBytes
-						if downDiff > 1024 {
-							infos[snapIdx].NetDownKBps = float64(downDiff) / 1024.0
-						}
-						if upDiff > 1024 {
-							infos[snapIdx].NetUpKBps = float64(upDiff) / 1024.0
-						}
-						break
+	for _, p := range procs {
+		snapIdx, ok := pidIndex[p.Pid]
+		if !ok {
+			continue
+		}
+
+		cpuPercent, _ := p.CPUPercent()
+		memPercent, _ := p.MemoryPercent()
+		memInfo, _ := p.MemoryInfo()
+		var memUsed uint64
+		if memInfo != nil {
+			memUsed = memInfo.RSS
+		}
+
+		infos[snapIdx].CPUPercent = cpuPercent
+		infos[snapIdx].MemPercent = float64(memPercent)
+		infos[snapIdx].MemUsed = memUsed
+
+		if counters, err := processNetIOCounters(p); err == nil && counters != nil {
+			for _, snap := range netSnaps {
+				if snap.pid == p.Pid {
+					downDiff := counters.BytesRecv - snap.downBytes
+					upDiff := counters.BytesSent - snap.upBytes
+					if downDiff > 1024 {
+						infos[snapIdx].NetDownKBps = float64(downDiff) / 1024.0
 					}
+					if upDiff > 1024 {
+						infos[snapIdx].NetUpKBps = float64(upDiff) / 1024.0
+					}
+					break
 				}
 			}
 		}

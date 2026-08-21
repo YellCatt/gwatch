@@ -125,9 +125,6 @@ func CheckAlerts(metric SystemMetric) []AlertItem {
 			case "内存使用率":
 				sortBy = SortByMem
 				label = "内存占用 Top 5 进程"
-			case "网络下行速度", "网络上行速度":
-				sortBy = SortByNet
-				label = "网络占用 Top 5 进程"
 			default:
 				continue
 			}
@@ -176,12 +173,9 @@ func DispatchSystemAlerts(alerts []AlertItem) {
 				case "内存使用率":
 					procMsgs = append(procMsgs, fmt.Sprintf("  %d. %s (PID:%d, MEM:%.2f%%, CPU:%.2f%%, MEM:%s)",
 						i+1, p.Name, p.PID, p.MemPercent, p.CPUPercent, util.FormatBytes(p.MemUsed)))
-				case "网络下行速度", "网络上行速度":
-					procMsgs = append(procMsgs, fmt.Sprintf("  %d. %s (PID:%d, NET↓: %s, NET↑: %s, CPU:%.2f%%, MEM:%.2f%%)",
-						i+1, p.Name, p.PID, util.FormatSpeed(p.NetDownKBps), util.FormatSpeed(p.NetUpKBps), p.CPUPercent, p.MemPercent))
 				default:
-					procMsgs = append(procMsgs, fmt.Sprintf("  %d. %s (PID:%d, CPU:%.2f%%, MEM:%.2f%%, NET↓: %s, NET↑: %s)",
-						i+1, p.Name, p.PID, p.CPUPercent, p.MemPercent, util.FormatSpeed(p.NetDownKBps), util.FormatSpeed(p.NetUpKBps)))
+					procMsgs = append(procMsgs, fmt.Sprintf("  %d. %s (PID:%d, CPU:%.2f%%, MEM:%.2f%%)",
+						i+1, p.Name, p.PID, p.CPUPercent, p.MemPercent))
 				}
 			}
 			emailAlert.TopProcesses = procMsgs
