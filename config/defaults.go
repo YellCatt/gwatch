@@ -110,7 +110,7 @@ func setMonitorDefaults() {
 		GlobalConfig.Monitor.MonthlyReport ||
 		GlobalConfig.Monitor.YearlyReport) &&
 		GlobalConfig.Monitor.ReportTime == "" {
-		GlobalConfig.Monitor.ReportTime = "07:00"
+		GlobalConfig.Monitor.ReportTime = "05:00"
 	}
 
 	if !viper.IsSet("monitor.alert_on_failure") {
