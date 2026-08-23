@@ -199,13 +199,30 @@ stop_program() {
     return $stop_exit
 }
 
+# ============ 将秒数转换为人类可读的时长 ============
+format_duration() {
+    local total=$1
+    local days=$((total / 86400))
+    local hours=$(((total % 86400) / 3600))
+    local mins=$(((total % 3600) / 60))
+    local secs=$((total % 60))
+    local result=""
+
+    [ $days -gt 0 ] && result="${result}${days}天"
+    [ $hours -gt 0 ] && result="${result}${hours}小时"
+    [ $mins -gt 0 ] && result="${result}${mins}分"
+    [ $secs -gt 0 ] || [ -z "$result" ] && result="${result}${secs}秒"
+
+    echo "$result"
+}
+
 # ============ 更新检查函数（定时直接下载，不调用 GitHub API） ============
 check_and_update() {
     now=$(date +%s)
 
     last_check=0
     if [ -f "$PLUGIN_DIR/.last_update_check" ]; then
-        last_check=$(cat "$PLUGIN_DIR/.last_update_check")
+        last_check=$(cat "$PLUGIN_DIR/.last_update_check" | cut -d'|' -f1)
     fi
 
     elapsed=$((now - last_check))
@@ -213,8 +230,8 @@ check_and_update() {
         return 0
     fi
 
-    log_step "距离上次更新已 ${elapsed} 秒，开始下载最新版本..."
-    echo "$now" > "$PLUGIN_DIR/.last_update_check"
+    log_step "距离上次更新已 $(format_duration $elapsed)（${elapsed}秒），开始下载最新版本..."
+    echo "$now|$(date '+%Y-%m-%d %H:%M:%S %Z (UTC%z)')" > "$PLUGIN_DIR/.last_update_check"
 
     if download_binary; then
         # 如果当前有旧版本，比较文件内容是否相同
@@ -255,7 +272,7 @@ main_loop() {
     fi
 
     CURRENT_DELAY=$RESTART_DELAY
-    echo "$(date +%s)" > "$PLUGIN_DIR/.last_update_check"
+    echo "$(date +%s)|$(date '+%Y-%m-%d %H:%M:%S %Z (UTC%z)')" > "$PLUGIN_DIR/.last_update_check"
 
     # 标记首次检查：程序启动后立即后台下载对比
     FIRST_CHECK=1
