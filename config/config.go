@@ -13,7 +13,7 @@ import (
 
 var CfgFile string
 
-const Version = "v1.0.0_20260822-0557"
+const Version = "v1.0.0_20260823-1400"
 
 var GlobalConfig Config
 

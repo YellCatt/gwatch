@@ -58,10 +58,10 @@ type ScraperConfig struct {
 }
 
 type LogConfig struct {
-	Level      string `mapstructure:"level"`
-	Encoding   string `mapstructure:"encoding"`
-	Output     string `mapstructure:"output"`
-	MaxSizeMB  int    `mapstructure:"max_size_mb"`
+	Level     string `mapstructure:"level"`
+	Encoding  string `mapstructure:"encoding"`
+	Output    string `mapstructure:"output"`
+	MaxSizeMB int    `mapstructure:"max_size_mb"`
 }
 
 type AppConfig struct {

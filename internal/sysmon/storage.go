@@ -14,8 +14,8 @@ import (
 	"go.uber.org/zap"
 
 	"gwatch/config"
-	"gwatch/internal/timeutil"
 	"gwatch/internal/logger"
+	"gwatch/internal/timeutil"
 )
 
 var (
@@ -280,22 +280,22 @@ func loadMetrics(path string, since time.Time) ([]SystemMetric, error) {
 		}
 
 		m := SystemMetric{
-			CPUPercent:     parseFloat(getCol(rec, colIndex, "cpu_percent")),
-			CPUMaxPercent:  parseFloat(getCol(rec, colIndex, "cpu_max_percent")),
-			MemoryPercent:  parseFloat(getCol(rec, colIndex, "memory_percent")),
+			CPUPercent:       parseFloat(getCol(rec, colIndex, "cpu_percent")),
+			CPUMaxPercent:    parseFloat(getCol(rec, colIndex, "cpu_max_percent")),
+			MemoryPercent:    parseFloat(getCol(rec, colIndex, "memory_percent")),
 			MemoryMaxPercent: parseFloat(getCol(rec, colIndex, "memory_max_percent")),
-			MemoryUsed:     parseUint64(getCol(rec, colIndex, "memory_used")),
-			MemoryTotal:    parseUint64(getCol(rec, colIndex, "memory_total")),
-			DiskPercent:    parseFloat(getCol(rec, colIndex, "disk_percent")),
-			DiskUsed:       parseUint64(getCol(rec, colIndex, "disk_used")),
-			DiskTotal:      parseUint64(getCol(rec, colIndex, "disk_total")),
-			NetDownKBps:    parseFloat(getCol(rec, colIndex, "net_down_kbps")),
-			NetUpKBps:      parseFloat(getCol(rec, colIndex, "net_up_kbps")),
-			NetDownMaxKBps: parseFloat(getCol(rec, colIndex, "net_down_max_kbps")),
-			NetUpMaxKBps:   parseFloat(getCol(rec, colIndex, "net_up_max_kbps")),
-			DiskReadKBps:   parseFloat(getCol(rec, colIndex, "disk_read_kbps")),
-			DiskWriteKBps:  parseFloat(getCol(rec, colIndex, "disk_write_kbps")),
-			Timestamp:      ts,
+			MemoryUsed:       parseUint64(getCol(rec, colIndex, "memory_used")),
+			MemoryTotal:      parseUint64(getCol(rec, colIndex, "memory_total")),
+			DiskPercent:      parseFloat(getCol(rec, colIndex, "disk_percent")),
+			DiskUsed:         parseUint64(getCol(rec, colIndex, "disk_used")),
+			DiskTotal:        parseUint64(getCol(rec, colIndex, "disk_total")),
+			NetDownKBps:      parseFloat(getCol(rec, colIndex, "net_down_kbps")),
+			NetUpKBps:        parseFloat(getCol(rec, colIndex, "net_up_kbps")),
+			NetDownMaxKBps:   parseFloat(getCol(rec, colIndex, "net_down_max_kbps")),
+			NetUpMaxKBps:     parseFloat(getCol(rec, colIndex, "net_up_max_kbps")),
+			DiskReadKBps:     parseFloat(getCol(rec, colIndex, "disk_read_kbps")),
+			DiskWriteKBps:    parseFloat(getCol(rec, colIndex, "disk_write_kbps")),
+			Timestamp:        ts,
 		}
 
 		if pj := getCol(rec, colIndex, "partitions_json"); pj != "" {
@@ -403,7 +403,7 @@ func GetStoragePath() string {
 func EnsureStorage() error {
 	path := hourlyPath()
 	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
-		return fmt.Errorf("failed to create storage directory: %w", err)
+		return fmt.Errorf("创建存储目录失败: %w", err)
 	}
 	return ensureCSV(path)
 }

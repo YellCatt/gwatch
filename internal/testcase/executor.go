@@ -69,13 +69,13 @@ func finishTestCase(tc psv.TestCase, result TestResult, startTime time.Time) Tes
 
 	if result.Passed {
 		logger.Info("测试通过", zap.String("用例ID", tc.ID), zap.Duration("耗时", result.Duration))
-		fmt.Printf("[%s] [%s] %s ... PASS (%.3fs)\n", timeutil.FormatDateTime(result.EndTime), tc.ID, tc.Desc, result.Duration.Seconds())
+		fmt.Printf("[%s] [%s] %s ... 通过 (%.3fs)\n", timeutil.FormatDateTime(result.EndTime), tc.ID, tc.Desc, result.Duration.Seconds())
 		go storage.RecordExecutionTime(tc.ID, tc.Desc, tc.FileName, vars.Replace(tc.URL), result.Duration, true)
 	} else {
 		logger.Info("测试失败", zap.String("用例ID", tc.ID), zap.String("错误", result.Error))
-		fmt.Printf("[%s] [%s] %s ... FAIL (%.3fs)\n", timeutil.FormatDateTime(result.EndTime), tc.ID, tc.Desc, result.Duration.Seconds())
+		fmt.Printf("[%s] [%s] %s ... 失败 (%.3fs)\n", timeutil.FormatDateTime(result.EndTime), tc.ID, tc.Desc, result.Duration.Seconds())
 		if result.Error != "" {
-			fmt.Printf("            Error: %s\n", result.Error)
+			fmt.Printf("            错误: %s\n", result.Error)
 		}
 		go storage.RecordExecutionTime(tc.ID, tc.Desc, tc.FileName, vars.Replace(tc.URL), result.Duration, false)
 	}
@@ -125,7 +125,7 @@ func ExecuteTestCase(tc psv.TestCase) TestResult {
 		result.Passed = true
 		result.EndTime = timeutil.Now()
 		result.Duration = result.EndTime.Sub(startTime)
-		fmt.Printf("[%s] [%s] %s ... SKIP (%.3fs)\n", timeutil.FormatDateTime(result.EndTime), tc.ID, tc.Desc, result.Duration.Seconds())
+		fmt.Printf("[%s] [%s] %s ... 跳过 (%.3fs)\n", timeutil.FormatDateTime(result.EndTime), tc.ID, tc.Desc, result.Duration.Seconds())
 		return result
 	}
 
@@ -139,7 +139,7 @@ func ExecuteTestCase(tc psv.TestCase) TestResult {
 				result.Error = err.Error()
 				result.EndTime = timeutil.Now()
 				result.Duration = result.EndTime.Sub(startTime)
-				fmt.Printf("[%s] [%s] %s ... FAIL (%.3fs) - 前置条件失败: %s\n", timeutil.FormatDateTime(result.EndTime), tc.ID, tc.Desc, result.Duration.Seconds(), result.Error)
+				fmt.Printf("[%s] [%s] %s ... 失败 (%.3fs) - 前置条件失败: %s\n", timeutil.FormatDateTime(result.EndTime), tc.ID, tc.Desc, result.Duration.Seconds(), result.Error)
 				return result
 			}
 		}
@@ -244,7 +244,7 @@ func ExecuteTestCase(tc psv.TestCase) TestResult {
 	case http.MethodHead:
 		resp, err = req.Head(processedURL)
 	default:
-		err = fmt.Errorf("unsupported HTTP method: %s", tc.Method)
+		err = fmt.Errorf("不支持的 HTTP 方法: %s", tc.Method)
 	}
 
 	if err != nil {
@@ -260,7 +260,7 @@ func ExecuteTestCase(tc psv.TestCase) TestResult {
 		result = executeStreamAssert(tc, resp, startTime)
 	} else {
 		if tc.ExpectedStatus > 0 && resp.StatusCode() != tc.ExpectedStatus {
-			result.Error = fmt.Sprintf("expected status %d, got %d", tc.ExpectedStatus, resp.StatusCode())
+			result.Error = fmt.Sprintf("期望状态码 %d，实际为 %d", tc.ExpectedStatus, resp.StatusCode())
 			result.Passed = false
 			return finishTestCase(tc, result, startTime)
 		}
@@ -356,15 +356,15 @@ func executeStreamAssert(tc psv.TestCase, resp *resty.Response, startTime time.T
 			result.EndTime = timeutil.Now()
 			result.Duration = result.EndTime.Sub(startTime)
 			logger.Info("流式断言通过", zap.String("用例ID", tc.ID))
-			fmt.Printf("[%s] [%s] %s ... PASS (%.3fs)\n", timeutil.FormatDateTime(result.EndTime), tc.ID, tc.Desc, result.Duration.Seconds())
+			fmt.Printf("[%s] [%s] %s ... 通过 (%.3fs)\n", timeutil.FormatDateTime(result.EndTime), tc.ID, tc.Desc, result.Duration.Seconds())
 			return result
 		} else {
 			result.Error = errMsg
 			result.Passed = false
 			result.EndTime = timeutil.Now()
 			result.Duration = result.EndTime.Sub(startTime)
-			fmt.Printf("[%s] [%s] %s ... FAIL (%.3fs)\n", timeutil.FormatDateTime(result.EndTime), tc.ID, tc.Desc, result.Duration.Seconds())
-			fmt.Printf("            Error: %s\n", result.Error)
+			fmt.Printf("[%s] [%s] %s ... 失败 (%.3fs)\n", timeutil.FormatDateTime(result.EndTime), tc.ID, tc.Desc, result.Duration.Seconds())
+			fmt.Printf("            错误: %s\n", result.Error)
 			return result
 		}
 
@@ -380,8 +380,8 @@ func executeStreamAssert(tc psv.TestCase, resp *resty.Response, startTime time.T
 			result.Passed = false
 			result.EndTime = timeutil.Now()
 			result.Duration = result.EndTime.Sub(startTime)
-			fmt.Printf("[%s] [%s] %s ... FAIL (%.3fs)\n", timeutil.FormatDateTime(result.EndTime), tc.ID, tc.Desc, result.Duration.Seconds())
-			fmt.Printf("            Error: %s\n", result.Error)
+			fmt.Printf("[%s] [%s] %s ... 失败 (%.3fs)\n", timeutil.FormatDateTime(result.EndTime), tc.ID, tc.Desc, result.Duration.Seconds())
+			fmt.Printf("            错误: %s\n", result.Error)
 			return result
 		}
 	}
@@ -389,6 +389,6 @@ func executeStreamAssert(tc psv.TestCase, resp *resty.Response, startTime time.T
 	result.Passed = true
 	result.EndTime = timeutil.Now()
 	result.Duration = result.EndTime.Sub(startTime)
-	fmt.Printf("[%s] [%s] %s ... PASS (%.3fs)\n", timeutil.FormatDateTime(result.EndTime), tc.ID, tc.Desc, result.Duration.Seconds())
+	fmt.Printf("[%s] [%s] %s ... 通过 (%.3fs)\n", timeutil.FormatDateTime(result.EndTime), tc.ID, tc.Desc, result.Duration.Seconds())
 	return result
 }

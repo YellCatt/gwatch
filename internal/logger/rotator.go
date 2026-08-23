@@ -120,7 +120,7 @@ func (w *DailyRotationWriter) openFile(t time.Time) error {
 
 	f, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
 	if err != nil {
-		return fmt.Errorf("open log file failed: %w", err)
+		return fmt.Errorf("打开日志文件失败: %w", err)
 	}
 
 	info, err := f.Stat()

@@ -377,7 +377,7 @@ func fixRegexEscapes(pattern string) string {
 // 如果模式以重复操作符开头，自动添加 . 作为前缀
 func validateRegexPattern(pattern string) (string, error) {
 	if pattern == "" {
-		return "", fmt.Errorf("pattern is empty")
+		return "", fmt.Errorf("正则模式为空")
 	}
 
 	// 检查模式是否以重复操作符开头

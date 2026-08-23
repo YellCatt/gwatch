@@ -24,12 +24,12 @@ var socketInodeRe = regexp.MustCompile(`socket:\[(\d+)\]`)
 func processNetIOCounters(p *process.Process) (*procNetCounters, error) {
 	ports := getProcessPorts(p.Pid)
 	if len(ports) == 0 {
-		return nil, fmt.Errorf("no ports found for pid %d", p.Pid)
+		return nil, fmt.Errorf("进程 %d 未找到端口", p.Pid)
 	}
 
 	f, err := os.Open("/proc/net/nf_conntrack")
 	if err != nil {
-		return nil, fmt.Errorf("cannot open nf_conntrack: %v", err)
+		return nil, fmt.Errorf("无法打开 nf_conntrack: %v", err)
 	}
 	defer f.Close()
 
@@ -88,7 +88,7 @@ func processNetIOCounters(p *process.Process) (*procNetCounters, error) {
 	}
 
 	if bytesRecv == 0 && bytesSent == 0 {
-		return nil, fmt.Errorf("no netflow for pid %d", p.Pid)
+		return nil, fmt.Errorf("进程 %d 无网络流量", p.Pid)
 	}
 
 	return &procNetCounters{

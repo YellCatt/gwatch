@@ -24,7 +24,7 @@ func InitApp() {
 		MaxSizeMB: config.GlobalConfig.Log.MaxSizeMB,
 	})
 
-	logger.Info("gwatch started", zap.String("version", config.Version))
+	logger.Info("gwatch 已启动", zap.String("版本", config.Version))
 
 	vars.Set("base_url", config.GlobalConfig.Target.BaseURL)
 

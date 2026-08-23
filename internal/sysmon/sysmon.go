@@ -123,7 +123,7 @@ func collectLoop(interval time.Duration) {
 
 				if err := RecordHourlyMetric(avg, sampleCount); err != nil {
 					logger.Warn("记录小时指标失败", zap.Error(err))
-			}
+				}
 				logger.Info("小时指标已落盘",
 					zap.Time("小时", avg.Timestamp),
 					zap.Int("采样数", sampleCount))
@@ -141,9 +141,9 @@ func collectLoop(interval time.Duration) {
 			if len(alerts) > 0 {
 				for _, a := range alerts {
 					logger.Warn("系统阈值已超过",
-					zap.String("指标", a.Metric),
-					zap.Float64("当前值", a.Value),
-					zap.Float64("阈值", a.Threshold))
+						zap.String("指标", a.Metric),
+						zap.Float64("当前值", a.Value),
+						zap.Float64("阈值", a.Threshold))
 				}
 
 				DispatchSystemAlerts(alerts)
@@ -414,7 +414,6 @@ func PrintCurrentStatus() {
 	if len(topProcs) > 0 {
 		cpuTop := SortProcesses(topProcs, SortByCPU)
 		memTop := SortProcesses(topProcs, SortByMem)
-		netTop := SortProcesses(topProcs, SortByNet)
 
 		if len(cpuTop) > 5 {
 			cpuTop = cpuTop[:5]
@@ -422,25 +421,17 @@ func PrintCurrentStatus() {
 		if len(memTop) > 5 {
 			memTop = memTop[:5]
 		}
-		if len(netTop) > 5 {
-			netTop = netTop[:5]
-		}
 
 		fmt.Printf("║ 进程占用 Top 5: ║\n")
 		fmt.Printf("║   [CPU] ║\n")
 		for _, p := range cpuTop {
-			fmt.Printf("║     %-20s CPU:%5.2f%% MEM:%5.2f%% NET↓:%s NET↑:%s ║\n",
-				p.Name, p.CPUPercent, p.MemPercent, util.FormatSpeed(p.NetDownKBps), util.FormatSpeed(p.NetUpKBps))
+			fmt.Printf("║     %-20s CPU:%5.2f%% MEM:%5.2f%% ║\n",
+				p.Name, p.CPUPercent, p.MemPercent)
 		}
 		fmt.Printf("║   [MEM] ║\n")
 		for _, p := range memTop {
 			fmt.Printf("║     %-20s MEM:%5.2f%% CPU:%5.2f%% MEM:%s ║\n",
 				p.Name, p.MemPercent, p.CPUPercent, util.FormatBytes(p.MemUsed))
-		}
-		fmt.Printf("║   [NET] ║\n")
-		for _, p := range netTop {
-			fmt.Printf("║     %-20s NET↓:%s NET↑:%s CPU:%5.2f%% MEM:%5.2f%% ║\n",
-				p.Name, util.FormatSpeed(p.NetDownKBps), util.FormatSpeed(p.NetUpKBps), p.CPUPercent, p.MemPercent)
 		}
 	}
 	fmt.Printf("╚══════════════════╝\n")
@@ -454,7 +445,7 @@ func GenerateAndSaveReport() (string, error) {
 	}
 
 	if len(metrics) == 0 {
-		return "", fmt.Errorf("no data")
+		return "", fmt.Errorf("暂无数据")
 	}
 
 	latest := metrics[len(metrics)-1]
