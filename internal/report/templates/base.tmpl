@@ -16,7 +16,7 @@ gwatch {{.Period}}运维报告
 🔧 接口状态
 {{- if .InterfaceStats}}
 {{range .InterfaceStats}}{{if .HasFailure}}⚠️{{else}}✅{{end}} {{.TaskID}}
-    请求: {{.TotalCount}}次  成功: {{.SuccessCount}}  失败: {{.FailedCount}}
+    请求: {{.TotalCount}}次  成功: {{.SuccessCount}}  失败: {{.FailedCount}}{{if gt .AlertCount 0}}  告警: {{.AlertCount}}次{{end}}
     平均: {{.AvgDuration}}  最大: {{.MaxDuration}}
 
 {{end}}{{else}}  暂无接口数据

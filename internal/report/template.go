@@ -73,6 +73,7 @@ type interfaceStatRow struct {
 	TotalCount   int
 	SuccessCount int
 	FailedCount  int
+	AlertCount   int
 	AvgDuration  string
 	MaxDuration  string
 	HasFailure   bool
@@ -236,23 +237,26 @@ func buildBaseData(r *Report) baseReportData {
 			TotalCount:   s.TotalCount,
 			SuccessCount: s.SuccessCount,
 			FailedCount:  s.FailedCount,
+			AlertCount:   s.AlertCount,
 			AvgDuration:  formatDuration(s.AvgDurationMS),
 			MaxDuration:  formatDuration(s.MaxDurationMS),
-			HasFailure:   s.FailedCount > 0,
+			HasFailure:   s.FailedCount > 0 || s.AlertCount > 0,
 		})
 	}
 
 	criticalCount := 0
 	warningCount := 0
+	totalAlertCount := 0
 	errs := make([]aggregatedErrorRow, 0, len(r.AggregatedErrors))
 	for _, e := range r.AggregatedErrors {
 		icon, label := alertLevelDisplay(e.AlertLevel)
 		level := strings.ToUpper(strings.TrimSpace(e.AlertLevel))
 		if level == "CRITICAL" {
-			criticalCount++
+			criticalCount += e.AlertCount
 		} else if level == "WARNING" {
-			warningCount++
+			warningCount += e.AlertCount
 		}
+		totalAlertCount += e.AlertCount
 		errs = append(errs, aggregatedErrorRow{
 			Icon:            icon,
 			Level:           label,
@@ -270,15 +274,17 @@ func buildBaseData(r *Report) baseReportData {
 
 	sysCritical := 0
 	sysWarning := 0
+	sysTotal := 0
 	sysAlerts := make([]systemAlertRow, 0, len(r.SystemAlerts))
 	for _, a := range r.SystemAlerts {
 		icon, label := alertLevelDisplay(a.AlertLevel)
 		level := strings.ToUpper(strings.TrimSpace(a.AlertLevel))
 		if level == "CRITICAL" {
-			sysCritical++
+			sysCritical += int(a.AlertCount)
 		} else if level == "WARNING" {
-			sysWarning++
+			sysWarning += int(a.AlertCount)
 		}
+		sysTotal += int(a.AlertCount)
 		sysAlerts = append(sysAlerts, systemAlertRow{
 			Icon:            icon,
 			Level:           label,
@@ -296,15 +302,17 @@ func buildBaseData(r *Report) baseReportData {
 
 	scraperCritical := 0
 	scraperWarning := 0
+	scraperTotal := 0
 	scraperAlerts := make([]scraperAlertRow, 0, len(r.ScraperAlerts))
 	for _, a := range r.ScraperAlerts {
 		icon, label := alertLevelDisplay(a.AlertLevel)
 		level := strings.ToUpper(strings.TrimSpace(a.AlertLevel))
 		if level == "CRITICAL" {
-			scraperCritical++
+			scraperCritical += int(a.AlertCount)
 		} else if level == "WARNING" {
-			scraperWarning++
+			scraperWarning += int(a.AlertCount)
 		}
+		scraperTotal += int(a.AlertCount)
 		scraperAlerts = append(scraperAlerts, scraperAlertRow{
 			Icon:            icon,
 			Level:           label,
@@ -338,13 +346,13 @@ func buildBaseData(r *Report) baseReportData {
 		ScraperAlerts:        scraperAlerts,
 		CriticalAlertCount:   criticalCount,
 		WarningAlertCount:    warningCount,
-		TotalAlertCount:      len(r.AggregatedErrors),
+		TotalAlertCount:      totalAlertCount,
 		SystemCriticalCount:  sysCritical,
 		SystemWarningCount:   sysWarning,
-		SystemAlertTotal:     len(r.SystemAlerts),
+		SystemAlertTotal:     sysTotal,
 		ScraperCriticalCount: scraperCritical,
 		ScraperWarningCount:  scraperWarning,
-		ScraperAlertTotal:    len(r.ScraperAlerts),
+		ScraperAlertTotal:    scraperTotal,
 	}
 }
 

@@ -14,16 +14,20 @@ func GenerateWeeklyReportFromStorage(date time.Time) *Report {
 	return GenerateReportFromStorage(PeriodWeekly, startDate, endDate)
 }
 
-// GenerateWeeklyContent 生成周报告的文本内容，包含每日资源数据。
+// GenerateWeeklyContent 生成周报告的文本内容，包含每日资源数据和系统状态。
 func (r *Report) GenerateWeeklyContent() string {
 	data := struct {
-		Base     baseReportData
-		HasDaily bool
-		Daily    dailyResourceData
+		Base            baseReportData
+		HasDaily        bool
+		Daily           dailyResourceData
+		HasSystemStatus bool
+		SystemStatus    *SystemMetricsSnapshot
 	}{
-		Base:     buildBaseData(r),
-		HasDaily: len(r.DailyMetrics) > 0,
-		Daily:    buildDailyResourceData(r, "每周报表"),
+		Base:            buildBaseData(r),
+		HasDaily:        len(r.DailyMetrics) > 0,
+		Daily:           buildDailyResourceData(r, "每周报表"),
+		HasSystemStatus: r.SystemMetrics != nil,
+		SystemStatus:    r.SystemMetrics,
 	}
 	return executeTemplate("weekly", data)
 }

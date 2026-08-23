@@ -9,16 +9,20 @@ func GenerateYearlyReportFromStorage(date time.Time) *Report {
 	return GenerateReportFromStorage(PeriodYearly, startDate, endDate)
 }
 
-// GenerateYearlyContent 生成年报告的文本内容，包含每月资源数据。
+// GenerateYearlyContent 生成年报告的文本内容，包含每月资源数据和系统状态。
 func (r *Report) GenerateYearlyContent() string {
 	data := struct {
-		Base       baseReportData
-		HasMonthly bool
-		Monthly    monthlyResourceData
+		Base            baseReportData
+		HasMonthly      bool
+		Monthly         monthlyResourceData
+		HasSystemStatus bool
+		SystemStatus    *SystemMetricsSnapshot
 	}{
-		Base:       buildBaseData(r),
-		HasMonthly: len(r.MonthlyMetrics) > 0,
-		Monthly:    buildMonthlyResourceData(r),
+		Base:            buildBaseData(r),
+		HasMonthly:      len(r.MonthlyMetrics) > 0,
+		Monthly:         buildMonthlyResourceData(r),
+		HasSystemStatus: r.SystemMetrics != nil,
+		SystemStatus:    r.SystemMetrics,
 	}
 	return executeTemplate("yearly", data)
 }

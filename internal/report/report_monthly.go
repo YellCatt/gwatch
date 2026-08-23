@@ -9,16 +9,20 @@ func GenerateMonthlyReportFromStorage(date time.Time) *Report {
 	return GenerateReportFromStorage(PeriodMonthly, startDate, endDate)
 }
 
-// GenerateMonthlyContent 生成月报告的文本内容，包含每日资源数据。
+// GenerateMonthlyContent 生成月报告的文本内容，包含每日资源数据和系统状态。
 func (r *Report) GenerateMonthlyContent() string {
 	data := struct {
-		Base     baseReportData
-		HasDaily bool
-		Daily    dailyResourceData
+		Base            baseReportData
+		HasDaily        bool
+		Daily           dailyResourceData
+		HasSystemStatus bool
+		SystemStatus    *SystemMetricsSnapshot
 	}{
-		Base:     buildBaseData(r),
-		HasDaily: len(r.DailyMetrics) > 0,
-		Daily:    buildDailyResourceData(r, "每月报表"),
+		Base:            buildBaseData(r),
+		HasDaily:        len(r.DailyMetrics) > 0,
+		Daily:           buildDailyResourceData(r, "每月报表"),
+		HasSystemStatus: r.SystemMetrics != nil,
+		SystemStatus:    r.SystemMetrics,
 	}
 	return executeTemplate("monthly", data)
 }

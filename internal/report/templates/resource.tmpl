@@ -77,6 +77,9 @@
 {{/* 每周报告完整模板 */}}
 {{define "weekly"}}
 {{template "base" .Base}}
+{{if .HasSystemStatus}}
+{{template "system_status" .SystemStatus}}
+{{end}}
 {{if .HasDaily}}
 {{template "daily_resource" .Daily}}
 {{end}}
@@ -86,6 +89,9 @@
 {{/* 每月报告完整模板 */}}
 {{define "monthly"}}
 {{template "base" .Base}}
+{{if .HasSystemStatus}}
+{{template "system_status" .SystemStatus}}
+{{end}}
 {{if .HasDaily}}
 {{template "daily_resource" .Daily}}
 {{end}}
@@ -95,6 +101,9 @@
 {{/* 年度报告完整模板 */}}
 {{define "yearly"}}
 {{template "base" .Base}}
+{{if .HasSystemStatus}}
+{{template "system_status" .SystemStatus}}
+{{end}}
 {{if .HasMonthly}}
 {{template "monthly_resource" .Monthly}}
 {{end}}

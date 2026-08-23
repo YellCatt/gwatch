@@ -109,6 +109,8 @@ type InterfaceStat struct {
 	TotalCount      int
 	SuccessCount    int
 	FailedCount     int
+	AlertCount      int
+	TotalDurationMS int64
 	AvgDurationMS   int64
 	MaxDurationMS   int64
 	LastFailureTime string

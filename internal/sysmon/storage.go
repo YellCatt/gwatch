@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -334,6 +335,85 @@ func LoadMetricsByRange(start, end time.Time) ([]SystemMetric, error) {
 		}
 	}
 	return filtered, nil
+}
+
+// LoadDailyMetricsByRange 加载指定时间区间 [start, end) 内的日级指标记录。
+func LoadDailyMetricsByRange(start, end time.Time) ([]SystemMetric, error) {
+	all, err := loadMetrics(dailyPath(), start)
+	if err != nil || end.IsZero() {
+		return all, err
+	}
+	filtered := make([]SystemMetric, 0, len(all))
+	for _, m := range all {
+		if m.Timestamp.Before(end) {
+			filtered = append(filtered, m)
+		}
+	}
+	return filtered, nil
+}
+
+// LoadWeeklyMetricsByRange 加载指定时间区间 [start, end) 内的指标，
+// 按周（以周一为起始日）聚合日级指标，返回每周一个数据点。
+func LoadWeeklyMetricsByRange(start, end time.Time) ([]SystemMetric, error) {
+	dailyMetrics, err := LoadDailyMetricsByRange(start, end)
+	if err != nil || len(dailyMetrics) == 0 {
+		return nil, err
+	}
+
+	type weekKey struct {
+		year int
+		week int
+	}
+
+	aggMap := make(map[weekKey]*hourlyAggregator)
+
+	for _, m := range dailyMetrics {
+		year, week := m.Timestamp.ISOWeek()
+		key := weekKey{year: year, week: week}
+		if aggMap[key] == nil {
+			agg := &hourlyAggregator{}
+			agg.reset(start)
+			agg.hour = getWeekStart(m.Timestamp)
+			aggMap[key] = agg
+		}
+		aggMap[key].add(m)
+	}
+
+	var results []SystemMetric
+	for _, agg := range aggMap {
+		results = append(results, agg.toSystemMetric())
+	}
+
+	sort.Slice(results, func(i, j int) bool {
+		return results[i].Timestamp.Before(results[j].Timestamp)
+	})
+
+	return results, nil
+}
+
+// LoadMonthlyMetricsByRange 加载指定时间区间 [start, end) 内的月级指标记录。
+func LoadMonthlyMetricsByRange(start, end time.Time) ([]SystemMetric, error) {
+	all, err := loadMetrics(monthlyPath(), start)
+	if err != nil || end.IsZero() {
+		return all, err
+	}
+	filtered := make([]SystemMetric, 0, len(all))
+	for _, m := range all {
+		if m.Timestamp.Before(end) {
+			filtered = append(filtered, m)
+		}
+	}
+	return filtered, nil
+}
+
+// getWeekStart 获取指定时间所在周的周一 00:00:00。
+func getWeekStart(t time.Time) time.Time {
+	weekday := t.Weekday()
+	daysToMonday := int(weekday - time.Monday)
+	if daysToMonday < 0 {
+		daysToMonday += 7
+	}
+	return time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, t.Location()).AddDate(0, 0, -daysToMonday)
 }
 
 // LoadDailyMetrics 加载自指定时间以来的日级指标记录。

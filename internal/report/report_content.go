@@ -17,18 +17,24 @@ func formatDuration(durationMs int64) string {
 	}
 }
 
-// formatAvgDuration 计算接口统计列表的平均响应时间并格式化输出。
+// formatAvgDuration 计算接口统计列表的加权平均响应时间并格式化输出。
+// 使用「累计总耗时 ÷ 总请求次数」计算，避免不同请求量的接口被等权平均。
 func formatAvgDuration(stats []InterfaceStat) string {
 	totalDuration := int64(0)
-	count := 0
+	totalCount := 0
 	for _, stat := range stats {
-		totalDuration += stat.AvgDurationMS
-		count++
+		if stat.TotalCount > 0 {
+			totalDuration += stat.TotalDurationMS
+			totalCount += stat.TotalCount
+		} else {
+			totalDuration += stat.AvgDurationMS
+			totalCount++
+		}
 	}
-	if count == 0 {
+	if totalCount == 0 {
 		return "N/A"
 	}
-	avg := totalDuration / int64(count)
+	avg := totalDuration / int64(totalCount)
 	return formatDuration(avg)
 }
 

@@ -51,6 +51,12 @@ func GenerateReportFromStorage(period ReportPeriod, startDate, endDate time.Time
 		sortAggregatedErrors(report.AggregatedErrors)
 	}
 
+	alertCountMap := make(map[string]int)
+	for _, e := range report.AggregatedErrors {
+		key := e.TaskID + "|" + e.URL
+		alertCountMap[key] += e.AlertCount
+	}
+
 	monitorSummaries, err := storage.GetMonitorSummaryByPeriod(startDate, endDate)
 	if err != nil {
 		logger.Warn("从存储获取监控汇总失败", zap.Error(err))
@@ -67,6 +73,9 @@ func GenerateReportFromStorage(period ReportPeriod, startDate, endDate time.Time
 			avgMS = summary.TotalDurationMS / summary.TotalCount
 		}
 
+		alertKey := summary.TestCaseID + "|" + summary.URL
+		alertCount := alertCountMap[alertKey]
+
 		report.InterfaceStats = append(report.InterfaceStats, InterfaceStat{
 			TaskID:          summary.TestCaseID,
 			TaskDesc:        summary.TestCaseDesc,
@@ -75,6 +84,8 @@ func GenerateReportFromStorage(period ReportPeriod, startDate, endDate time.Time
 			TotalCount:      int(summary.TotalCount),
 			SuccessCount:    int(summary.SuccessCount),
 			FailedCount:     int(summary.FailedCount),
+			AlertCount:      alertCount,
+			TotalDurationMS: summary.TotalDurationMS,
 			AvgDurationMS:   avgMS,
 			MaxDurationMS:   summary.MaxDurationMS,
 			LastFailureTime: summary.LastFailureTime,
@@ -128,8 +139,8 @@ func GenerateReportFromStorage(period ReportPeriod, startDate, endDate time.Time
 		}
 	}
 
-	if period == PeriodDaily && config.GlobalConfig.SystemMon.Enabled {
-		report.SystemMetrics = loadSystemMetrics(startDate, endDate)
+	if config.GlobalConfig.SystemMon.Enabled {
+		report.SystemMetrics = loadSystemMetrics(period, startDate, endDate)
 	}
 
 	return report
@@ -420,7 +431,8 @@ func (r *Report) GenerateContent() string {
 }
 
 // loadSystemMetrics 采集当前系统指标，加载报告周期内的历史数据生成趋势图表，返回 SystemMetricsSnapshot。
-func loadSystemMetrics(startDate, endDate time.Time) *SystemMetricsSnapshot {
+// 根据报告周期选择不同粒度的数据源：日报使用小时级，周报使用日级，月报使用周级，年报使用月级。
+func loadSystemMetrics(period ReportPeriod, startDate, endDate time.Time) *SystemMetricsSnapshot {
 	current, err := sysmon.CollectMetrics()
 	if err != nil {
 		logger.Error("报告采集系统指标失败", zap.Error(err))
@@ -428,19 +440,19 @@ func loadSystemMetrics(startDate, endDate time.Time) *SystemMetricsSnapshot {
 	}
 
 	snapshot := &SystemMetricsSnapshot{
-		CPUPercent:     current.CPUPercent,
-		CPUMaxPercent:  current.CPUPercent,
-		MemoryPercent:  current.MemoryPercent,
+		CPUPercent:       current.CPUPercent,
+		CPUMaxPercent:    current.CPUPercent,
+		MemoryPercent:    current.MemoryPercent,
 		MemoryMaxPercent: current.MemoryPercent,
-		DiskPercent:    current.DiskPercent,
-		NetDownKBps:    current.NetDownKBps,
-		NetUpKBps:      current.NetUpKBps,
-		NetDownMaxKBps: current.NetDownKBps,
-		NetUpMaxKBps:   current.NetUpKBps,
-		MemUsedBytes:   current.MemoryUsed,
-		MemTotalBytes:  current.MemoryTotal,
-		DiskUsedBytes:  current.DiskUsed,
-		DiskTotalBytes: current.DiskTotal,
+		DiskPercent:      current.DiskPercent,
+		NetDownKBps:      current.NetDownKBps,
+		NetUpKBps:        current.NetUpKBps,
+		NetDownMaxKBps:   current.NetDownKBps,
+		NetUpMaxKBps:     current.NetUpKBps,
+		MemUsedBytes:     current.MemoryUsed,
+		MemTotalBytes:    current.MemoryTotal,
+		DiskUsedBytes:    current.DiskUsed,
+		DiskTotalBytes:   current.DiskTotal,
 	}
 
 	for _, p := range current.Partitions {
@@ -455,25 +467,47 @@ func loadSystemMetrics(startDate, endDate time.Time) *SystemMetricsSnapshot {
 
 	sysmon.FlushHourlyAgg()
 
-	hourlyMetrics, err := sysmon.LoadMetricsByRange(startDate, endDate)
-	if err != nil || len(hourlyMetrics) == 0 {
-		logger.Info("暂无小时级指标数据，跳过图表生成")
+	var metrics []sysmon.SystemMetric
+	var labelFormat string
+
+	switch period {
+	case PeriodWeekly:
+		metrics, err = sysmon.LoadDailyMetricsByRange(startDate, endDate)
+		labelFormat = "01-02"
+	case PeriodMonthly:
+		metrics, err = sysmon.LoadWeeklyMetricsByRange(startDate, endDate)
+		labelFormat = "01-02"
+	case PeriodYearly:
+		metrics, err = sysmon.LoadMonthlyMetricsByRange(startDate, endDate)
+		labelFormat = "2006-01"
+	default:
+		metrics, err = sysmon.LoadMetricsByRange(startDate, endDate)
+		labelFormat = "01-02 15:04"
+	}
+
+	if err != nil || len(metrics) == 0 {
+		logger.Info("暂无系统指标数据，跳过图表生成", zap.Error(err))
 		return snapshot
 	}
 
-	labels := make([]string, len(hourlyMetrics))
-	cpuData := make([]float64, len(hourlyMetrics))
-	cpuMaxData := make([]float64, len(hourlyMetrics))
-	memData := make([]float64, len(hourlyMetrics))
-	memMaxData := make([]float64, len(hourlyMetrics))
-	diskData := make([]float64, len(hourlyMetrics))
-	netDownData := make([]float64, len(hourlyMetrics))
-	netUpData := make([]float64, len(hourlyMetrics))
-	netDownMaxData := make([]float64, len(hourlyMetrics))
-	netUpMaxData := make([]float64, len(hourlyMetrics))
+	chartWidth := len(metrics)
+	if chartWidth > 20 {
+		chartWidth = 20
+	}
 
-	for i, m := range hourlyMetrics {
-		labels[i] = m.Timestamp.Format("01-02 15:04")
+	labels := make([]string, len(metrics))
+	cpuData := make([]float64, len(metrics))
+	cpuMaxData := make([]float64, len(metrics))
+	memData := make([]float64, len(metrics))
+	memMaxData := make([]float64, len(metrics))
+	diskData := make([]float64, len(metrics))
+	netDownData := make([]float64, len(metrics))
+	netUpData := make([]float64, len(metrics))
+	netDownMaxData := make([]float64, len(metrics))
+	netUpMaxData := make([]float64, len(metrics))
+
+	for i, m := range metrics {
+		labels[i] = m.Timestamp.Format(labelFormat)
 		cpuData[i] = m.CPUPercent
 		cpuMaxData[i] = m.CPUMaxPercent
 		memData[i] = m.MemoryPercent
@@ -499,18 +533,18 @@ func loadSystemMetrics(startDate, endDate time.Time) *SystemMetricsSnapshot {
 	}
 
 	cfg := config.GlobalConfig.SystemMon
-	snapshot.CPUChart = sysmon.GenerateASCIIChartWithTime(cpuData, 20, "%", labels, cfg.CPUThreshold)
-	snapshot.CPUMaxChart = sysmon.GenerateASCIIChartWithTime(cpuMaxData, 20, "%", labels, cfg.CPUThreshold)
-	snapshot.MemoryChart = sysmon.GenerateASCIIChartWithTime(memData, 20, "%", labels, cfg.MemoryThreshold)
-	snapshot.MemoryMaxChart = sysmon.GenerateASCIIChartWithTime(memMaxData, 20, "%", labels, cfg.MemoryThreshold)
-	snapshot.DiskChart = sysmon.GenerateASCIIChartWithTime(diskData, 20, "%", labels, cfg.DiskUsageThreshold)
-	snapshot.NetDownChart = sysmon.GenerateASCIIChartWithTime(netDownData, 20, "KB/s", labels, cfg.NetworkDownThreshold)
-	snapshot.NetUpChart = sysmon.GenerateASCIIChartWithTime(netUpData, 20, "KB/s", labels, cfg.NetworkUpThreshold)
-	snapshot.NetDownMaxChart = sysmon.GenerateASCIIChartWithTime(netDownMaxData, 20, "KB/s", labels, cfg.NetworkDownThreshold)
-	snapshot.NetUpMaxChart = sysmon.GenerateASCIIChartWithTime(netUpMaxData, 20, "KB/s", labels, cfg.NetworkUpThreshold)
+	snapshot.CPUChart = sysmon.GenerateASCIIChartWithTime(cpuData, chartWidth, "%", labels, cfg.CPUThreshold)
+	snapshot.CPUMaxChart = sysmon.GenerateASCIIChartWithTime(cpuMaxData, chartWidth, "%", labels, cfg.CPUThreshold)
+	snapshot.MemoryChart = sysmon.GenerateASCIIChartWithTime(memData, chartWidth, "%", labels, cfg.MemoryThreshold)
+	snapshot.MemoryMaxChart = sysmon.GenerateASCIIChartWithTime(memMaxData, chartWidth, "%", labels, cfg.MemoryThreshold)
+	snapshot.DiskChart = sysmon.GenerateASCIIChartWithTime(diskData, chartWidth, "%", labels, cfg.DiskUsageThreshold)
+	snapshot.NetDownChart = sysmon.GenerateASCIIChartWithTime(netDownData, chartWidth, "KB/s", labels, cfg.NetworkDownThreshold)
+	snapshot.NetUpChart = sysmon.GenerateASCIIChartWithTime(netUpData, chartWidth, "KB/s", labels, cfg.NetworkUpThreshold)
+	snapshot.NetDownMaxChart = sysmon.GenerateASCIIChartWithTime(netDownMaxData, chartWidth, "KB/s", labels, cfg.NetworkDownThreshold)
+	snapshot.NetUpMaxChart = sysmon.GenerateASCIIChartWithTime(netUpMaxData, chartWidth, "KB/s", labels, cfg.NetworkUpThreshold)
 
-	snapshot.StartTime = hourlyMetrics[0].Timestamp.Format("2006-01-02 15:04")
-	snapshot.EndTime = hourlyMetrics[len(hourlyMetrics)-1].Timestamp.Format("2006-01-02 15:04")
+	snapshot.StartTime = metrics[0].Timestamp.Format("2006-01-02 15:04")
+	snapshot.EndTime = metrics[len(metrics)-1].Timestamp.Format("2006-01-02 15:04")
 
 	return snapshot
 }
