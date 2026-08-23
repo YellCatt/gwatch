@@ -1,3 +1,4 @@
+// Package cmd 中的 scraper 子命令：独立运行采集器，或用于调试 JSONPath 的 URL 探测工具。
 package cmd
 
 import (
@@ -6,6 +7,8 @@ import (
 	"gwatch/internal/scraper"
 )
 
+// scraperCmd 运行通用指标采集器：按配置文件中的目标列表周期采集，
+// 使用 JSONPath 提取指标并根据阈值触发告警。
 var scraperCmd = &cobra.Command{
 	Use:   "scraper",
 	Short: "运行通用指标采集器",
@@ -15,6 +18,8 @@ var scraperCmd = &cobra.Command{
 	},
 }
 
+// probeCmd 调试工具：对单个 URL 发起请求并打印 JSON 树形结构，
+// 便于开发者快速确定正确的 JSONPath 表达式。
 var probeCmd = &cobra.Command{
 	Use:   "probe <url>",
 	Short: "探测目标 URL 并打印 JSON 结构",
@@ -25,6 +30,7 @@ var probeCmd = &cobra.Command{
 	},
 }
 
+// init 注册采集器与 URL 探测子命令到根命令。
 func init() {
 	rootCmd.AddCommand(scraperCmd)
 	rootCmd.AddCommand(probeCmd)

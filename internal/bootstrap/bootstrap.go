@@ -1,3 +1,5 @@
+// Package bootstrap 负责 gwatch 应用启动阶段的初始化工作：
+// 创建必要目录、加载配置、初始化日志、加载变量、初始化邮件模块等。
 package bootstrap
 
 import (
@@ -12,6 +14,8 @@ import (
 	"gwatch/internal/vars"
 )
 
+// InitApp 应用入口初始化函数（在 cobra.OnInitialize 中被调用）。
+// 初始化顺序：目录 -> 配置 -> 日志 -> 变量 -> 邮件。
 func InitApp() {
 	InitDirectories()
 
@@ -26,6 +30,7 @@ func InitApp() {
 
 	logger.Info("gwatch 已启动", zap.String("版本", config.Version))
 
+	// 注入基础变量 base_url，供后续模板替换使用
 	vars.Set("base_url", config.GlobalConfig.Target.BaseURL)
 
 	if len(config.GlobalConfig.Vars) > 0 {
@@ -51,6 +56,7 @@ func InitApp() {
 	})
 }
 
+// maskVars 对敏感变量进行脱敏处理后返回，仅用于日志打印。
 func maskVars(vars map[string]string) map[string]string {
 	result := make(map[string]string)
 	for k, v := range vars {
@@ -59,6 +65,7 @@ func maskVars(vars map[string]string) map[string]string {
 	return result
 }
 
+// maskString 将任意字符串脱敏：短字符串直接替换为 ***，长字符串保留前后 4 位。
 func maskString(s string) string {
 	if len(s) <= 8 {
 		return "***"
@@ -66,6 +73,8 @@ func maskString(s string) string {
 	return s[:4] + "***" + s[len(s)-4:]
 }
 
+// InitDirectories 创建项目运行所需的基础目录（配置、日志、报告、数据等），
+// 若目录不存在则自动创建。同时尝试生成默认配置文件，便于首次运行。
 func InitDirectories() {
 	directories := []string{
 		"./config",
@@ -88,6 +97,8 @@ func InitDirectories() {
 	createDefaultConfigFile()
 }
 
+// createDefaultConfigFile 若 config/config.yaml 不存在则写入一份默认模板，
+// 方便首次运行的用户快速上手。若已存在则直接返回。
 func createDefaultConfigFile() {
 	configPath := "./config/config.yaml"
 

@@ -6,6 +6,8 @@ import (
 	"gwatch/internal/sysmon"
 )
 
+// initSystemReportCommand 注册系统资源报告子命令，
+// 用于在终端直接打印当前机器 CPU/内存/磁盘/网络等指标的 ASCII 图表报告。
 func initSystemReportCommand() {
 	sysMonReportCmd := &cobra.Command{
 		Use:   "sys-report",

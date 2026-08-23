@@ -1,3 +1,5 @@
+// Package config 负责加载和管理应用的 YAML 配置。
+// 通过 Viper 解析配置文件，填充到 GlobalConfig 结构体，并提供默认值回退及热重载能力。
 package config
 
 import (
@@ -11,10 +13,13 @@ import (
 	"gwatch/internal/logger"
 )
 
+// CfgFile 由命令行 --config 参数指定的配置文件路径。
 var CfgFile string
 
-const Version = "v1.0.0_20260823-1806"
+// Version 当前 gwatch 版本号。
+const Version = "v1.0.0_20260823-2050"
 
+// GlobalConfig 全局配置实例，整个运行周期内共享。
 var GlobalConfig Config
 
 // InitConfig 初始化应用配置：读取 YAML 配置文件、解析到 GlobalConfig 结构体、设置默认值和加载变量。
@@ -48,6 +53,7 @@ func InitConfig() {
 }
 
 // ReloadConfig 重新加载配置文件并返回日志级别是否发生了变化。
+// 用于热重载场景，配置变更后可动态生效（无需重启进程）。
 func ReloadConfig() bool {
 	oldLogLevel := GlobalConfig.Log.Level
 
@@ -74,6 +80,7 @@ func ReloadConfig() bool {
 }
 
 // loadRawVars 从配置文件直接读取 vars 变量映射，优先使用原生 YAML 解析以保留变量名大小写。
+// 若原生解析失败则回退到 Viper，Viper 会将 key 统一转为小写，可能导致变量名大小写丢失。
 func loadRawVars() map[string]string {
 	result := make(map[string]string)
 

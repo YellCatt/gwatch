@@ -1,3 +1,4 @@
+// Package util 提供通用的格式化工具函数，包括速率、字节数、设备名等格式化。
 package util
 
 import (
@@ -7,6 +8,7 @@ import (
 	"gwatch/config"
 )
 
+// FormatSpeed 将 KB/s 速率格式化为合适的人类可读单位（KB/s / MB/s / GB/s）。
 func FormatSpeed(kbps float64) string {
 	if kbps >= 1024*1024 {
 		return fmt.Sprintf("%.2f GB/s", kbps/1024/1024)
@@ -57,6 +59,7 @@ func IsSpeedUnit(unit string) bool {
 	}
 }
 
+// FormatBytes 将字节数格式化为 MB 或 GB。
 func FormatBytes(bytes uint64) string {
 	mb := float64(bytes) / 1024 / 1024
 	if mb >= 1024 {
@@ -65,6 +68,8 @@ func FormatBytes(bytes uint64) string {
 	return fmt.Sprintf("%.1f MB", mb)
 }
 
+// GetDeviceName 获取当前设备名。
+// 优先使用配置中显式指定的 HostName，否则读取系统主机名，获取失败则返回 "未知设备"。
 func GetDeviceName() string {
 	if config.GlobalConfig.App.HostName != "" {
 		return config.GlobalConfig.App.HostName

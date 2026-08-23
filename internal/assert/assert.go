@@ -1,3 +1,5 @@
+// Package assert 提供接口测试断言相关的工具函数，包括响应体压缩、正则匹配、
+// JSON 精确/子集比较、流式断言以及变量提取等能力。
 package assert
 
 import (

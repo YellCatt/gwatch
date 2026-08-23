@@ -13,40 +13,54 @@ import (
 	"gwatch/internal/util"
 )
 
+// AlertSource 告警来源类型（API 监控 / 采集器 / 系统监控）。
 type AlertSource string
 
 const (
-	SourceAPI     AlertSource = "api_monitor"
+	// SourceAPI 接口监控告警
+	SourceAPI AlertSource = "api_monitor"
+	// SourceScraper 远程采集器告警
 	SourceScraper AlertSource = "scraper"
-	SourceSystem  AlertSource = "system_monitor"
+	// SourceSystem 系统资源监控告警
+	SourceSystem AlertSource = "system_monitor"
 )
 
+// UnifiedAlert 统一告警结构，各模块产生的告警都会被包装成此结构，
+// 由 dispatcher 合并、去重、冷却后统一通过邮件发送。
 type UnifiedAlert struct {
-	Source           AlertSource
-	SourceName       string
-	TargetName       string
-	MetricName       string
-	MetricAlias      string
-	Value            float64
-	Unit             string
-	Threshold        float64
-	AlertLevel       string
-	Message          string
-	Timestamp        time.Time
-	TopProcesses     []string
-	TopProcessesLabel string
+	Source            AlertSource // 告警来源
+	SourceName        string      // 来源中文名
+	TargetName        string      // 目标（接口/指标/资源）名
+	MetricName        string      // 内部指标名
+	MetricAlias       string      // 友好别名
+	Value             float64     // 当前值
+	Unit              string      // 单位
+	Threshold         float64     // 阈值
+	AlertLevel        string      // CRITICAL / WARNING
+	Message           string      // 告警描述
+	Timestamp         time.Time   // 发生时间
+	TopProcesses      []string    // 系统监控场景下的 Top 进程
+	TopProcessesLabel string      // Top 进程标签
 }
 
 var (
-	alertChan         = make(chan UnifiedAlert, 200)
-	collectedAlerts   []UnifiedAlert
-	alertsMu          sync.Mutex
-	lastAlertKeys     = make(map[string]time.Time)
-	lastAlertMu       sync.Mutex
+	// alertChan 告警缓冲通道，用于各模块异步提交告警
+	alertChan = make(chan UnifiedAlert, 200)
+	// collectedAlerts 聚合周期内已收集的告警列表
+	collectedAlerts []UnifiedAlert
+	// alertsMu 保护 collectedAlerts 的互斥锁
+	alertsMu sync.Mutex
+	// lastAlertKeys 记录每个告警键（来源+目标+指标）最近一次发送时间，用于冷却去重
+	lastAlertKeys = make(map[string]time.Time)
+	// lastAlertMu 保护 lastAlertKeys 的互斥锁
+	lastAlertMu sync.Mutex
+	// dispatcherRunning 告警调度协程是否已启动
 	dispatcherRunning bool
-	dispatcherMu      sync.Mutex
+	// dispatcherMu 保护 dispatcherRunning 的互斥锁
+	dispatcherMu sync.Mutex
 )
 
+// DispatchAlert 提交一条告警到统一调度器；若调度协程未启动则自动启动。
 func DispatchAlert(alert UnifiedAlert) {
 	logger.Debug("收到告警通知",
 		zap.String("target", alert.TargetName),
@@ -54,6 +68,7 @@ func DispatchAlert(alert UnifiedAlert) {
 		zap.String("alert_level", alert.AlertLevel),
 		zap.String("message", alert.Message))
 
+	// 首次调用时启动后台调度协程
 	dispatcherMu.Lock()
 	if !dispatcherRunning {
 		dispatcherRunning = true
@@ -66,6 +81,7 @@ func DispatchAlert(alert UnifiedAlert) {
 	alertChan <- alert
 }
 
+// alertDispatcherLoop 告警调度主循环：每 30 秒批量 flush 一次告警并发送邮件。
 func alertDispatcherLoop() {
 	ticker := time.NewTicker(30 * time.Second)
 	defer ticker.Stop()
@@ -87,6 +103,7 @@ func alertDispatcherLoop() {
 	}
 }
 
+// flushAndSend 将当前缓存的告警列表取出、按冷却时间过滤并发送邮件。
 func flushAndSend() {
 	alertsMu.Lock()
 	if len(collectedAlerts) == 0 {
@@ -115,6 +132,8 @@ func flushAndSend() {
 	}
 }
 
+// filterByCooldown 基于冷却时间过滤告警，防止短时间内重复发送同一告警。
+// 冷却时间按告警来源区分（API / 采集器 / 系统）。
 func filterByCooldown(alerts []UnifiedAlert) []UnifiedAlert {
 	lastAlertMu.Lock()
 	defer lastAlertMu.Unlock()
@@ -140,6 +159,7 @@ func filterByCooldown(alerts []UnifiedAlert) []UnifiedAlert {
 	return filtered
 }
 
+// getCooldownForSource 根据告警来源返回对应的冷却时间。
 func getCooldownForSource(source AlertSource) time.Duration {
 	switch source {
 	case SourceAPI:
@@ -162,6 +182,7 @@ func getCooldownForSource(source AlertSource) time.Duration {
 	}
 }
 
+// sendUnifiedAlertEmail 将告警列表组装为邮件正文和标题并调用 SendEmail 发送。
 func sendUnifiedAlertEmail(alerts []UnifiedAlert) error {
 	if !Config.Enabled {
 		logger.Info("邮件功能已禁用，跳过统一告警邮件")
@@ -227,11 +248,13 @@ func sendUnifiedAlertEmail(alerts []UnifiedAlert) error {
 	return SendEmail(subject, body)
 }
 
+// alertGroup 告警按来源分组的中间结构。
 type alertGroup struct {
 	sourceName string
 	alerts     []UnifiedAlert
 }
 
+// groupBySource 将告警列表按来源分组，并按固定顺序（API/Scraper/System）输出。
 func groupBySource(alerts []UnifiedAlert) []alertGroup {
 	sourceOrder := []AlertSource{SourceAPI, SourceScraper, SourceSystem}
 	sourceNames := map[AlertSource]string{
@@ -255,6 +278,7 @@ func groupBySource(alerts []UnifiedAlert) []alertGroup {
 			delete(groups, src)
 		}
 	}
+	// 剩余未在预定义顺序中的来源追加到末尾
 	for _, g := range groups {
 		result = append(result, *g)
 	}
@@ -262,6 +286,7 @@ func groupBySource(alerts []UnifiedAlert) []alertGroup {
 	return result
 }
 
+// CloseDispatcher 关闭告警调度器，会先关闭通道以便后台协程 flush 后退出。
 func CloseDispatcher() {
 	dispatcherMu.Lock()
 	defer dispatcherMu.Unlock()
