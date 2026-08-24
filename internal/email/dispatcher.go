@@ -43,6 +43,8 @@ type UnifiedAlert struct {
 	TopProcessesLabel string      // Top 进程标签
 	StatusCode        int         // HTTP 响应状态码（接口监控场景）
 	Assertion         string      // 断言内容或错误详情（接口监控场景）
+	StatusCodeOk      bool        // 状态码断言是否通过（接口监控场景）
+	AssertionOk       bool        // 响应体断言是否通过（接口监控场景）
 }
 
 var (
@@ -226,6 +228,8 @@ func sendUnifiedAlertEmail(alerts []UnifiedAlert) error {
 				TopProcessesLabel: a.TopProcessesLabel,
 				StatusCode:        a.StatusCode,
 				Assertion:         a.Assertion,
+				StatusCodeOk:      a.StatusCodeOk,
+				AssertionOk:       a.AssertionOk,
 			}
 			groupRows = append(groupRows, row)
 			allRows = append(allRows, row)

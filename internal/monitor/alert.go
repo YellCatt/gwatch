@@ -17,15 +17,22 @@ import (
 func checkAlerts(result *MonitorResult) {
 	tc := result.TestCase
 
-	if errMsg := checkStatusCode(tc, result.Result); errMsg != "" {
-		triggerFailureAlert(result, errMsg)
+	statusErr := checkStatusCode(tc, result.Result)
+	if statusErr != "" {
+		result.StatusCodeOk = false
+		triggerFailureAlert(result, statusErr)
 		return
 	}
+	result.StatusCodeOk = true
 
 	if errMsg := checkBodyAssertions(tc, result.Result); errMsg != "" {
+		result.AssertionOk = false
+		result.AssertionText = errMsg
 		triggerFailureAlert(result, errMsg)
 		return
 	}
+	result.AssertionOk = true
+	result.AssertionText = "断言通过"
 
 	if !result.Result.Passed && tc.AlertOnFailure {
 		result.AlertType = "failure"
@@ -109,21 +116,26 @@ func sendAlertEmail(result MonitorResult) {
 	}
 
 	statusCode := result.Result.ActualStatus
-	assertion := result.Result.Error
+	assertion := result.AssertionText
+	if assertion == "" {
+		assertion = result.Result.Error
+	}
 
 	email.DispatchAlert(email.UnifiedAlert{
-		Source:      email.SourceAPI,
-		SourceName:  "接口监控",
-		TargetName:  tc.ID,
-		MetricName:  result.AlertType,
-		MetricAlias: tc.Desc,
-		Value:       float64(result.Result.Duration.Milliseconds()),
-		Unit:        "ms",
-		Threshold:   float64(tc.ResponseThreshold),
-		AlertLevel:  alertLevel,
-		Message:     result.AlertMsg,
-		Timestamp:   timeutil.Now(),
-		StatusCode:  statusCode,
-		Assertion:   assertion,
+		Source:        email.SourceAPI,
+		SourceName:    "接口监控",
+		TargetName:    tc.ID,
+		MetricName:    result.AlertType,
+		MetricAlias:   tc.Desc,
+		Value:         float64(result.Result.Duration.Milliseconds()),
+		Unit:          "ms",
+		Threshold:     float64(tc.ResponseThreshold),
+		AlertLevel:    alertLevel,
+		Message:       result.AlertMsg,
+		Timestamp:     timeutil.Now(),
+		StatusCode:    statusCode,
+		Assertion:     assertion,
+		StatusCodeOk:  result.StatusCodeOk,
+		AssertionOk:   result.AssertionOk,
 	})
 }

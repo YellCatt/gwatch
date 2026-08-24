@@ -72,6 +72,8 @@ type AlertRowData struct {
 	TopProcessesLabel string   // Top 进程对应标签
 	StatusCode        int      // HTTP 响应状态码
 	Assertion         string   // 断言内容或错误详情
+	StatusCodeOk      bool     // 状态码断言是否通过
+	AssertionOk       bool     // 响应体断言是否通过
 }
 
 // renderAlertTemplate 使用模板引擎渲染统一告警邮件正文。

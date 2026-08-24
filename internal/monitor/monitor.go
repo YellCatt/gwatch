@@ -33,11 +33,14 @@ type MonitorTask struct {
 }
 
 type MonitorResult struct {
-	TestCase  psv.TestCase
-	Result    testcase.TestResult
-	Timestamp time.Time
-	AlertType string
-	AlertMsg  string
+	TestCase      psv.TestCase
+	Result        testcase.TestResult
+	Timestamp     time.Time
+	AlertType     string
+	AlertMsg      string
+	StatusCodeOk  bool
+	AssertionOk   bool
+	AssertionText string
 }
 
 var (
