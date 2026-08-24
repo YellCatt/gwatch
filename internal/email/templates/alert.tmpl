@@ -15,6 +15,12 @@
 {{- if gt .Threshold 0.0}}
    阈值:     {{formatValue .Threshold .Unit}}
 {{- end}}
+{{- if .StatusCode}}
+   状态码:   {{.StatusCode}}
+{{- end}}
+{{- if .Assertion}}
+   断言:     {{.Assertion}}
+{{- end}}
 {{- if .Message}}
    消息:     {{.Message}}
 {{- end}}

@@ -70,6 +70,8 @@ type AlertRowData struct {
 	Message           string   // 告警描述信息
 	TopProcesses      []string // 系统监控场景下的 Top 进程列表
 	TopProcessesLabel string   // Top 进程对应标签
+	StatusCode        int      // HTTP 响应状态码
+	Assertion         string   // 断言内容或错误详情
 }
 
 // renderAlertTemplate 使用模板引擎渲染统一告警邮件正文。

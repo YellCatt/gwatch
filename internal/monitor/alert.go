@@ -41,6 +41,9 @@ func sendAlertEmail(result MonitorResult) {
 		alertLevel = "CRITICAL"
 	}
 
+	statusCode := result.Result.ActualStatus
+	assertion := result.Result.Error
+
 	email.DispatchAlert(email.UnifiedAlert{
 		Source:      email.SourceAPI,
 		SourceName:  "接口监控",
@@ -53,5 +56,7 @@ func sendAlertEmail(result MonitorResult) {
 		AlertLevel:  alertLevel,
 		Message:     result.AlertMsg,
 		Timestamp:   timeutil.Now(),
+		StatusCode:  statusCode,
+		Assertion:   assertion,
 	})
 }

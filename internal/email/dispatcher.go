@@ -41,6 +41,8 @@ type UnifiedAlert struct {
 	Timestamp         time.Time   // 发生时间
 	TopProcesses      []string    // 系统监控场景下的 Top 进程
 	TopProcessesLabel string      // Top 进程标签
+	StatusCode        int         // HTTP 响应状态码（接口监控场景）
+	Assertion         string      // 断言内容或错误详情（接口监控场景）
 }
 
 var (
@@ -222,6 +224,8 @@ func sendUnifiedAlertEmail(alerts []UnifiedAlert) error {
 				Message:           a.Message,
 				TopProcesses:      a.TopProcesses,
 				TopProcessesLabel: a.TopProcessesLabel,
+				StatusCode:        a.StatusCode,
+				Assertion:         a.Assertion,
 			}
 			groupRows = append(groupRows, row)
 			allRows = append(allRows, row)
