@@ -432,6 +432,7 @@ func (r *Report) GenerateContent() string {
 
 // loadSystemMetrics 采集当前系统指标，加载报告周期内的历史数据生成趋势图表，返回 SystemMetricsSnapshot。
 // 根据报告周期选择不同粒度的数据源：日报使用小时级，周报使用日级，月报使用周级，年报使用月级。
+// 当首选数据源数据为空时，自动回退到更细粒度的数据源，确保图表始终可用。
 func loadSystemMetrics(period ReportPeriod, startDate, endDate time.Time) *SystemMetricsSnapshot {
 	current, err := sysmon.CollectMetrics()
 	if err != nil {
@@ -467,26 +468,10 @@ func loadSystemMetrics(period ReportPeriod, startDate, endDate time.Time) *Syste
 
 	sysmon.FlushHourlyAgg()
 
-	var metrics []sysmon.SystemMetric
-	var labelFormat string
+	metrics, labelFormat := loadMetricsWithFallback(period, startDate, endDate)
 
-	switch period {
-	case PeriodWeekly:
-		metrics, err = sysmon.LoadDailyMetricsByRange(startDate, endDate)
-		labelFormat = "01-02"
-	case PeriodMonthly:
-		metrics, err = sysmon.LoadWeeklyMetricsByRange(startDate, endDate)
-		labelFormat = "01-02"
-	case PeriodYearly:
-		metrics, err = sysmon.LoadMonthlyMetricsByRange(startDate, endDate)
-		labelFormat = "2006-01"
-	default:
-		metrics, err = sysmon.LoadMetricsByRange(startDate, endDate)
-		labelFormat = "01-02 15:04"
-	}
-
-	if err != nil || len(metrics) == 0 {
-		logger.Info("暂无系统指标数据，跳过图表生成", zap.Error(err))
+	if len(metrics) == 0 {
+		logger.Info("暂无系统指标数据，跳过图表生成")
 		return snapshot
 	}
 
@@ -547,4 +532,252 @@ func loadSystemMetrics(period ReportPeriod, startDate, endDate time.Time) *Syste
 	snapshot.EndTime = metrics[len(metrics)-1].Timestamp.Format("2006-01-02 15:04")
 
 	return snapshot
+}
+
+// loadMetricsWithFallback 根据报告周期加载系统指标数据。
+// 对于年度报告，若月级数据不足则从日级/小时级数据按月聚合，确保始终展示月度维度的图表。
+// 对于周/月报告，回退到更细粒度的数据源（粒度降级在短周期场景下可接受）。
+func loadMetricsWithFallback(period ReportPeriod, startDate, endDate time.Time) ([]sysmon.SystemMetric, string) {
+	switch period {
+	case PeriodYearly:
+		return loadYearlyMetricsWithAggregation(startDate, endDate)
+	case PeriodWeekly:
+		return loadWeeklyMetricsWithFallback(startDate, endDate)
+	case PeriodMonthly:
+		return loadMonthlyMetricsWithFallback(startDate, endDate)
+	default:
+		metrics, err := sysmon.LoadMetricsByRange(startDate, endDate)
+		if err != nil {
+			logger.Warn("加载小时级指标失败", zap.Error(err))
+			return nil, "01-02 15:04"
+		}
+		return metrics, "01-02 15:04"
+	}
+}
+
+// loadYearlyMetricsWithAggregation 加载年度报告的系统指标数据。
+// 优先使用月级 CSV 数据；若数据不足，则从日级/小时级数据按月聚合，确保月度维度的图表始终可用。
+func loadYearlyMetricsWithAggregation(startDate, endDate time.Time) ([]sysmon.SystemMetric, string) {
+	metrics, err := sysmon.LoadMonthlyMetricsByRange(startDate, endDate)
+	if err != nil {
+		logger.Warn("加载月级指标失败", zap.Error(err))
+	}
+	if len(metrics) >= 2 {
+		logger.Info(fmt.Sprintf("使用月级数据源生成年报图表 (数据点: %d)", len(metrics)))
+		return metrics, "2006-01"
+	}
+
+	logger.Info(fmt.Sprintf("月级数据不足 (仅 %d 条)，回退到日级数据按月聚合", len(metrics)))
+	dailyMetrics, err := sysmon.LoadDailyMetricsByRange(startDate, endDate)
+	if err != nil {
+		logger.Warn("加载日级指标失败", zap.Error(err))
+	}
+	if len(dailyMetrics) > 0 {
+		aggregated := aggregateMetricsByMonth(dailyMetrics)
+		if len(aggregated) >= 1 {
+			logger.Info(fmt.Sprintf("日级数据按月聚合成功 (聚合后: %d 个月)", len(aggregated)))
+			return aggregated, "2006-01"
+		}
+	}
+
+	logger.Info("日级数据也不足，回退到小时级数据按月聚合")
+	hourlyMetrics, err := sysmon.LoadMetricsByRange(startDate, endDate)
+	if err != nil {
+		logger.Warn("加载小时级指标失败", zap.Error(err))
+	}
+	if len(hourlyMetrics) > 0 {
+		aggregated := aggregateMetricsByMonth(hourlyMetrics)
+		if len(aggregated) >= 1 {
+			logger.Info(fmt.Sprintf("小时级数据按月聚合成功 (聚合后: %d 个月)", len(aggregated)))
+			return aggregated, "2006-01"
+		}
+	}
+
+	logger.Info("所有数据源均无数据，无法生成年报图表")
+	return nil, "2006-01"
+}
+
+// loadWeeklyMetricsWithFallback 加载周报的系统指标数据，使用日级数据源，回退到小时级。
+func loadWeeklyMetricsWithFallback(startDate, endDate time.Time) ([]sysmon.SystemMetric, string) {
+	metrics, err := sysmon.LoadDailyMetricsByRange(startDate, endDate)
+	if err != nil {
+		logger.Warn("加载日级指标失败", zap.Error(err))
+	}
+	if len(metrics) > 0 {
+		logger.Info(fmt.Sprintf("使用日级数据源生成周报图表 (数据点: %d)", len(metrics)))
+		return metrics, "01-02"
+	}
+
+	metrics, err = sysmon.LoadMetricsByRange(startDate, endDate)
+	if err != nil {
+		logger.Warn("加载小时级指标失败", zap.Error(err))
+	}
+	if len(metrics) > 0 {
+		logger.Info(fmt.Sprintf("使用小时级数据源生成周报图表 (数据点: %d)", len(metrics)))
+		return metrics, "01-02 15:04"
+	}
+
+	logger.Info("所有数据源均无数据，无法生成周报图表")
+	return nil, "01-02"
+}
+
+// loadMonthlyMetricsWithFallback 加载月报的系统指标数据，使用周级数据源，回退到日级，再回退到小时级。
+func loadMonthlyMetricsWithFallback(startDate, endDate time.Time) ([]sysmon.SystemMetric, string) {
+	metrics, err := sysmon.LoadWeeklyMetricsByRange(startDate, endDate)
+	if err != nil {
+		logger.Warn("加载周级指标失败", zap.Error(err))
+	}
+	if len(metrics) > 0 {
+		logger.Info(fmt.Sprintf("使用周级数据源生成月报图表 (数据点: %d)", len(metrics)))
+		return metrics, "01-02"
+	}
+
+	metrics, err = sysmon.LoadDailyMetricsByRange(startDate, endDate)
+	if err != nil {
+		logger.Warn("加载日级指标失败", zap.Error(err))
+	}
+	if len(metrics) > 0 {
+		logger.Info(fmt.Sprintf("使用日级数据源生成月报图表 (数据点: %d)", len(metrics)))
+		return metrics, "01-02"
+	}
+
+	metrics, err = sysmon.LoadMetricsByRange(startDate, endDate)
+	if err != nil {
+		logger.Warn("加载小时级指标失败", zap.Error(err))
+	}
+	if len(metrics) > 0 {
+		logger.Info(fmt.Sprintf("使用小时级数据源生成月报图表 (数据点: %d)", len(metrics)))
+		return metrics, "01-02 15:04"
+	}
+
+	logger.Info("所有数据源均无数据，无法生成月报图表")
+	return nil, "01-02"
+}
+
+// partitionAggregate 分区聚合数据
+type partitionAggregate struct {
+	Name       string
+	MountPoint string
+	Fstype     string
+	percentSum float64
+	usedSum    uint64
+	totalSum   uint64
+	count      int
+}
+
+// aggregateMetricsByMonth 将系统指标按月聚合，返回每月一条记录。
+// 用于年度报告在月级 CSV 数据不足时，从日级或小时级数据动态聚合出月度数据。
+func aggregateMetricsByMonth(metrics []sysmon.SystemMetric) []sysmon.SystemMetric {
+	if len(metrics) == 0 {
+		return nil
+	}
+
+	type monthKey struct {
+		year  int
+		month time.Month
+	}
+
+	type aggState struct {
+		cpuSum, memSum, diskSum, netDownSum, netUpSum float64
+		cpuMax, memMax, netDownMax, netUpMax          float64
+		diskReadSum, diskWriteSum                     float64
+		count                                         int
+		timestamp                                     time.Time
+		partitions                                    map[string]*partitionAggregate
+	}
+
+	aggMap := make(map[monthKey]*aggState)
+
+	for _, m := range metrics {
+		key := monthKey{year: m.Timestamp.Year(), month: m.Timestamp.Month()}
+		if aggMap[key] == nil {
+			aggMap[key] = &aggState{
+				timestamp:  time.Date(key.year, key.month, 1, 0, 0, 0, 0, m.Timestamp.Location()),
+				partitions: make(map[string]*partitionAggregate),
+			}
+		}
+		agg := aggMap[key]
+		agg.cpuSum += m.CPUPercent
+		agg.memSum += m.MemoryPercent
+		agg.diskSum += m.DiskPercent
+		agg.netDownSum += m.NetDownKBps
+		agg.netUpSum += m.NetUpKBps
+		agg.diskReadSum += m.DiskReadKBps
+		agg.diskWriteSum += m.DiskWriteKBps
+		agg.count++
+
+		if m.CPUMaxPercent > agg.cpuMax {
+			agg.cpuMax = m.CPUMaxPercent
+		}
+		if m.MemoryMaxPercent > agg.memMax {
+			agg.memMax = m.MemoryMaxPercent
+		}
+		if m.NetDownMaxKBps > agg.netDownMax {
+			agg.netDownMax = m.NetDownMaxKBps
+		}
+		if m.NetUpMaxKBps > agg.netUpMax {
+			agg.netUpMax = m.NetUpMaxKBps
+		}
+
+		for _, p := range m.Partitions {
+			pk := p.Name + "|" + p.MountPoint
+			if agg.partitions[pk] == nil {
+				agg.partitions[pk] = &partitionAggregate{
+					Name: p.Name, MountPoint: p.MountPoint, Fstype: p.Fstype,
+				}
+			}
+			pa := agg.partitions[pk]
+			pa.percentSum += p.Percent
+			pa.usedSum += p.Used
+			pa.totalSum += p.Total
+			pa.count++
+		}
+	}
+
+	results := make([]sysmon.SystemMetric, 0, len(aggMap))
+	for _, agg := range aggMap {
+		result := sysmon.SystemMetric{
+			CPUPercent:       avgFloat64(agg.cpuSum, agg.count),
+			CPUMaxPercent:    agg.cpuMax,
+			MemoryPercent:    avgFloat64(agg.memSum, agg.count),
+			MemoryMaxPercent: agg.memMax,
+			DiskPercent:      avgFloat64(agg.diskSum, agg.count),
+			NetDownKBps:      avgFloat64(agg.netDownSum, agg.count),
+			NetUpKBps:        avgFloat64(agg.netUpSum, agg.count),
+			NetDownMaxKBps:   agg.netDownMax,
+			NetUpMaxKBps:     agg.netUpMax,
+			DiskReadKBps:     avgFloat64(agg.diskReadSum, agg.count),
+			DiskWriteKBps:    avgFloat64(agg.diskWriteSum, agg.count),
+			Timestamp:        agg.timestamp,
+		}
+
+		for _, pa := range agg.partitions {
+			if pa.count > 0 {
+				result.Partitions = append(result.Partitions, sysmon.DiskPartition{
+					Name:       pa.Name,
+					MountPoint: pa.MountPoint,
+					Fstype:     pa.Fstype,
+					Percent:    avgFloat64(pa.percentSum, pa.count),
+					Used:       pa.usedSum / uint64(pa.count),
+					Total:      pa.totalSum / uint64(pa.count),
+				})
+			}
+		}
+
+		results = append(results, result)
+	}
+
+	sort.Slice(results, func(i, j int) bool {
+		return results[i].Timestamp.Before(results[j].Timestamp)
+	})
+
+	return results
+}
+
+// avgFloat64 安全计算浮点数平均值，count 为 0 时返回 0。
+func avgFloat64(sum float64, count int) float64 {
+	if count == 0 {
+		return 0
+	}
+	return sum / float64(count)
 }
