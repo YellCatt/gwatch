@@ -45,21 +45,21 @@ func (rs *ReportScheduler) generateAllReports() {
 	}
 
 	if config.GlobalConfig.Monitor.WeeklyReport {
-		if config.GlobalConfig.Monitor.DailyAllReports || scheduler.ShouldTriggerWeekly(now) {
+		if scheduler.ShouldTriggerWeekly(now) {
 			logger.Info("正在生成周报", zap.String("起始日期", scheduler.GetWeekStart(now).Format("2006-01-02")))
 			generateAndSendReport(PeriodWeekly, now, rs.sender)
 		}
 	}
 
 	if config.GlobalConfig.Monitor.MonthlyReport {
-		if config.GlobalConfig.Monitor.DailyAllReports || scheduler.ShouldTriggerMonthly(now) {
+		if scheduler.ShouldTriggerMonthly(now) {
 			logger.Info("正在生成月报", zap.String("月份", now.Format("2006-01")))
 			generateAndSendReport(PeriodMonthly, now, rs.sender)
 		}
 	}
 
 	if config.GlobalConfig.Monitor.YearlyReport {
-		if config.GlobalConfig.Monitor.DailyAllReports || scheduler.ShouldTriggerYearly(now) {
+		if scheduler.ShouldTriggerYearly(now) {
 			logger.Info("正在生成年报", zap.String("年份", now.Format("2006")))
 			generateAndSendReport(PeriodYearly, now, rs.sender)
 		}

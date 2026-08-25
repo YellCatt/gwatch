@@ -203,8 +203,6 @@ type MonitorConfig struct {
 	YearlyReport bool `mapstructure:"yearly_report"`
 	// ReportTime 定期报告生成时间（HH:MM）
 	ReportTime string `mapstructure:"report_time"`
-	// DailyAllReports 测试模式：将周报/月报/年报也每天发送，方便快速验证
-	DailyAllReports bool `mapstructure:"daily_all_reports"`
 }
 
 // SystemMonitorConfig 本机系统资源监控模块配置。
