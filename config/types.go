@@ -201,6 +201,8 @@ type MonitorConfig struct {
 	MonthlyReport bool `mapstructure:"monthly_report"`
 	// YearlyReport 启用年报
 	YearlyReport bool `mapstructure:"yearly_report"`
+	// DailyAllReports 测试模式：每天都生成周/月/年报告，忽略周期日期限制
+	DailyAllReports bool `mapstructure:"daily_all_reports"`
 	// ReportTime 定期报告生成时间（HH:MM）
 	ReportTime string `mapstructure:"report_time"`
 }

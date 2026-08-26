@@ -35,8 +35,11 @@ func (rs *ReportScheduler) Start() {
 }
 
 // generateAllReports 根据全局配置依次生成并发送日、周、月、年报告。
+// 每种报告都针对上一个完整周期：日报=昨天，周报=上周，月报=上月，年报=去年。
+// 当 DailyAllReports 为 true 时，忽略周/月/年的日期限制，每天都生成所有报告（测试用）。
 func (rs *ReportScheduler) generateAllReports() {
 	now := timeutil.Now()
+	dailyAll := config.GlobalConfig.Monitor.DailyAllReports
 
 	if config.GlobalConfig.Monitor.DailyReport {
 		yesterday := now.Add(-24 * time.Hour)
@@ -45,23 +48,26 @@ func (rs *ReportScheduler) generateAllReports() {
 	}
 
 	if config.GlobalConfig.Monitor.WeeklyReport {
-		if scheduler.ShouldTriggerWeekly(now) {
-			logger.Info("正在生成周报", zap.String("起始日期", scheduler.GetWeekStart(now).Format("2006-01-02")))
-			generateAndSendReport(PeriodWeekly, now, rs.sender)
+		if dailyAll || scheduler.ShouldTriggerWeekly(now) {
+			lastWeek := now.Add(-7 * 24 * time.Hour)
+			logger.Info("正在生成周报", zap.String("起始日期", scheduler.GetWeekStart(lastWeek).Format("2006-01-02")))
+			generateAndSendReport(PeriodWeekly, lastWeek, rs.sender)
 		}
 	}
 
 	if config.GlobalConfig.Monitor.MonthlyReport {
-		if scheduler.ShouldTriggerMonthly(now) {
-			logger.Info("正在生成月报", zap.String("月份", now.Format("2006-01")))
-			generateAndSendReport(PeriodMonthly, now, rs.sender)
+		if dailyAll || scheduler.ShouldTriggerMonthly(now) {
+			lastMonth := now.AddDate(0, -1, 0)
+			logger.Info("正在生成月报", zap.String("月份", lastMonth.Format("2006-01")))
+			generateAndSendReport(PeriodMonthly, lastMonth, rs.sender)
 		}
 	}
 
 	if config.GlobalConfig.Monitor.YearlyReport {
-		if scheduler.ShouldTriggerYearly(now) {
-			logger.Info("正在生成年报", zap.String("年份", now.Format("2006")))
-			generateAndSendReport(PeriodYearly, now, rs.sender)
+		if dailyAll || scheduler.ShouldTriggerYearly(now) {
+			lastYear := now.AddDate(-1, 0, 0)
+			logger.Info("正在生成年报", zap.String("年份", lastYear.Format("2006")))
+			generateAndSendReport(PeriodYearly, lastYear, rs.sender)
 		}
 	}
 }

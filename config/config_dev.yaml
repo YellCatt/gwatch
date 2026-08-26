@@ -37,6 +37,7 @@ monitor:
   weekly_report: true                       # 是否启用每周报告
   monthly_report: true                      # 是否启用每月报告
   yearly_report: true                       # 是否启用每年报告
+  daily_all_reports: true                  # 测试模式：每天都生成周/月/年报告（忽略周期日期限制）
   report_time: "05:00"                      # 报告生成时间（HH:MM格式）
 
 scraper:

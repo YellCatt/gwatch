@@ -141,6 +141,7 @@ type startupReportData struct {
 	WeeklyReport       string
 	MonthlyReport      string
 	YearlyReport       string
+	DailyAllReports    string
 	ReportTime         string
 	HasDailyReport     bool
 	EmailEnabled       string
@@ -381,6 +382,7 @@ func buildStartupData(r *Report, info *StartupInfo) startupReportData {
 		WeeklyReport:       boolToEnabled(cfg.Monitor.WeeklyReport),
 		MonthlyReport:      boolToEnabled(cfg.Monitor.MonthlyReport),
 		YearlyReport:       boolToEnabled(cfg.Monitor.YearlyReport),
+		DailyAllReports:    boolToEnabled(cfg.Monitor.DailyAllReports),
 		ReportTime:         cfg.Monitor.ReportTime,
 		HasDailyReport:     cfg.Monitor.DailyReport,
 		EmailEnabled:       boolToEnabled(cfg.Email.Enabled),
