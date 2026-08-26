@@ -37,7 +37,7 @@ monitor:
   weekly_report: true                       # 是否启用每周报告
   monthly_report: true                      # 是否启用每月报告
   yearly_report: true                       # 是否启用每年报告
-  report_time: "07:00"                      # 报告生成时间（HH:MM格式）
+  report_time: "05:00"                      # 报告生成时间（HH:MM格式）
 
 scraper:
   enabled: true                             # 是否启用数据采集器

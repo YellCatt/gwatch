@@ -1,25 +1,46 @@
 # gwatch
 
-一个功能强大的企业级 API 监控工具，使用 Go 语言编写，支持 RESTful API 监控和测试。
+一个功能强大的企业级 API 监控与系统监控工具，使用 Go 语言编写，支持 RESTful API 监控、远程主机指标采集和本机系统资源监控。
 
 ## 功能特性
 
-- RESTful API 监控
+### API 监控
+- RESTful API 接口监控与测试
 - PSV（管道分隔值）监控任务管理
 - YAML 配置管理
-- Zap 结构化日志
 - 串行执行（确保依赖顺序）
-- 监控报告生成
 - 基于标签的任务过滤
 - 变量提取和替换
 - 流式（SSE）断言支持
 - 正则表达式断言支持（支持匹配数字、布尔等非字符串类型）
 - CSV 历史执行时间存储和平均值计算
 - 任务延迟控制（执行前/后延迟）
+- 并发执行支持（max_workers 配置）
+
+### 远程指标采集（Scraper）
+- 远程主机指标数据采集（CPU、内存、磁盘、GPU、网络等）
+- 灵活的 JSONPath 指标提取
+- 多级告警阈值（CRITICAL / WARNING）
+- 连续触发次数控制（防抖动）
+- 告警冷却机制（避免重复告警）
+
+### 本机系统监控（SysMonitor）
+- 本机 CPU、内存、磁盘、网络实时监控
+- ASCII 图表生成
+- 多级阈值告警
 - 邮件告警通知
-- **API 监控模式**（持续监控 API 端点）
-- **自动清理机制**（定期清理日志和报告文件）
-- **全局前置/后置条件**（所有任务执行前后运行）
+
+### 报告与告警
+- 邮件告警通知（支持设备名标识）
+- 定期报告生成（日/周/月/年）
+- 告警冷却机制（Scraper/API/System 独立冷却）
+- **自定义设备名**（host_name 配置，用于告警邮件标识）
+
+### 运维
+- 自动清理机制（定期清理日志和报告文件）
+- 全局前置/后置条件（所有任务执行前后运行）
+- 热重载配置
+- Zap 结构化日志（支持日志分割）
 
 ## 环境要求
 
@@ -42,8 +63,8 @@ go build -ldflags="-s -w" -o gwatch.exe
 gwatch.exe           # 可执行文件
 config/             # 配置目录
   └── config.yaml   # 配置文件
-tasks/              # 监控任务目录（可选）
-  └── *.psv         # PSV/CSV 监控任务文件
+cases/              # 测试用例目录（可选）
+  └── *.psv         # PSV 格式的监控任务文件
 reports/            # 报告输出目录（自动创建）
 sql/                # CSV 数据目录（自动创建）
 logs/               # 日志目录（自动创建）
@@ -51,66 +72,111 @@ logs/               # 日志目录（自动创建）
 
 ## 配置
 
-编辑 `config/config.yaml` 文件：
+编辑 `config/config.yaml` 文件，以下为完整配置项：
 
 ```yaml
 target:
-  base_url: "https://httpbin.org"
-  timeout: 30
-  authorization: ""
-  user_id: ""
+  base_url: "https://httpbin.org"       # 基础URL，用于测试用例中的相对URL拼接
+  timeout: 30                           # 请求超时时间（秒）
+  authorization: ""                     # 全局 Authorization 请求头（可选）
+  user_id: ""                           # 用户ID标识（可选）
 
 log:
-  level: "info"
-  encoding: "json"
-  output: "./logs/gwatch.log"
+  level: "info"                         # 日志级别: debug, info, warn, error
+  encoding: "json"                      # 日志编码: json, console
+  output: "./logs/gwatch.log"           # 日志输出路径
+  max_size_mb: 20                       # 单个日志文件最大大小（MB），超过后自动分割
 
 app:
-  report_dir: "./reports"
-  case_dir: "./testcases"
-  data_dir: "./sql"
-  severe_status:
-    - 500
-  global_pre: []
-  global_post: []
-  host_name: ""
+  report_dir: "./reports"               # 报告输出目录
+  case_dir: "./cases"                   # 测试用例目录
+  data_dir: "./sql"                     # 数据存储目录（CSV/SQLite）
+  severe_status: [500]                  # 严重状态码列表，触发时会发送告警
+  global_pre: []                        # 全局前置条件：执行所有测试用例前先执行这些用例
+  global_post: []                       # 全局后置条件：执行所有测试用例后执行这些用例
+  host_name: ""                         # 自定义设备名（为空则使用系统主机名）
 
 http:
-  insecure_skip_verify: false
+  insecure_skip_verify: false           # 是否跳过HTTPS证书验证
 
-vars:
-  # 自定义变量，可在测试用例中使用 {{var_name}} 引用
-  # api_key: "your_key"
-
-email:
-  enabled: false
-  from: "sender@example.com"
-  to:
-    - "recipient@example.com"
-  auth_code: "your_auth_code"
-  smtp_server: "smtp.example.com"
-  smtp_port: 465
-  error_subject: "gwatch 异常报告 - {{device}} - {{time}}"
-
-cleaner:
-  enabled: true
-  retention_days: 30
-  log_dir: "./logs"
-  report_dir: "./reports"
-  data_dir: "./sql"
-  include_patterns:
-    - "*.log"
-    - "*.json"
-    - "*.csv"
-    - "*.txt"
-  exclude_patterns: []
-  interval_hours: 24
+vars: {}                                # 全局变量，可在测试用例中通过 {{key}} 引用
 
 monitor:
-  enabled: false
-  default_interval: 60
-  alert_on_failure: true
-  alert_on_slow: false
+  enabled: true                         # 是否启用监控模式
+  default_interval: 60                  # 默认监控间隔（秒）
+  alert_on_failure: true                # 接口失败时是否发送告警邮件
+  alert_on_slow: true                   # 响应用超时时是否发送告警邮件
+  max_workers: 1                        # 最大并发执行任务数
+  alert_interval: 21600                 # 同一接口异常后再次发送邮件的最小间隔（秒），默认6小时
+  daily_report: true                    # 是否启用每日报告
+  weekly_report: true                   # 是否启用每周报告
+  monthly_report: true                  # 是否启用每月报告
+  yearly_report: true                   # 是否启用每年报告
+  report_time: "07:00"                  # 报告生成时间（HH:MM格式）
+
+scraper:
+  enabled: true                         # 是否启用数据采集器
+  targets:                              # 采集目标列表
+    - name: "远程主机监控"               # 目标名称
+      url: "http://192.168.1.100/api/status" # 采集接口URL
+      method: GET                       # HTTP方法: GET, POST, PUT等
+      timeout: 5s                       # 请求超时时间
+      interval: 10                      # 采集间隔（秒）
+      enabled: true                     # 是否启用此目标
+      headers: {}                       # 自定义请求头
+      body: ""                          # 请求体（POST/PUT时使用）
+      proxy: ""                         # 代理地址
+      metrics:                          # 采集指标列表
+        - name: cpu_usage               # 指标名称
+          path: "$.info.cpu.use_percent" # JSONPath路径
+          alias: "CPU使用率"            # 指标别名（用于报告显示）
+          unit: "%"                     # 单位
+          scale: 1                      # 缩放倍数
+          auto_percent: false           # 自动百分比转换
+          compare_op: "gt"              # 比较操作符: gt, lt, eq, ge, le
+          threshold: 85                 # 告警阈值
+          warning_threshold: 70         # 警告阈值
+          alert: true                   # 是否启用此指标的告警
+          alert_level: "CRITICAL"       # 告警级别: CRITICAL, WARNING
+          consecutive: 1                # 连续触发次数才告警
+          optional: false               # 可选指标：接口不返回时不报错
+
+email:
+  enabled: true                         # 是否启用邮件通知
+  from: "sender@example.com"            # 发件人地址
+  to:                                   # 收件人列表
+    - "recipient@example.com"
+  auth_code: "your_auth_code"           # SMTP授权码
+  smtp_server: "smtp.example.com"       # SMTP服务器地址
+  smtp_port: 465                        # SMTP端口
+  error_subject: "[gwatch] 监控系统错误告警" # 错误告警邮件主题
+  scraper_cooldown: 21600               # 远程采集告警冷却时间（秒）
+  api_cooldown: 21600                   # 接口监控告警冷却时间（秒）
+  system_cooldown: 7200                 # 系统资源告警冷却时间（秒）
+
+cleaner:
+  enabled: true                         # 是否启用自动清理
+  retention_days: 30                    # 数据保留天数
+  log_dir: "./logs"                     # 日志目录
+  report_dir: ""                        # 报告目录（留空则不清理）
+  data_dir: ""                          # 数据目录（留空则不清理）
+  include_patterns: ["*.log", "*.json", "*.csv", "*.txt"]
+  exclude_patterns: []
+  interval_hours: 24                    # 清理执行间隔（小时）
+
+sys_monitor:
+  enabled: true                         # 是否启用系统资源监控
+  interval: 10                          # 采集间隔（秒）
+  chart_enabled: true                   # 是否生成ASCII图表
+  email_enabled: true                   # 是否启用邮件告警
+  cpu_threshold: 85                     # CPU使用率严重告警阈值（%）
+  memory_threshold: 90                  # 内存使用率严重告警阈值（%）
+  disk_usage_threshold: 90              # 磁盘使用率严重告警阈值（%）
+  network_down_threshold: 3072          # 网络下行速度严重告警阈值（KB/s）
+  network_up_threshold: 1024            # 网络上行速度严重告警阈值（KB/s）
+  network_down_warn_threshold: 2048     # 网络下行速度警告阈值（KB/s）
+  network_up_warn_threshold: 512        # 网络上行速度警告阈值（KB/s）
+  alert_cooldown: 7200                  # 告警冷却时间（秒）
 ```
 
 ### 必需文件
@@ -130,90 +196,153 @@ monitor:
 gwatch/
 ├── cmd/
 │   ├── root.go          # 主命令入口
-│   ├── run.go           # 测试执行命令
-│   ├── monitor.go       # 监控模式命令
-│   ├── init.go          # 初始化命令
-│   └── scraper.go       # 采集器命令
+│   ├── scraper.go       # 采集器命令
+│   └── sysreport.go     # 系统报告命令
 ├── config/
 │   ├── config.go        # 配置加载/重载核心逻辑
 │   ├── types.go         # 配置类型定义
 │   └── defaults.go      # 默认值设置
 ├── internal/
-│   ├── storage/         # CSV存储
-│   ├── report/          # 报告生成
-│   ├── monitor/         # 监控模式
-│   ├── testcase/        # 测试执行
 │   ├── assert/          # 断言逻辑
-│   ├── psv/             # PSV解析
-│   ├── scraper/         # 采集器
+│   ├── bootstrap/       # 启动引导
 │   ├── cleaner/         # 清理器
-│   ├── vars/            # 变量管理
-│   ├── email/           # 邮件发送
-│   ├── logger/          # 日志
+│   ├── email/           # 邮件发送（含模板）
+│   ├── httpclient/      # HTTP 客户端
+│   ├── logger/          # 日志（含日志分割）
+│   ├── monitor/         # API 监控模式（含热重载）
+│   ├── psv/             # PSV 解析
+│   ├── report/          # 报告生成（日/周/月/年/启动报告）
+│   ├── scheduler/       # 调度器
+│   ├── scraper/         # 远程指标采集器
+│   ├── storage/         # 数据存储（CSV/SQLite）
+│   ├── sysmon/          # 本机系统资源监控
+│   ├── testcase/        # 测试用例执行
 │   ├── timeutil/        # 时间工具
-│   └── httpclient/      # HTTP客户端
+│   ├── util/            # 工具函数（设备名、格式化）
+│   └── vars/            # 变量管理
 ├── go.mod
 └── go.sum
 ```
 
 ### 配置说明
 
+#### 基础配置
 - **target.base_url**: API 目标地址，测试用例中可用 `{{base_url}}` 引用
 - **target.timeout**: 请求超时时间（秒）
-- **target.authorization**: API 授权令牌
+- **target.authorization**: 全局 Authorization 请求头
 - **log.level**: 日志级别（debug, info, warn, error）
 - **log.encoding**: 日志格式（json, console）
-- **log.output**: 日志输出（stdout 或文件路径）
+- **log.output**: 日志输出路径
+- **log.max_size_mb**: 单个日志文件最大大小（MB），超过后自动分割
+
+#### 应用配置
 - **app.report_dir**: 监控报告输出目录
-- **app.case_dir**: 默认监控任务目录
-- **app.data_dir**: CSV 数据存储目录
-- **app.severe_status**: 严重错误状态码列表
-- **app.global_pre**: 全局前置条件监控任务 ID 列表
-- **app.global_post**: 全局后置条件监控任务 ID 列表
-- **http.insecure_skip_verify**: 是否跳过 TLS 证书验证
-- **vars**: 用户自定义变量（用于替换测试用例中的 `{{var}}`）
-- **email**: 邮件告警配置（监控任务开始和结束时发送，失败时告警）
-- **cleaner**: 自动清理配置（定期清理旧文件）
-- **monitor**: 监控模式配置
+- **app.case_dir**: 默认测试用例目录
+- **app.data_dir**: 数据存储目录（CSV/SQLite）
+- **app.severe_status**: 严重错误状态码列表，触发时发送告警
+- **app.global_pre**: 全局前置条件测试用例 ID 列表
+- **app.global_post**: 全局后置条件测试用例 ID 列表
+- **app.host_name**: 自定义设备名，用于告警邮件标识（留空则使用系统主机名）
+
+#### 监控配置
+- **monitor.enabled**: 启用 API 监控模式
+- **monitor.default_interval**: 默认监控间隔（秒）
+- **monitor.alert_on_failure**: 接口失败时发送告警邮件
+- **monitor.alert_on_slow**: 响应超时时发送告警邮件
+- **monitor.max_workers**: 最大并发执行任务数
+- **monitor.alert_interval**: 同一接口告警最小发送间隔（秒）
+- **monitor.daily_report / weekly_report / monthly_report / yearly_report**: 定期报告开关
+- **monitor.report_time**: 报告生成时间（HH:MM 格式）
+
+#### 采集器配置（Scraper）
+- **scraper.enabled**: 启用远程指标采集
+- **scraper.targets**: 采集目标列表
+  - **name**: 目标名称
+  - **url**: 采集接口 URL
+  - **method / timeout / interval**: HTTP 方法、超时、采集间隔
+  - **metrics**: 指标列表，支持以下字段：
+    - **name**: 指标唯一标识
+    - **path**: JSONPath 提取路径
+    - **alias**: 指标别名（用于报告展示）
+    - **unit / scale**: 单位与缩放倍数
+    - **compare_op**: 比较操作符（gt/lt/eq/ge/le）
+    - **threshold / warning_threshold**: 告警阈值与警告阈值
+    - **alert / alert_level**: 是否告警与告警级别（CRITICAL/WARNING）
+    - **consecutive**: 连续触发次数才告警
+    - **optional**: 可选指标（接口不返回时不报错）
+
+#### 系统监控配置（SysMonitor）
+- **sys_monitor.enabled**: 启用本机系统资源监控
+- **sys_monitor.interval**: 采集间隔（秒）
+- **sys_monitor.chart_enabled**: 生成 ASCII 图表
+- **sys_monitor.email_enabled**: 启用邮件告警
+- **sys_monitor.cpu_threshold / memory_threshold / disk_usage_threshold**: 严重告警阈值（%）
+- **sys_monitor.network_down_threshold / network_up_threshold**: 网络告警阈值（KB/s）
+- **sys_monitor.network_down_warn_threshold / network_up_warn_threshold**: 网络警告阈值（KB/s）
+- **sys_monitor.alert_cooldown**: 告警冷却时间（秒）
+
+#### 邮件配置
+- **email.enabled**: 启用邮件通知
+- **email.from / to**: 发件人 / 收件人列表
+- **email.auth_code**: SMTP 授权码
+- **email.smtp_server / smtp_port**: SMTP 服务器地址 / 端口
+- **email.error_subject**: 告警邮件主题
+- **email.scraper_cooldown / api_cooldown / system_cooldown**: 三类告警独立冷却时间
+
+#### 清理配置
+- **cleaner.enabled**: 启用自动清理
+- **cleaner.retention_days**: 数据保留天数
+- **cleaner.log_dir / report_dir / data_dir**: 待清理目录
+- **cleaner.include_patterns / exclude_patterns**: 文件匹配模式
+- **cleaner.interval_hours**: 清理执行间隔（小时）
 
 ## 使用方法
 
-### 运行默认目录下的所有监控任务
+### 运行 API 监控
 
 ```bash
+# 运行默认目录下的所有监控任务
 ./gwatch.exe
+
+# 运行特定的 PSV 文件
+./gwatch.exe cases/task_data.psv cases/task_data2.psv
+
+# 运行目录下的所有监控任务
+./gwatch.exe cases
+
+# 标签过滤
+./gwatch.exe --tags=health           # 只运行 health 标签的任务
+./gwatch.exe --tags=health,api       # 运行 health 和 api 标签的任务
 ```
 
-### 运行特定的 PSV 文件
+### 监控模式（持续运行）
 
 ```bash
-./gwatch.exe tasks/task_data.psv tasks/task_data2.psv
-```
-
-### 运行目录下的所有监控任务
-
-```bash
-./gwatch.exe tasks
-```
-
-### 标签过滤
-
-```bash
-# 只运行 health 监控
-./gwatch.exe --tags=health
-
-# 运行 health 和 api 监控
-./gwatch.exe --tags=health,api
-```
-
-### 监控模式
-
-```bash
-# 启动监控模式
+# 启动监控模式（持续执行）
 ./gwatch.exe --monitor
 
 # 监控模式 + 标签过滤
 ./gwatch.exe --monitor --tags=health
+
+# 指定监控间隔
+./gwatch.exe --monitor --interval=30
+```
+
+### 启动数据采集器
+
+```bash
+# 启动远程指标采集器
+./gwatch.exe --scraper
+
+# 指定配置文件
+./gwatch.exe --config /path/to/config.yaml --scraper
+```
+
+### 生成系统报告
+
+```bash
+# 生成本机系统资源报告
+./gwatch.exe --sysreport
 ```
 
 ## PSV 监控任务格式
@@ -392,33 +521,35 @@ stream_01|0|SSE流式断言|POST|{{base_url}}/chat/completions|{"Content-Type":"
 | `max_wait_ms` | 最大等待时间（预留） |
 | `min_chunks` | 所需的最小块数 |
 
-## 监控模式
+## 自定义设备名
 
-监控模式会持续检查 API 端点的可用性，支持：
-
-- 定期执行测试用例
-- 失败时发送邮件告警
-- 响应时间监控
-
-### 启用监控模式
-
-```bash
-./gwatch.exe --monitor
-```
-
-### 监控配置
-
-在 `config.yaml` 中配置监控参数：
+通过配置 `app.host_name` 可以自定义告警邮件中显示的设备名：
 
 ```yaml
-monitor:
-  enabled: true
-  default_interval: 60  # 默认监控周期（秒）
-  alert_on_failure: true  # 失败时告警
-  alert_on_slow: false    # 响应慢时告警
+app:
+  host_name: "生产服务器-01"   # 留空则使用系统主机名
 ```
 
+该名称会出现在：
+- 告警邮件正文中（`【设备名称】xxx`）
+- ASCII 图表中
+- 各类报告中
+- 邮件主题（如果支持占位符）
+
+## 命令行参数
+
+| 参数 | 说明 |
+|------|------|
+| `--config` | 指定配置文件路径（默认 `./config/config.yaml`） |
+| `--monitor` | 启用监控模式 |
+| `--scraper` | 启用数据采集器 |
+| `--sysreport` | 生成系统资源报告 |
+| `--tags` | 按标签过滤执行任务（逗号分隔） |
+| `--interval` | 覆盖默认监控间隔（秒） |
+
 ## 报告生成
+
+### API 监控报告
 
 每次运行后，报告会保存到 `reports/` 目录：
 
@@ -429,6 +560,25 @@ monitor:
 ```
 id|desc|method|url|request_headers|request_body|tags|status|duration_s|expect_status|actual_status|actual_body|expect_body|pre_conditions|post_conditions|extracted_vars|start_time|end_time|diff
 ```
+
+### 定期报告
+
+根据 `monitor` 配置，系统会自动生成：
+
+| 报告类型 | 配置项 | 说明 |
+|---------|--------|------|
+| 每日报告 | `daily_report` | 每天定时生成前一天的汇总报告 |
+| 每周报告 | `weekly_report` | 每周生成汇总报告 |
+| 每月报告 | `monthly_report` | 每月生成汇总报告 |
+| 每年报告 | `yearly_report` | 每年生成汇总报告 |
+
+报告生成时间由 `monitor.report_time` 控制（默认 `07:00`）。
+
+### 系统监控报告
+
+`sys_monitor` 模块会生成：
+- ASCII 图表展示 CPU/内存/磁盘/网络使用情况
+- 系统资源告警邮件（含设备名标识）
 
 ## 历史执行记录
 
@@ -455,9 +605,10 @@ CSV 文件存储在 `sql/` 目录，包含以下文件：
 - `github.com/go-resty/resty/v2` - HTTP 客户端
 - `github.com/spf13/viper` - 配置管理
 - `github.com/spf13/cobra` - 命令行框架
-- `github.com/tidwall/gjson` - JSON 解析
-- `go.uber.org/zap` - 日志
-- `github.com/bmatcuk/doublestar/v4` - 文件匹配
+- `github.com/tidwall/gjson` - JSON 解析（JSONPath 提取）
+- `go.uber.org/zap` - 结构化日志
+- `github.com/bmatcuk/doublestar/v4` - 文件模式匹配
+- `github.com/shirou/gopsutil/v3` - 系统资源采集（CPU/内存/磁盘/网络）
 - `encoding/csv` - 标准库 CSV 读写
 
 ## 许可证
