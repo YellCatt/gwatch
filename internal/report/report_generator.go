@@ -147,6 +147,13 @@ func GenerateReportFromStorage(period ReportPeriod, startDate, endDate time.Time
 }
 
 // loadResourceMetricsByPeriod 根据报告周期加载对应类型的采集器资源指标数据。
+// 不同周期选择不同粒度的指标：
+//   - 日报：加载小时级指标（24 个数据点）
+//   - 周报：加载日级指标（7 个数据点）
+//   - 月报：加载日级指标（当月天数，通常 28-31 个数据点）
+//   - 年报：加载月级指标（12 个数据点）
+//
+// 加载结果写入 report 对应字段，供模板渲染使用。
 func loadResourceMetricsByPeriod(report *Report, period ReportPeriod, startDate, endDate time.Time) {
 	switch period {
 	case PeriodDaily:
@@ -161,6 +168,9 @@ func loadResourceMetricsByPeriod(report *Report, period ReportPeriod, startDate,
 }
 
 // loadHourlyResourceMetrics 加载指定时间区间的每小时采集器资源指标平均值。
+// 以 (targetName, metricName) 为 key 聚合，为每个指标预分配 24 个时段槽位（0-23 时），
+// 无数据的槽位保留 -1 作为哨兵值，供图表生成时跳过。
+// 返回的切片包含所有 (目标×指标) 组合的小时级数据。
 func loadHourlyResourceMetrics(startDate, endDate time.Time) []HourlyResourceMetric {
 	hourlyAvgs, err := storage.GetScraperMetricsHourlyAvg(startDate, endDate)
 	if err != nil {
@@ -211,6 +221,8 @@ func loadHourlyResourceMetrics(startDate, endDate time.Time) []HourlyResourceMet
 }
 
 // loadDailyResourceMetrics 加载指定时间区间的每日采集器资源指标平均值。
+// 以 (targetName, metricName) 为 key 聚合，根据时间区间天数预分配对应数量的日期槽位，
+// 无数据的槽位保留 -1 作为哨兵值。返回的切片包含所有 (目标×指标) 组合的日级数据。
 func loadDailyResourceMetrics(startDate, endDate time.Time) []DailyResourceMetric {
 	dailyAvgs, err := storage.GetScraperMetricsDailyAvg(startDate, endDate)
 	if err != nil {
@@ -266,6 +278,8 @@ func loadDailyResourceMetrics(startDate, endDate time.Time) []DailyResourceMetri
 }
 
 // loadMonthlyResourceMetrics 加载指定时间区间的每月采集器资源指标平均值。
+// 以 (targetName, metricName) 为 key 聚合，为每个指标预分配 12 个月份槽位（1月-12月），
+// 无数据的槽位保留 -1 作为哨兵值。返回的切片包含所有 (目标×指标) 组合的月级数据。
 func loadMonthlyResourceMetrics(startDate, endDate time.Time) []MonthlyResourceMetric {
 	monthlyAvgs, err := storage.GetScraperMetricsMonthlyAvg(startDate, endDate)
 	if err != nil {
@@ -431,8 +445,15 @@ func (r *Report) GenerateContent() string {
 }
 
 // loadSystemMetrics 采集当前系统指标，加载报告周期内的历史数据生成趋势图表，返回 SystemMetricsSnapshot。
-// 根据报告周期选择不同粒度的数据源：日报使用小时级，周报使用日级，月报使用周级，年报使用月级。
-// 当首选数据源数据为空时，自动回退到更细粒度的数据源，确保图表始终可用。
+//
+// 处理流程：
+//  1. 采集当前实时指标作为快照的基础值；
+//  2. 根据报告周期选择数据源（小时级/日级/周级/月级），数据不足时回退到更细粒度；
+//  3. 从历史数据中提取 CPU、内存、磁盘、网络上下行等指标序列；
+//  4. 计算整个周期内的最大值（CPU 峰值、内存峰值、网络峰值等）；
+//  5. 使用 ASCII 图表生成函数为每项指标生成带时间标签和阈值线的趋势图。
+//
+// 图表宽度由历史数据点数决定，上限 20 列，保证不同周期的图表视觉宽度一致。
 func loadSystemMetrics(period ReportPeriod, startDate, endDate time.Time) *SystemMetricsSnapshot {
 	current, err := sysmon.CollectMetrics()
 	if err != nil {
@@ -746,19 +767,26 @@ func loadMonthlyMetricsWithFallback(startDate, endDate time.Time) ([]sysmon.Syst
 	return nil, "01-02"
 }
 
-// partitionAggregate 分区聚合数据
+// partitionAggregate 磁盘分区的聚合中间数据结构。
+// 用于在按月聚合过程中累计同一分区的统计值，最终计算平均值。
 type partitionAggregate struct {
-	Name       string
-	MountPoint string
-	Fstype     string
-	percentSum float64
-	usedSum    uint64
-	totalSum   uint64
-	count      int
+	Name       string  // 分区名称
+	MountPoint string  // 挂载点
+	Fstype     string  // 文件系统类型
+	percentSum float64 // 使用率累计和，用于计算平均值
+	usedSum    uint64  // 已用空间累计和（字节），用于计算平均值
+	totalSum   uint64  // 总空间累计和（字节），用于计算平均值
+	count      int     // 采样次数
 }
 
 // aggregateMetricsByMonth 将系统指标按月聚合，返回每月一条记录。
 // 用于年度报告在月级 CSV 数据不足时，从日级或小时级数据动态聚合出月度数据。
+// 聚合规则：
+//   - CPU/内存/磁盘/网络速率等取算术平均值
+//   - CPU 最大值/内存最大值/网络峰值取该月内的最大值
+//   - 磁盘分区信息按同名分区聚合后取平均值
+//
+// 结果按时间戳升序排列，缺失月份不会填充（由上层 padYearlyMetrics 补齐）。
 func aggregateMetricsByMonth(metrics []sysmon.SystemMetric) []sysmon.SystemMetric {
 	if len(metrics) == 0 {
 		return nil

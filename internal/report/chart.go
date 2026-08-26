@@ -6,6 +6,15 @@ import (
 )
 
 // generateASCIIChart 根据数据数组和标签生成 ASCII 柱状图。
+//
+// 参数：
+//   - data: 指标数值数组，负值表示无数据（哨兵值），会被跳过
+//   - labels: 每个数据点的时间标签（如 "08-26"、"14:00"）
+//   - unit: 单位字符串，"%" 时右对齐，其他单位左对齐
+//   - barWidth: 柱状图的宽度（字符数），0 或负数时默认 20
+//
+// 柱状图使用 █（填充）和 ░（空白）字符，长度按数值在最大值中的占比计算。
+// 当所有数据无效时输出 "(无有效数据)"。
 func generateASCIIChart(data []float64, labels []string, unit string, barWidth int) string {
 	if len(data) == 0 {
 		return "  (无数据)\n"
@@ -78,7 +87,8 @@ func generateASCIIChart(data []float64, labels []string, unit string, barWidth i
 	return builder.String()
 }
 
-// padRight 将字符串右填充空格到指定长度。
+// padRight 将字符串右填充空格到指定长度，用于对齐柱状图标签。
+// 若源字符串长度已达到或超过目标长度，原样返回。
 func padRight(s string, length int) string {
 	if len(s) >= length {
 		return s
@@ -87,6 +97,8 @@ func padRight(s string, length int) string {
 }
 
 // buildHourlyChartData 从 Report 构建每小时资源指标的 ASCII 图表列表。
+// 遍历所有采集器目标的小时级指标，过滤掉哨兵值（-1），以 20 列宽度生成柱状图。
+// 每个图表以目标名称和指标别名作为标题。
 func buildHourlyChartData(r *Report) []string {
 	charts := make([]string, 0, len(r.HourlyMetrics))
 	for _, m := range r.HourlyMetrics {
@@ -112,6 +124,8 @@ func buildHourlyChartData(r *Report) []string {
 }
 
 // buildDailyChartData 从 Report 构建每日资源指标的 ASCII 图表列表。
+// 遍历所有采集器目标的日级指标，过滤掉哨兵值（-1），以 20 列宽度生成柱状图。
+// 每个图表以目标名称和指标别名作为标题。
 func buildDailyChartData(r *Report) []string {
 	charts := make([]string, 0, len(r.DailyMetrics))
 	for _, m := range r.DailyMetrics {
@@ -137,6 +151,8 @@ func buildDailyChartData(r *Report) []string {
 }
 
 // buildMonthlyChartData 从 Report 构建每月资源指标的 ASCII 图表列表。
+// 遍历所有采集器目标的月级指标，过滤掉哨兵值（-1），以 20 列宽度生成柱状图。
+// 每个图表以目标名称和指标别名作为标题。
 func buildMonthlyChartData(r *Report) []string {
 	charts := make([]string, 0, len(r.MonthlyMetrics))
 	for _, m := range r.MonthlyMetrics {

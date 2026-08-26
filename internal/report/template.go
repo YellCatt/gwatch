@@ -224,6 +224,8 @@ type monthlyMetricRow struct {
 }
 
 // buildBaseData 从 Report 对象构建基础报告数据结构，包含接口统计、告警汇总等。
+// 计算成功率、聚合告警级别分布（严重/警告/总次数），将内部数据结构转换为模板友好的扁平结构。
+// 该数据供 base/daily/weekly/monthly/yearly 等所有周期报告模板共用。
 func buildBaseData(r *Report) baseReportData {
 	successRate := 0.0
 	if r.TotalTasks > 0 {
@@ -357,6 +359,8 @@ func buildBaseData(r *Report) baseReportData {
 }
 
 // buildStartupData 从 Report 和 StartupInfo 构建启动报告数据结构，包含配置信息和任务列表。
+// 汇总应用版本、设备信息、各模块开关状态、阈值配置以及任务清单，供启动报告模板渲染。
+// 当 StartupInfo 不为空时，附加任务列表及实际并发参数。
 func buildStartupData(r *Report, info *StartupInfo) startupReportData {
 	cfg := config.GlobalConfig
 	data := startupReportData{
@@ -417,6 +421,7 @@ func buildStartupData(r *Report, info *StartupInfo) startupReportData {
 }
 
 // buildScraperTargets 将采集器目标配置列表转换为模板行数据。
+// 从配置的 ScraperTargetConfig 切片提取名称和 URL，生成模板渲染所需的扁平结构。
 func buildScraperTargets(targets []config.ScraperTargetConfig) []scraperTargetRow {
 	rows := make([]scraperTargetRow, 0, len(targets))
 	for _, t := range targets {
@@ -426,6 +431,8 @@ func buildScraperTargets(targets []config.ScraperTargetConfig) []scraperTargetRo
 }
 
 // buildHourlyResourceData 从 Report 构建每小时资源指标的模板数据。
+// 将小时级指标转换为模板友好的行数据，速度类单位使用格式化显示，缺失值显示为 "-"。
+// 同时构建对应的 ASCII 图表列表。
 func buildHourlyResourceData(r *Report) hourlyResourceData {
 	metrics := make([]hourlyMetricRow, 0, len(r.HourlyMetrics))
 	for _, m := range r.HourlyMetrics {
@@ -458,6 +465,9 @@ func buildHourlyResourceData(r *Report) hourlyResourceData {
 }
 
 // buildDailyResourceData 从 Report 构建每日资源指标的模板数据。
+// 将日级指标转换为模板友好的行数据，速度类单位使用格式化显示，缺失值显示为 "-"。
+// title 参数用于自定义资源指标区块的标题（如 "每日资源监控"）。
+// 同时构建对应的 ASCII 图表列表。
 func buildDailyResourceData(r *Report, title string) dailyResourceData {
 	metrics := make([]dailyMetricRow, 0, len(r.DailyMetrics))
 	for _, m := range r.DailyMetrics {
@@ -494,6 +504,8 @@ func buildDailyResourceData(r *Report, title string) dailyResourceData {
 }
 
 // buildMonthlyResourceData 从 Report 构建每月资源指标的模板数据。
+// 将月级指标转换为模板友好的行数据，速度类单位使用格式化显示，缺失值显示为 "-"。
+// 同时构建对应的 ASCII 图表列表。
 func buildMonthlyResourceData(r *Report) monthlyResourceData {
 	metrics := make([]monthlyMetricRow, 0, len(r.MonthlyMetrics))
 	for _, m := range r.MonthlyMetrics {
