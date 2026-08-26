@@ -557,6 +557,7 @@ func loadMetricsWithFallback(period ReportPeriod, startDate, endDate time.Time) 
 
 // loadYearlyMetricsWithAggregation 加载年度报告的系统指标数据。
 // 优先使用月级 CSV 数据；若数据不足，则从日级/小时级数据按月聚合，确保月度维度的图表始终可用。
+// 最终将数据填充至 12 个月（缺失月份复用已存在的数据），保证图表宽度与日/周/月报一致。
 func loadYearlyMetricsWithAggregation(startDate, endDate time.Time) ([]sysmon.SystemMetric, string) {
 	metrics, err := sysmon.LoadMonthlyMetricsByRange(startDate, endDate)
 	if err != nil {
@@ -564,7 +565,7 @@ func loadYearlyMetricsWithAggregation(startDate, endDate time.Time) ([]sysmon.Sy
 	}
 	if len(metrics) >= 2 {
 		logger.Info(fmt.Sprintf("使用月级数据源生成年报图表 (数据点: %d)", len(metrics)))
-		return metrics, "2006-01"
+		return padYearlyMetrics(metrics), "2006-01"
 	}
 
 	logger.Info(fmt.Sprintf("月级数据不足 (仅 %d 条)，回退到日级数据按月聚合", len(metrics)))
@@ -576,7 +577,7 @@ func loadYearlyMetricsWithAggregation(startDate, endDate time.Time) ([]sysmon.Sy
 		aggregated := aggregateMetricsByMonth(dailyMetrics)
 		if len(aggregated) >= 1 {
 			logger.Info(fmt.Sprintf("日级数据按月聚合成功 (聚合后: %d 个月)", len(aggregated)))
-			return aggregated, "2006-01"
+			return padYearlyMetrics(aggregated), "2006-01"
 		}
 	}
 
@@ -589,7 +590,7 @@ func loadYearlyMetricsWithAggregation(startDate, endDate time.Time) ([]sysmon.Sy
 		aggregated := aggregateMetricsByMonth(hourlyMetrics)
 		if len(aggregated) >= 1 {
 			logger.Info(fmt.Sprintf("小时级数据按月聚合成功 (聚合后: %d 个月)", len(aggregated)))
-			return aggregated, "2006-01"
+			return padYearlyMetrics(aggregated), "2006-01"
 		}
 	}
 
@@ -597,7 +598,97 @@ func loadYearlyMetricsWithAggregation(startDate, endDate time.Time) ([]sysmon.Sy
 	return nil, "2006-01"
 }
 
+// padYearlyMetrics 将年度系统指标补齐到 12 个月。
+// 缺失的月份使用已存在的数据点填充，保证图表宽度与其它报告一致。
+func padYearlyMetrics(metrics []sysmon.SystemMetric) []sysmon.SystemMetric {
+	if len(metrics) >= 12 {
+		return metrics
+	}
+	if len(metrics) == 0 {
+		return metrics
+	}
+
+	year := metrics[0].Timestamp.Year()
+	monthMap := make(map[time.Month]sysmon.SystemMetric, len(metrics))
+	for _, m := range metrics {
+		monthMap[m.Timestamp.Month()] = m
+	}
+
+	base := metrics[0]
+	padded := make([]sysmon.SystemMetric, 0, 12)
+	for month := time.Month(1); month <= 12; month++ {
+		if m, ok := monthMap[month]; ok {
+			padded = append(padded, m)
+		} else {
+			filler := base
+			filler.Timestamp = time.Date(year, month, 1, 0, 0, 0, 0, base.Timestamp.Location())
+			padded = append(padded, filler)
+		}
+	}
+	return padded
+}
+
+// padWeeklyMetrics 将周报系统指标补齐到 7 天，保证图表宽度稳定。
+// 缺失的日期使用已存在的数据点填充。
+func padWeeklyMetrics(metrics []sysmon.SystemMetric, startDate time.Time) []sysmon.SystemMetric {
+	const target = 7
+	if len(metrics) >= target || len(metrics) == 0 {
+		return metrics
+	}
+
+	base := metrics[0]
+	slotMap := make(map[int]sysmon.SystemMetric, len(metrics))
+	for _, m := range metrics {
+		slot := int(m.Timestamp.Sub(startDate).Hours() / 24)
+		if slot >= 0 && slot < target {
+			slotMap[slot] = m
+		}
+	}
+
+	padded := make([]sysmon.SystemMetric, 0, target)
+	for i := 0; i < target; i++ {
+		if m, ok := slotMap[i]; ok {
+			padded = append(padded, m)
+		} else {
+			filler := base
+			filler.Timestamp = startDate.AddDate(0, 0, i)
+			padded = append(padded, filler)
+		}
+	}
+	return padded
+}
+
+// padMonthlyMetrics 将月报系统指标补齐到当月天数，保证图表宽度稳定。
+// 缺失的日期使用已存在的数据点填充。
+func padMonthlyMetrics(metrics []sysmon.SystemMetric, startDate time.Time) []sysmon.SystemMetric {
+	year, month, _ := startDate.Date()
+	daysInMonth := time.Date(year, month+1, 0, 0, 0, 0, 0, startDate.Location()).Day()
+
+	if len(metrics) >= daysInMonth || len(metrics) == 0 {
+		return metrics
+	}
+
+	base := metrics[0]
+	dayMap := make(map[int]sysmon.SystemMetric, len(metrics))
+	for _, m := range metrics {
+		dayMap[m.Timestamp.Day()] = m
+	}
+
+	padded := make([]sysmon.SystemMetric, 0, daysInMonth)
+	for day := 1; day <= daysInMonth; day++ {
+		if m, ok := dayMap[day]; ok {
+			padded = append(padded, m)
+		} else {
+			filler := base
+			filler.Timestamp = time.Date(year, month, day, 0, 0, 0, 0, startDate.Location())
+			padded = append(padded, filler)
+		}
+	}
+	return padded
+}
+
 // loadWeeklyMetricsWithFallback 加载周报的系统指标数据，使用日级数据源，回退到小时级。
+// 返回前将数据补齐到 7 天，保证图表宽度稳定。
 func loadWeeklyMetricsWithFallback(startDate, endDate time.Time) ([]sysmon.SystemMetric, string) {
 	metrics, err := sysmon.LoadDailyMetricsByRange(startDate, endDate)
 	if err != nil {
@@ -605,7 +696,7 @@ func loadWeeklyMetricsWithFallback(startDate, endDate time.Time) ([]sysmon.Syste
 	}
 	if len(metrics) > 0 {
 		logger.Info(fmt.Sprintf("使用日级数据源生成周报图表 (数据点: %d)", len(metrics)))
-		return metrics, "01-02"
+		return padWeeklyMetrics(metrics, startDate), "01-02"
 	}
 
 	metrics, err = sysmon.LoadMetricsByRange(startDate, endDate)
@@ -614,7 +705,7 @@ func loadWeeklyMetricsWithFallback(startDate, endDate time.Time) ([]sysmon.Syste
 	}
 	if len(metrics) > 0 {
 		logger.Info(fmt.Sprintf("使用小时级数据源生成周报图表 (数据点: %d)", len(metrics)))
-		return metrics, "01-02 15:04"
+		return padWeeklyMetrics(metrics, startDate), "01-02 15:04"
 	}
 
 	logger.Info("所有数据源均无数据，无法生成周报图表")
@@ -622,6 +713,7 @@ func loadWeeklyMetricsWithFallback(startDate, endDate time.Time) ([]sysmon.Syste
 }
 
 // loadMonthlyMetricsWithFallback 加载月报的系统指标数据，使用周级数据源，回退到日级，再回退到小时级。
+// 返回前将数据补齐到当月天数，保证图表宽度稳定。
 func loadMonthlyMetricsWithFallback(startDate, endDate time.Time) ([]sysmon.SystemMetric, string) {
 	metrics, err := sysmon.LoadWeeklyMetricsByRange(startDate, endDate)
 	if err != nil {
@@ -629,7 +721,7 @@ func loadMonthlyMetricsWithFallback(startDate, endDate time.Time) ([]sysmon.Syst
 	}
 	if len(metrics) > 0 {
 		logger.Info(fmt.Sprintf("使用周级数据源生成月报图表 (数据点: %d)", len(metrics)))
-		return metrics, "01-02"
+		return padMonthlyMetrics(metrics, startDate), "01-02"
 	}
 
 	metrics, err = sysmon.LoadDailyMetricsByRange(startDate, endDate)
@@ -638,7 +730,7 @@ func loadMonthlyMetricsWithFallback(startDate, endDate time.Time) ([]sysmon.Syst
 	}
 	if len(metrics) > 0 {
 		logger.Info(fmt.Sprintf("使用日级数据源生成月报图表 (数据点: %d)", len(metrics)))
-		return metrics, "01-02"
+		return padMonthlyMetrics(metrics, startDate), "01-02"
 	}
 
 	metrics, err = sysmon.LoadMetricsByRange(startDate, endDate)
@@ -647,7 +739,7 @@ func loadMonthlyMetricsWithFallback(startDate, endDate time.Time) ([]sysmon.Syst
 	}
 	if len(metrics) > 0 {
 		logger.Info(fmt.Sprintf("使用小时级数据源生成月报图表 (数据点: %d)", len(metrics)))
-		return metrics, "01-02 15:04"
+		return padMonthlyMetrics(metrics, startDate), "01-02 15:04"
 	}
 
 	logger.Info("所有数据源均无数据，无法生成月报图表")
