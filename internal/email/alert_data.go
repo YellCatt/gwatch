@@ -92,7 +92,7 @@ func RenderUnifiedAlertBody(data UnifiedAlertEmailData) string {
 
 // BuildUnifiedAlertSubject 构造统一告警邮件标题。
 // 会根据严重级别选择图标，并压缩过长的告警名列表。
-func BuildUnifiedAlertSubject(alerts []AlertRowData, criticalCount, warningCount int) string {
+func BuildUnifiedAlertSubject(alerts []AlertRowData, criticalCount, warningCount int, deviceName string) string {
 	icon := "⚠️"
 	if criticalCount > 0 {
 		icon = "🚨"
@@ -118,14 +118,14 @@ func BuildUnifiedAlertSubject(alerts []AlertRowData, criticalCount, warningCount
 		alertNames = append(alertNames, fmt.Sprintf("等%d项", len(alerts)))
 	}
 
-	subject := fmt.Sprintf("%s %s | 告警(%d)·严重(%d)·警告(%d)",
-		icon, strings.Join(alertNames, ", "), len(alerts), criticalCount, warningCount)
+	subject := fmt.Sprintf("%s [%s] %s | 告警(%d)·严重(%d)·警告(%d)",
+		icon, deviceName, strings.Join(alertNames, ", "), len(alerts), criticalCount, warningCount)
 
 	// 过长时使用省略号截断
-	if len([]rune(subject)) > 40 {
+	if len([]rune(subject)) > 50 {
 		runes := []rune(subject)
-		if len(runes) > 39 {
-			subject = string(runes[:38]) + "…"
+		if len(runes) > 49 {
+			subject = string(runes[:48]) + "…"
 		}
 	}
 

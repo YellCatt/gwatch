@@ -250,7 +250,7 @@ func sendUnifiedAlertEmail(alerts []UnifiedAlert) error {
 	}
 
 	body := RenderUnifiedAlertBody(data)
-	subject := BuildUnifiedAlertSubject(allRows, criticalCount, warningCount)
+	subject := BuildUnifiedAlertSubject(allRows, criticalCount, warningCount, util.GetDeviceName())
 
 	logger.Info("发送统一告警邮件", zap.Int("alerts", len(alerts)))
 	return SendEmail(subject, body)

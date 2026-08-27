@@ -17,7 +17,7 @@ import (
 var CfgFile string
 
 // Version 当前 gwatch 版本号。
-const Version = "v1.0.0_20260827-0700"
+const Version = "v1.0.0_20260827-0905"
 
 // GlobalConfig 全局配置实例，整个运行周期内共享。
 var GlobalConfig Config
