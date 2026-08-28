@@ -102,9 +102,9 @@ func GenerateReportFromStorage(period ReportPeriod, startDate, endDate time.Time
 	sortInterfaceStats(report.InterfaceStats)
 	logger.Info("报告加载：接口统计",
 		zap.Int("接口数", len(report.InterfaceStats)),
-		zap.Int64("总请求", report.TotalTasks),
-		zap.Int64("成功", report.SuccessTasks),
-		zap.Int64("失败", report.FailedTasks),
+		zap.Int("总请求", report.TotalTasks),
+		zap.Int("成功", report.SuccessTasks),
+		zap.Int("失败", report.FailedTasks),
 	)
 
 	if config.GlobalConfig.Scraper.Enabled && len(config.GlobalConfig.Scraper.Targets) > 0 {
