@@ -283,8 +283,17 @@ func GetMonitorSummaryByPeriod(startDate, endDate time.Time) ([]MonitorSummaryRe
 	}
 
 	if len(header) == 0 {
+		logger.Debug("GetMonitorSummaryByPeriod: CSV 表头为空",
+			zap.String("路径", monitorSummaryCSVPath()),
+		)
 		return nil, nil
 	}
+
+	logger.Debug("GetMonitorSummaryByPeriod 原始记录数",
+		zap.Int("总数", len(records)),
+		zap.Time("起始", startDate),
+		zap.Time("结束", endDate),
+	)
 
 	colIndex := make(map[string]int)
 	for i, h := range header {
@@ -360,6 +369,10 @@ func GetMonitorSummaryByPeriod(startDate, endDate time.Time) ([]MonitorSummaryRe
 	for _, agg := range aggMap {
 		results = append(results, *agg)
 	}
+
+	logger.Debug("GetMonitorSummaryByPeriod 聚合完成",
+		zap.Int("聚合后条数", len(results)),
+	)
 
 	return results, nil
 }

@@ -27,6 +27,12 @@ func GenerateReportFromStorage(period ReportPeriod, startDate, endDate time.Time
 		GeneratedAt: timeutil.Now(),
 	}
 
+	logger.Info("生成报告：开始加载数据",
+		zap.String("周期", string(period)),
+		zap.String("起始", report.StartDate),
+		zap.String("结束", report.EndDate),
+	)
+
 	alertSummaries, err := storage.GetAlertSummaryByPeriod(startDate, endDate)
 	if err != nil {
 		logger.Warn("从存储获取告警汇总失败", zap.Error(err))
@@ -50,6 +56,7 @@ func GenerateReportFromStorage(period ReportPeriod, startDate, endDate time.Time
 		}
 		sortAggregatedErrors(report.AggregatedErrors)
 	}
+	logger.Info("报告加载：告警汇总", zap.Int("条数", len(report.AggregatedErrors)))
 
 	alertCountMap := make(map[string]int)
 	for _, e := range report.AggregatedErrors {
@@ -62,6 +69,7 @@ func GenerateReportFromStorage(period ReportPeriod, startDate, endDate time.Time
 		logger.Warn("从存储获取监控汇总失败", zap.Error(err))
 		return report
 	}
+	logger.Info("报告加载：监控汇总原始条数", zap.Int("条数", len(monitorSummaries)))
 
 	for _, summary := range monitorSummaries {
 		report.TotalTasks += int(summary.TotalCount)
@@ -92,9 +100,23 @@ func GenerateReportFromStorage(period ReportPeriod, startDate, endDate time.Time
 		})
 	}
 	sortInterfaceStats(report.InterfaceStats)
+	logger.Info("报告加载：接口统计",
+		zap.Int("接口数", len(report.InterfaceStats)),
+		zap.Int64("总请求", report.TotalTasks),
+		zap.Int64("成功", report.SuccessTasks),
+		zap.Int64("失败", report.FailedTasks),
+	)
 
 	if config.GlobalConfig.Scraper.Enabled && len(config.GlobalConfig.Scraper.Targets) > 0 {
+		logger.Info("报告加载：采集器已启用，准备加载资源指标",
+			zap.Int("目标数", len(config.GlobalConfig.Scraper.Targets)),
+		)
 		loadResourceMetricsByPeriod(report, period, startDate, endDate)
+	} else {
+		logger.Info("报告加载：采集器未启用或无目标，跳过资源指标",
+			zap.Bool("Enabled", config.GlobalConfig.Scraper.Enabled),
+			zap.Int("Targets", len(config.GlobalConfig.Scraper.Targets)),
+		)
 	}
 
 	systemAlerts, err := storage.GetSystemAlertsByPeriod(startDate, endDate)
@@ -116,6 +138,7 @@ func GenerateReportFromStorage(period ReportPeriod, startDate, endDate time.Time
 			})
 		}
 	}
+	logger.Info("报告加载：系统告警", zap.Int("条数", len(report.SystemAlerts)))
 
 	scraperAlerts, err := storage.GetScraperAlertsByPeriod(startDate, endDate)
 	if err != nil {
@@ -138,10 +161,25 @@ func GenerateReportFromStorage(period ReportPeriod, startDate, endDate time.Time
 			})
 		}
 	}
+	logger.Info("报告加载：采集器告警", zap.Int("条数", len(report.ScraperAlerts)))
 
 	if config.GlobalConfig.SystemMon.Enabled {
+		logger.Info("报告加载：系统监控已启用，准备加载系统指标")
 		report.SystemMetrics = loadSystemMetrics(period, startDate, endDate)
+	} else {
+		logger.Info("报告加载：系统监控未启用，跳过系统指标")
 	}
+
+	logger.Info("报告数据加载完成",
+		zap.Int("聚合错误", len(report.AggregatedErrors)),
+		zap.Int("接口统计", len(report.InterfaceStats)),
+		zap.Int("系统告警", len(report.SystemAlerts)),
+		zap.Int("采集器告警", len(report.ScraperAlerts)),
+		zap.Bool("有系统指标", report.SystemMetrics != nil),
+		zap.Int("小时级指标", len(report.HourlyMetrics)),
+		zap.Int("日级指标", len(report.DailyMetrics)),
+		zap.Int("月级指标", len(report.MonthlyMetrics)),
+	)
 
 	return report
 }
@@ -158,12 +196,16 @@ func loadResourceMetricsByPeriod(report *Report, period ReportPeriod, startDate,
 	switch period {
 	case PeriodDaily:
 		report.HourlyMetrics = loadHourlyResourceMetrics(startDate, endDate)
+		logger.Info("报告资源指标：加载小时级", zap.Int("指标组数", len(report.HourlyMetrics)))
 	case PeriodWeekly:
 		report.DailyMetrics = loadDailyResourceMetrics(startDate, endDate)
+		logger.Info("报告资源指标：加载周级（日级粒度）", zap.Int("指标组数", len(report.DailyMetrics)))
 	case PeriodMonthly:
 		report.DailyMetrics = loadDailyResourceMetrics(startDate, endDate)
+		logger.Info("报告资源指标：加载月级（日级粒度）", zap.Int("指标组数", len(report.DailyMetrics)))
 	case PeriodYearly:
 		report.MonthlyMetrics = loadMonthlyResourceMetrics(startDate, endDate)
+		logger.Info("报告资源指标：加载年级（月级粒度）", zap.Int("指标组数", len(report.MonthlyMetrics)))
 	}
 }
 
@@ -231,10 +273,18 @@ func loadDailyResourceMetrics(startDate, endDate time.Time) []DailyResourceMetri
 	}
 
 	if len(dailyAvgs) == 0 {
+		logger.Debug("日级资源指标：无数据",
+			zap.Time("起始", startDate),
+			zap.Time("结束", endDate),
+		)
 		return nil
 	}
 
 	daysInPeriod := int(endDate.Sub(startDate).Hours() / 24)
+	logger.Debug("日级资源指标：原始聚合数据",
+		zap.Int("聚合条数", len(dailyAvgs)),
+		zap.Int("周期天数", daysInPeriod),
+	)
 
 	type key struct {
 		targetName string
@@ -288,8 +338,18 @@ func loadMonthlyResourceMetrics(startDate, endDate time.Time) []MonthlyResourceM
 	}
 
 	if len(monthlyAvgs) == 0 {
+		logger.Debug("月级资源指标：无数据",
+			zap.Time("起始", startDate),
+			zap.Time("结束", endDate),
+		)
 		return nil
 	}
+
+	logger.Debug("月级资源指标：原始聚合数据",
+		zap.Int("聚合条数", len(monthlyAvgs)),
+		zap.Time("起始", startDate),
+		zap.Time("结束", endDate),
+	)
 
 	type key struct {
 		targetName string
@@ -490,6 +550,11 @@ func loadSystemMetrics(period ReportPeriod, startDate, endDate time.Time) *Syste
 	sysmon.FlushHourlyAgg()
 
 	metrics, labelFormat := loadMetricsWithFallback(period, startDate, endDate)
+	logger.Info("系统指标加载完成",
+		zap.String("周期", string(period)),
+		zap.Int("数据点数", len(metrics)),
+		zap.String("标签格式", labelFormat),
+	)
 
 	if len(metrics) == 0 {
 		logger.Info("暂无系统指标数据，跳过图表生成")

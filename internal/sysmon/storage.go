@@ -394,15 +394,22 @@ func LoadWeeklyMetricsByRange(start, end time.Time) ([]SystemMetric, error) {
 // LoadMonthlyMetricsByRange 加载指定时间区间 [start, end) 内的月级指标记录。
 func LoadMonthlyMetricsByRange(start, end time.Time) ([]SystemMetric, error) {
 	all, err := loadMetrics(monthlyPath(), start)
-	if err != nil || end.IsZero() {
-		return all, err
+	if err != nil {
+		return nil, err
 	}
 	filtered := make([]SystemMetric, 0, len(all))
 	for _, m := range all {
-		if m.Timestamp.Before(end) {
+		if end.IsZero() || m.Timestamp.Before(end) {
 			filtered = append(filtered, m)
 		}
 	}
+	logger.Debug("LoadMonthlyMetricsByRange",
+		zap.Int("原始条数", len(all)),
+		zap.Int("区间内条数", len(filtered)),
+		zap.Time("起始", start),
+		zap.Time("结束", end),
+		zap.String("路径", monthlyPath()),
+	)
 	return filtered, nil
 }
 

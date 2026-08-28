@@ -41,6 +41,15 @@ func (rs *ReportScheduler) generateAllReports() {
 	now := timeutil.Now()
 	dailyAll := config.GlobalConfig.Monitor.DailyAllReports
 
+	logger.Info("报告调度触发",
+		zap.Time("当前时间", now),
+		zap.Bool("全量日报模式", dailyAll),
+		zap.Bool("日报开启", config.GlobalConfig.Monitor.DailyReport),
+		zap.Bool("周报开启", config.GlobalConfig.Monitor.WeeklyReport),
+		zap.Bool("月报开启", config.GlobalConfig.Monitor.MonthlyReport),
+		zap.Bool("年报开启", config.GlobalConfig.Monitor.YearlyReport),
+	)
+
 	if config.GlobalConfig.Monitor.DailyReport {
 		yesterday := now.Add(-24 * time.Hour)
 		logger.Info("正在生成日报", zap.String("日期", yesterday.Format("2006-01-02")))
@@ -52,6 +61,11 @@ func (rs *ReportScheduler) generateAllReports() {
 			lastWeek := now.Add(-7 * 24 * time.Hour)
 			logger.Info("正在生成周报", zap.String("起始日期", scheduler.GetWeekStart(lastWeek).Format("2006-01-02")))
 			generateAndSendReport(PeriodWeekly, lastWeek, rs.sender)
+		} else {
+			logger.Debug("跳过周报：尚未到触发时间",
+				zap.Time("当前", now),
+				zap.Bool("ShouldTriggerWeekly", scheduler.ShouldTriggerWeekly(now)),
+			)
 		}
 	}
 
@@ -60,6 +74,11 @@ func (rs *ReportScheduler) generateAllReports() {
 			lastMonth := now.AddDate(0, -1, 0)
 			logger.Info("正在生成月报", zap.String("月份", lastMonth.Format("2006-01")))
 			generateAndSendReport(PeriodMonthly, lastMonth, rs.sender)
+		} else {
+			logger.Debug("跳过月报：尚未到触发时间",
+				zap.Time("当前", now),
+				zap.Bool("ShouldTriggerMonthly", scheduler.ShouldTriggerMonthly(now)),
+			)
 		}
 	}
 
@@ -68,6 +87,11 @@ func (rs *ReportScheduler) generateAllReports() {
 			lastYear := now.AddDate(-1, 0, 0)
 			logger.Info("正在生成年报", zap.String("年份", lastYear.Format("2006")))
 			generateAndSendReport(PeriodYearly, lastYear, rs.sender)
+		} else {
+			logger.Debug("跳过年报：尚未到触发时间",
+				zap.Time("当前", now),
+				zap.Bool("ShouldTriggerYearly", scheduler.ShouldTriggerYearly(now)),
+			)
 		}
 	}
 }
@@ -93,6 +117,13 @@ func generateAndSendReport(period ReportPeriod, date time.Time, sender EmailSend
 		return
 	}
 
+	logger.Info("开始生成报告",
+		zap.String("周期", string(period)),
+		zap.Time("起始", startDate),
+		zap.Time("结束", endDate),
+		zap.Duration("时长范围", endDate.Sub(startDate)),
+	)
+
 	r := GenerateReportFromStorage(period, startDate, endDate)
 
 	reportName := PeriodNames[period]
@@ -112,6 +143,11 @@ func generateAndSendReport(period ReportPeriod, date time.Time, sender EmailSend
 			logger.Warn("发送报告邮件失败",
 				zap.String("周期", string(period)),
 				zap.Error(err))
+		} else {
+			logger.Info("报告邮件已发送",
+				zap.String("周期", string(period)),
+				zap.Int("正文长度", len(body)),
+			)
 		}
 	} else {
 		logger.Warn("发送报告邮件失败：邮件发送器未配置",

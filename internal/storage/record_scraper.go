@@ -171,6 +171,12 @@ func GetScraperMetricsDailyAvg(startDate, endDate time.Time) ([]ScraperMetricDai
 		return nil, err
 	}
 
+	logger.Debug("GetScraperMetricsDailyAvg 加载原始指标",
+		zap.Int("原始条数", len(metrics)),
+		zap.Time("起始", startDate),
+		zap.Time("结束", endDate),
+	)
+
 	if len(metrics) == 0 {
 		return nil, nil
 	}
@@ -246,6 +252,12 @@ func GetScraperMetricsMonthlyAvg(startDate, endDate time.Time) ([]ScraperMetricM
 	if err != nil {
 		return nil, err
 	}
+
+	logger.Debug("GetScraperMetricsMonthlyAvg 加载原始指标",
+		zap.Int("原始条数", len(metrics)),
+		zap.Time("起始", startDate),
+		zap.Time("结束", endDate),
+	)
 
 	if len(metrics) == 0 {
 		return nil, nil
