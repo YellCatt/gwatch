@@ -4,6 +4,9 @@ package scheduler
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"go.uber.org/zap"
@@ -14,10 +17,12 @@ import (
 
 // PeriodicScheduler 每日周期调度器。
 // 到点后会调用 onTrigger 回调执行任务，并通过 lastSentDate 防止当天重复触发。
+// lastSentDate 可通过 stateFile 持久化到磁盘，使进程重启后依然生效。
 type PeriodicScheduler struct {
 	reportHour   int    // 触发小时（24 小时制）
 	reportMinute int    // 触发分钟
 	lastSentDate string // 上次触发日期（YYYY-MM-DD），用于去重
+	stateFile    string // 触发状态持久化文件路径（可选，为空则仅内存去重）
 	onTrigger    func() // 触发回调
 }
 
@@ -41,6 +46,15 @@ func WithTriggerCallback(callback func()) PeriodicSchedulerOption {
 	}
 }
 
+// WithStateFile 设置触发状态的持久化文件路径（可选）。
+// 启用后，调度器会把"上次触发日期"写入该文件，进程重启后重新读取，
+// 从而避免因重启导致的当天重复触发（例如报告一天发多次）。
+func WithStateFile(path string) PeriodicSchedulerOption {
+	return func(s *PeriodicScheduler) {
+		s.stateFile = path
+	}
+}
+
 // NewPeriodicScheduler 创建一个默认每天 07:00 触发的周期调度器。
 func NewPeriodicScheduler(opts ...PeriodicSchedulerOption) *PeriodicScheduler {
 	s := &PeriodicScheduler{
@@ -55,10 +69,14 @@ func NewPeriodicScheduler(opts ...PeriodicSchedulerOption) *PeriodicScheduler {
 
 // Start 阻塞运行调度循环，到点触发回调。
 func (s *PeriodicScheduler) Start() {
+	// 先从磁盘恢复上次触发日期，避免进程重启后当天重复发送
+	s.loadLastSentDate()
+
 	now := timeutil.Now()
 	next := time.Date(now.Year(), now.Month(), now.Day(), s.reportHour, s.reportMinute, 0, 0, now.Location())
 
-	if !now.Before(next) {
+	// 已过今天的触发点，或今天已经触发过（含从状态文件恢复的情况），均顺延到明天
+	if !now.Before(next) || s.lastSentDate == now.Format("2006-01-02") {
 		next = next.Add(24 * time.Hour)
 	}
 
@@ -88,7 +106,18 @@ func (s *PeriodicScheduler) Start() {
 			next = next.Add(24 * time.Hour)
 			continue
 		}
+
+		// 触发前重新读一次状态文件：多进程同时运行时，
+		// 可能已被另一个进程触发过，避免竞争窗口内重复发送
+		if s.refreshLastSentDate() && today == s.lastSentDate {
+			logger.Info("今日报告已由其他进程发送，跳过", zap.String("date", today))
+			next = next.Add(24 * time.Hour)
+			continue
+		}
+
 		s.lastSentDate = today
+		// 先落盘再触发：即使发送过程中进程崩溃或被强杀，重启后也不会重复发送
+		s.saveLastSentDate(today)
 
 		s.trigger()
 
@@ -100,6 +129,78 @@ func (s *PeriodicScheduler) Start() {
 func (s *PeriodicScheduler) trigger() {
 	if s.onTrigger != nil {
 		s.onTrigger()
+	}
+}
+
+// loadLastSentDate 从状态文件读取上次触发日期（YYYY-MM-DD）。
+// 文件不存在属于首次运行的正常情况，静默忽略；其他读取错误仅告警，不阻断调度。
+func (s *PeriodicScheduler) loadLastSentDate() {
+	if s.stateFile == "" {
+		return
+	}
+
+	data, err := os.ReadFile(s.stateFile)
+	if err != nil {
+		if !os.IsNotExist(err) {
+			logger.Warn("读取调度状态文件失败",
+				zap.String("file", s.stateFile), zap.Error(err))
+		}
+		return
+	}
+
+	date := strings.TrimSpace(string(data))
+	if date == "" {
+		return
+	}
+
+	s.lastSentDate = date
+	logger.Info("已从状态文件恢复调度触发记录",
+		zap.String("file", s.stateFile),
+		zap.String("上次触发日期", date))
+}
+
+// refreshLastSentDate 重新读取状态文件并刷新 lastSentDate。
+// 用于多进程场景下的触发前二次确认。返回是否成功读到有效日期。
+func (s *PeriodicScheduler) refreshLastSentDate() bool {
+	if s.stateFile == "" {
+		return false
+	}
+
+	data, err := os.ReadFile(s.stateFile)
+	if err != nil {
+		return false
+	}
+
+	date := strings.TrimSpace(string(data))
+	if date == "" {
+		return false
+	}
+
+	s.lastSentDate = date
+	return true
+}
+
+// saveLastSentDate 将触发日期写入状态文件。
+// 采用"临时文件 + rename"的原子写法，避免写入中途崩溃留下半截内容。
+func (s *PeriodicScheduler) saveLastSentDate(date string) {
+	if s.stateFile == "" {
+		return
+	}
+
+	dir := filepath.Dir(s.stateFile)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		logger.Warn("创建调度状态文件目录失败", zap.String("dir", dir), zap.Error(err))
+		return
+	}
+
+	tmpFile := s.stateFile + ".tmp"
+	if err := os.WriteFile(tmpFile, []byte(date), 0644); err != nil {
+		logger.Warn("写入调度状态临时文件失败", zap.String("file", tmpFile), zap.Error(err))
+		return
+	}
+
+	if err := os.Rename(tmpFile, s.stateFile); err != nil {
+		logger.Warn("重命名调度状态文件失败", zap.String("file", s.stateFile), zap.Error(err))
 	}
 }
 

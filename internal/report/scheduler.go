@@ -1,6 +1,7 @@
 package report
 
 import (
+	"path/filepath"
 	"time"
 
 	"go.uber.org/zap"
@@ -30,8 +31,20 @@ func (rs *ReportScheduler) Start() {
 	rs.scheduler = scheduler.NewPeriodicScheduler(
 		scheduler.WithReportTime(config.GlobalConfig.Monitor.ReportTime),
 		scheduler.WithTriggerCallback(rs.generateAllReports),
+		scheduler.WithStateFile(reportSentStatePath()),
 	)
 	rs.scheduler.Start()
+}
+
+// reportSentStatePath 返回报告发送状态文件的路径。
+// 记录"上次触发日期"，使进程重启后仍能避免当天重复发送报告。
+// 目录取自 app.data_dir，未配置时回退到 ./sql。
+func reportSentStatePath() string {
+	dir := config.GlobalConfig.App.DataDir
+	if dir == "" {
+		dir = "./sql"
+	}
+	return filepath.Join(dir, "last_report_sent.txt")
 }
 
 // generateAllReports 根据全局配置依次生成并发送日、周、月、年报告。
