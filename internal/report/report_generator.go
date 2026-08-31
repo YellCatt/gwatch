@@ -561,8 +561,27 @@ func loadSystemMetrics(period ReportPeriod, startDate, endDate time.Time) *Syste
 		return snapshot
 	}
 
+	if period == PeriodDaily {
+		hourStart := time.Date(startDate.Year(), startDate.Month(), startDate.Day(), 0, 0, 0, 0, startDate.Location())
+		normalized := make([]sysmon.SystemMetric, 24)
+		for i := 0; i < 24; i++ {
+			normalized[i] = sysmon.SystemMetric{
+				Timestamp: hourStart.Add(time.Duration(i) * time.Hour),
+			}
+		}
+		for _, m := range metrics {
+			h := m.Timestamp.Hour()
+			if h >= 0 && h < 24 {
+				normalized[h] = m
+			}
+		}
+		metrics = normalized
+	}
+
 	chartWidth := len(metrics)
-	if chartWidth > 20 {
+	if period == PeriodDaily {
+		chartWidth = 24
+	} else if chartWidth > 20 {
 		chartWidth = 20
 	}
 
@@ -578,7 +597,11 @@ func loadSystemMetrics(period ReportPeriod, startDate, endDate time.Time) *Syste
 	netUpMaxData := make([]float64, len(metrics))
 
 	for i, m := range metrics {
-		labels[i] = m.Timestamp.Format(labelFormat)
+		if period == PeriodDaily {
+			labels[i] = startDate.Add(time.Duration(i) * time.Hour).Format("01-02 15:04")
+		} else {
+			labels[i] = m.Timestamp.Format(labelFormat)
+		}
 		cpuData[i] = m.CPUPercent
 		cpuMaxData[i] = m.CPUMaxPercent
 		memData[i] = m.MemoryPercent
@@ -614,8 +637,13 @@ func loadSystemMetrics(period ReportPeriod, startDate, endDate time.Time) *Syste
 	snapshot.NetDownMaxChart = sysmon.GenerateASCIIChartWithTime(netDownMaxData, chartWidth, "KB/s", labels, cfg.NetworkDownThreshold)
 	snapshot.NetUpMaxChart = sysmon.GenerateASCIIChartWithTime(netUpMaxData, chartWidth, "KB/s", labels, cfg.NetworkUpThreshold)
 
-	snapshot.StartTime = metrics[0].Timestamp.Format("2006-01-02 15:04")
-	snapshot.EndTime = metrics[len(metrics)-1].Timestamp.Format("2006-01-02 15:04")
+	if period == PeriodDaily {
+		snapshot.StartTime = startDate.Format("2006-01-02 15:04")
+		snapshot.EndTime = endDate.Format("2006-01-02 15:04")
+	} else {
+		snapshot.StartTime = metrics[0].Timestamp.Format("2006-01-02 15:04")
+		snapshot.EndTime = metrics[len(metrics)-1].Timestamp.Format("2006-01-02 15:04")
+	}
 
 	return snapshot
 }

@@ -94,6 +94,7 @@ func GenerateASCIIChartWithTime(data []float64, width int, unit string, timeLabe
 	}
 	builder.WriteString("\n")
 
+	var prevTimeLabel string
 	for i, v := range bins {
 		percent := v / maxVal
 		if percent > 1.0 {
@@ -116,6 +117,11 @@ func GenerateASCIIChartWithTime(data []float64, width int, unit string, timeLabe
 			now := timeutil.Now()
 			ts := now.Add(-24*time.Hour + time.Duration(idx)*24*time.Hour/time.Duration(len(data)))
 			timeLabel = formatHourLabel(ts)
+		}
+		if i > 0 && timeLabel == prevTimeLabel {
+			timeLabel = ""
+		} else if timeLabel != "" {
+			prevTimeLabel = timeLabel
 		}
 
 		thresholdMark := ""
