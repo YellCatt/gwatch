@@ -4,14 +4,14 @@
 PLUGIN_DIR="/plugins/data/gwatch"
 BINARY_NAME="gwatch"
 TMP_NAME="gwatch.tmp"
-LOG_FILE="$PLUGIN_DIR/gwatch.log"
+LOG_FILE="$PLUGIN_DIR/logs/gwatch.log"
 PID_FILE="$PLUGIN_DIR/gwatch.pid"
 DOWNLOAD_URL="https://github.com/YellCatt/gwatch/releases/download/dev-latest/default.gwatch_linux_mipsle"
 
 MAX_RETRY=20
 RESTART_DELAY=5
 MAX_RESTART_DELAY=300
-UPDATE_INTERVAL=14400         # 172800 秒 = 48 小时 14400 秒 = 4小时 
+UPDATE_INTERVAL=10800         # 172800 秒 = 48 小时 14400 秒 = 4小时 86400 秒 = 24 小时  3小时 = 10800 秒
 GRACEFUL_SHUTDOWN_TIMEOUT=10
 
 # 下载超时配置
@@ -129,16 +129,28 @@ cd "$PLUGIN_DIR" || {
 download_binary() {
     log_step "尝试从 GitHub 下载最新版本..."
 
-    [ -f "$TMP_NAME" ] && rm -f "$TMP_NAME"
+    # ==========新增：杀掉后台正在进行的相同下载curl任务==========
+    log_info "检查是否存在残留的旧下载curl进程..."
+    # 查找命令行包含 DOWNLOAD_URL 的curl进程，排除自身grep
+    OLD_CURL_PIDS=$(ps | grep "$DOWNLOAD_URL" | grep curl | grep -v grep | awk '{print $1}')
+    if [ -n "$OLD_CURL_PIDS" ]; then
+        log_warn "发现残留下载进程: $OLD_CURL_PIDS，准备终止"
+        for pid in $OLD_CURL_PIDS; do
+            kill "$pid" 2>/dev/null
+            sleep 0.5
+            kill -9 "$pid" 2>/dev/null
+        done
+        log_info "旧下载进程已清理"
+    fi
+    # ============================================================
 
+    [ -f "$TMP_NAME" ] && rm -f "$TMP_NAME"
     retry=0
     while [ "$retry" -lt "$MAX_RETRY" ]; do
         retry=$((retry + 1))
         log_info "第 $retry / $MAX_RETRY 次下载尝试 (连接超时 ${CONNECT_TIMEOUT}s, 最大耗时 ${MAX_DOWNLOAD_TIME}s)..."
-
         curl -L -k --connect-timeout "$CONNECT_TIMEOUT" --max-time "$MAX_DOWNLOAD_TIME" -o "$TMP_NAME" "$DOWNLOAD_URL"
         curl_exit=$?
-
         if [ "$curl_exit" -eq 0 ] && [ -f "$TMP_NAME" ] && [ -s "$TMP_NAME" ]; then
             size=$(ls -lh "$TMP_NAME" | awk '{print $5}')
             chmod +x "$TMP_NAME"
@@ -147,14 +159,12 @@ download_binary() {
         else
             log_error "下载失败 (curl 退出码: $curl_exit)"
             [ -f "$TMP_NAME" ] && rm -f "$TMP_NAME"
-
             if [ "$retry" -lt "$MAX_RETRY" ]; then
                 log_info "等待 10 秒后重试..."
                 sleep 10
             fi
         fi
     done
-
     log_error "已达到最大重试次数 ($MAX_RETRY)，下载失败"
     return 1
 }
@@ -216,6 +226,34 @@ format_duration() {
     echo "$result"
 }
 
+# ============ 时间戳转人类可读时间（兼容 GNU/BusyBox） ============
+format_timestamp() {
+    local ts=$1
+    local fmt
+    # 尝试 GNU date
+    fmt=$(date -d "@$ts" '+%Y-%m-%d %H:%M:%S' 2>/dev/null)
+    if [ -n "$fmt" ]; then
+        echo "$fmt"
+        return
+    fi
+    # 尝试 BSD date (部分嵌入式系统)
+    fmt=$(date -r "$ts" '+%Y-%m-%d %H:%M:%S' 2>/dev/null)
+    if [ -n "$fmt" ]; then
+        echo "$fmt"
+        return
+    fi
+    # 回退
+    echo "时间戳 $ts"
+}
+
+# ============ 打印本次检查时间与下次预计检查时间 ============
+log_update_schedule() {
+    local check_ts=$1
+    local next_ts=$((check_ts + UPDATE_INTERVAL))
+    log_info "本次更新检查时间: $(format_timestamp "$check_ts")"
+    log_info "下次更新预计检查时间: $(format_timestamp "$next_ts") (间隔 $(format_duration $UPDATE_INTERVAL))"
+}
+
 # ============ 更新检查函数（定时直接下载，不调用 GitHub API） ============
 check_and_update() {
     now=$(date +%s)
@@ -231,9 +269,14 @@ check_and_update() {
     fi
 
     log_step "距离上次更新已 $(format_duration $elapsed)（${elapsed}秒），开始下载最新版本..."
-    echo "$now|$(date '+%Y-%m-%d %H:%M:%S %Z (UTC%z)')" > "$PLUGIN_DIR/.last_update_check"
 
+    # 先下载，只有成功后才记录检查时间
     if download_binary; then
+        # 下载成功，记录实际检查时间 + 下次下载时间
+        next_ts=$((now + UPDATE_INTERVAL))
+        echo "$now|$(date '+%Y-%m-%d %H:%M:%S %Z (UTC%z)')|$(format_timestamp "$next_ts")" > "$PLUGIN_DIR/.last_update_check"
+        log_update_schedule "$now"
+
         # 如果当前有旧版本，比较文件内容是否相同
         if [ -f "$BINARY_NAME" ]; then
             if cmp -s "$TMP_NAME" "$BINARY_NAME"; then
@@ -250,6 +293,7 @@ check_and_update() {
         return 0
     else
         log_warn "下载失败，继续使用当前版本"
+        # 不更新时间戳，下次进入 check_and_update 时 elapsed 仍大于间隔，会继续尝试
         return 1
     fi
 }
@@ -272,7 +316,6 @@ main_loop() {
     fi
 
     CURRENT_DELAY=$RESTART_DELAY
-    echo "$(date +%s)|$(date '+%Y-%m-%d %H:%M:%S %Z (UTC%z)')" > "$PLUGIN_DIR/.last_update_check"
 
     # 标记首次检查：程序启动后立即后台下载对比
     FIRST_CHECK=1
@@ -284,6 +327,12 @@ main_loop() {
                 log_step "程序已启动，立即后台检查新版本..."
                 FIRST_CHECK=0
                 if download_binary; then
+                    # 首次检查成功，记录实际检查时间 + 下次下载时间
+                    now_ts=$(date +%s)
+                    next_ts=$((now_ts + UPDATE_INTERVAL))
+                    echo "$now_ts|$(date '+%Y-%m-%d %H:%M:%S %Z (UTC%z)')|$(format_timestamp "$next_ts")" > "$PLUGIN_DIR/.last_update_check"
+                    log_update_schedule "$now_ts"
+
                     if [ -f "$BINARY_NAME" ] && cmp -s "$TMP_NAME" "$BINARY_NAME"; then
                         log_info "当前已是最新版本，无需替换"
                         rm -f "$TMP_NAME"
@@ -299,13 +348,20 @@ main_loop() {
             fi
 
             if [ "$NEED_UPDATE" -eq 1 ]; then
-                log_step "执行热更新..."
+                log_step "执行热更新... (当前时间: $(date '+%Y-%m-%d %H:%M:%S'))"
                 stop_program
 
                 [ -f "$BINARY_NAME" ] && rm -f "$BINARY_NAME"
                 mv "$TMP_NAME" "$BINARY_NAME"
-                log_ok "已替换为新版本"
+                log_ok "热更新完成 (当前时间: $(date '+%Y-%m-%d %H:%M:%S'))"
                 NEED_UPDATE=0
+
+                # 热更新后打印下次预计检查时间（基于上次成功检查的时间戳）
+                if [ -f "$PLUGIN_DIR/.last_update_check" ]; then
+                    last_check=$(cat "$PLUGIN_DIR/.last_update_check" | cut -d'|' -f1)
+                    next_ts=$((last_check + UPDATE_INTERVAL))
+                    log_info "下次预计检查时间: $(format_timestamp "$next_ts") (间隔 $(format_duration $UPDATE_INTERVAL))"
+                fi
 
                 if ! start_program; then
                     log_error "热更新后启动失败，守护循环终止"
@@ -337,7 +393,7 @@ main_loop() {
             if [ "$NEED_UPDATE" -eq 1 ]; then
                 [ -f "$BINARY_NAME" ] && rm -f "$BINARY_NAME"
                 mv "$TMP_NAME" "$BINARY_NAME"
-                log_ok "已更新到新版本"
+                log_ok "已更新到新版本 (当前时间: $(date '+%Y-%m-%d %H:%M:%S'))"
                 NEED_UPDATE=0
             fi
 
