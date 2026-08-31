@@ -17,7 +17,8 @@ import (
 var CfgFile string
 
 // Version 当前 gwatch 版本号。
-const Version = "v1.0.0_20260827-0905"
+// 通过 GitHub Actions 构建时注入： -ldflags="-X gwatch/config.Version=v1.0.0_YYYYMMDD-HHMM"
+var Version = "v1.0.0_dev"
 
 // GlobalConfig 全局配置实例，整个运行周期内共享。
 var GlobalConfig Config

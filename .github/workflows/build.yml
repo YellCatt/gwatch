@@ -51,7 +51,10 @@ jobs:
 
     - name: Build for ${{ matrix.target.os }}/${{ matrix.target.arch }}
       run: |
-        ${{ matrix.target.goflags }} go build -ldflags="${{ matrix.target.ldflags }}" ${{ matrix.target.tags != '' && format('-tags="{0}"', matrix.target.tags) || '' }} -o gwatch_${{ matrix.target.suffix }}.${{ matrix.target.os == 'windows' && 'exe' || '' }}
+        VERSION="v1.0.0_$(TZ=Asia/Shanghai date +%Y%m%d-%H%M)"
+        echo "Building version: $VERSION"
+        COMBINED_LDFLAGS="${{ matrix.target.ldflags }} -X gwatch/config.Version=$VERSION"
+        ${{ matrix.target.goflags }} go build -ldflags="$COMBINED_LDFLAGS" ${{ matrix.target.tags != '' && format('-tags="{0}"', matrix.target.tags) || '' }} -o gwatch_${{ matrix.target.suffix }}.${{ matrix.target.os == 'windows' && 'exe' || '' }}
         ls -la gwatch_*
 
     - name: Upload artifact
