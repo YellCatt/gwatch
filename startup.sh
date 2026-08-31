@@ -16,6 +16,8 @@ CONNECT_TIMEOUT=120
 MAX_DOWNLOAD_TIME=1200
 # 邮件通知开关，0关闭 1开启
 ENABLE_MAIL_NOTIFY=1
+# mailgo 邮件发送工具的绝对路径
+MAILGO_BIN="/plugins/data/mailgo/mailgo"
 
 # 预创建目录，确保早期日志能写入
 mkdir -p "$PLUGIN_DIR" 2>/dev/null
@@ -44,8 +46,8 @@ send_mailgo() {
     local subject="$1"
     local body="$2"
     log_info "尝试发送邮件通知，标题: $subject"
-    if command -v mailgo >/dev/null 2>&1; then
-        mailgo -subject "$subject" -body "$body" >> "$LOG_FILE" 2>&1
+    if [ -x "$MAILGO_BIN" ]; then
+        "$MAILGO_BIN" -subject "$subject" -body "$body" >> "$LOG_FILE" 2>&1
         local mail_rc=$?
         if [ "$mail_rc" -eq 0 ]; then
             log_ok "邮件通知发送成功"
