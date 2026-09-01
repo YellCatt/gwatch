@@ -17,32 +17,24 @@ jobs:
             goflags: CGO_ENABLED=0 GOOS=linux GOARCH=mipsle GOMIPS=softfloat
             ldflags: "-s -w -extldflags=-static"
             tags: "netgo osusergo"
-            upx: true
-            upxflags: "--best --nrv2b"
           - os: linux
             arch: amd64
             suffix: linux_amd64
             goflags: GOOS=linux GOARCH=amd64
             ldflags: "-s -w"
             tags: ""
-            upx: true
-            upxflags: "--best --lzma"
           - os: linux
             arch: arm64
             suffix: linux_arm64
             goflags: GOOS=linux GOARCH=arm64
             ldflags: "-s -w"
             tags: ""
-            upx: true
-            upxflags: "--best --lzma"
           - os: windows
             arch: amd64
             suffix: windows_amd64
             goflags: GOOS=windows GOARCH=amd64
             ldflags: "-s -w"
             tags: ""
-            upx: true
-            upxflags: "--best --lzma"
 
     steps:
     - uses: actions/checkout@v4
@@ -63,36 +55,6 @@ jobs:
         echo "Building version: $VERSION"
         COMBINED_LDFLAGS="${{ matrix.target.ldflags }} -X gwatch/config.Version=$VERSION"
         ${{ matrix.target.goflags }} go build -ldflags="$COMBINED_LDFLAGS" ${{ matrix.target.tags != '' && format('-tags="{0}"', matrix.target.tags) || '' }} -o gwatch_${{ matrix.target.suffix }}.${{ matrix.target.os == 'windows' && 'exe' || '' }}
-        ls -la gwatch_*
-
-    - name: Install UPX
-      if: ${{ matrix.target.upx == true }}
-      env:
-        UPX_VERSION: ${{ vars.UPX_VERSION || '3.96' }}
-      run: |
-        set -e
-        echo "Installing UPX $UPX_VERSION"
-        curl -fsSL -o upx.tar.xz "https://github.com/upx/upx/releases/download/v${UPX_VERSION}/upx-${UPX_VERSION}-amd64_linux.tar.xz"
-        tar -xf upx.tar.xz
-        sudo install -m 755 "upx-${UPX_VERSION}-amd64_linux/upx" /usr/local/bin/upx
-        upx --version
-
-    - name: Compress with UPX
-      if: ${{ matrix.target.upx == true }}
-      run: |
-        set -e
-        BIN="gwatch_${{ matrix.target.suffix }}.${{ matrix.target.os == 'windows' && 'exe' || '' }}"
-        BEFORE=$(stat -c%s "$BIN")
-        # 依次降级尝试：指定算法 -> --best -> 放弃压缩
-        if upx ${{ matrix.target.upxflags }} "$BIN" \
-          || upx --best "$BIN" \
-          || upx "$BIN"; then
-          upx -t "$BIN" || echo "::warning::UPX 自检未通过，请人工确认该平台二进制"
-          AFTER=$(stat -c%s "$BIN")
-          echo "UPX: $BEFORE -> $AFTER bytes"
-        else
-          echo "UPX 压缩失败，保留未压缩的原始二进制"
-        fi
         ls -la gwatch_*
 
     - name: Upload artifact
