@@ -14,7 +14,7 @@
 - 流式（SSE）断言支持
 - 正则表达式断言支持（支持匹配数字、布尔等非字符串类型）
 - CSV 历史执行时间存储和平均值计算
-- 任务延迟控制（执行前/后延迟）
+- 任务延迟控制（执行后延迟，执行前延迟待实现）
 - 并发执行支持（max_workers 配置）
 
 ### 远程指标采集（Scraper）
@@ -77,9 +77,7 @@ logs/               # 日志目录（自动创建）
 ```yaml
 target:
   base_url: "https://httpbin.org"       # 基础URL，用于测试用例中的相对URL拼接
-  timeout: 30                           # 请求超时时间（秒）
-  authorization: ""                     # 全局 Authorization 请求头（可选）
-  user_id: ""                           # 用户ID标识（可选）
+  timeout: 30                           # 默认请求超时时间（秒）
 
 log:
   level: "info"                         # 日志级别: debug, info, warn, error
@@ -91,7 +89,6 @@ app:
   report_dir: "./reports"               # 报告输出目录
   case_dir: "./cases"                   # 测试用例目录
   data_dir: "./sql"                     # 数据存储目录（CSV/SQLite）
-  severe_status: [500]                  # 严重状态码列表，触发时会发送告警
   global_pre: []                        # 全局前置条件：执行所有测试用例前先执行这些用例
   global_post: []                       # 全局后置条件：执行所有测试用例后执行这些用例
   host_name: ""                         # 自定义设备名（为空则使用系统主机名）
@@ -112,7 +109,8 @@ monitor:
   weekly_report: true                   # 是否启用每周报告
   monthly_report: true                  # 是否启用每月报告
   yearly_report: true                   # 是否启用每年报告
-  report_time: "07:00"                  # 报告生成时间（HH:MM格式）
+  daily_all_reports: false              # 测试模式：每天都生成周/月/年报告，忽略周期日期限制
+  report_time: "05:00"                  # 报告生成时间（HH:MM格式，默认05:00）
 
 scraper:
   enabled: true                         # 是否启用数据采集器
@@ -185,7 +183,7 @@ sys_monitor:
 |-----------|------|----------|
 | `gwatch.exe` | 主程序可执行文件 | **是** |
 | `config/config.yaml` | 配置文件 | **是** |
-| `tasks/` | 监控任务目录 | 否（运行时指定路径则不需要） |
+| `cases/` | PSV 测试用例目录 | 否（运行时指定路径则不需要） |
 | `reports/` | 报告输出目录 | 否（自动创建） |
 | `sql/` | CSV 数据目录 | 否（自动创建） |
 | `logs/` | 日志目录 | 否（自动创建） |
@@ -228,8 +226,7 @@ gwatch/
 
 #### 基础配置
 - **target.base_url**: API 目标地址，测试用例中可用 `{{base_url}}` 引用
-- **target.timeout**: 请求超时时间（秒）
-- **target.authorization**: 全局 Authorization 请求头
+- **target.timeout**: 默认请求超时时间（秒）
 - **log.level**: 日志级别（debug, info, warn, error）
 - **log.encoding**: 日志格式（json, console）
 - **log.output**: 日志输出路径
@@ -239,7 +236,6 @@ gwatch/
 - **app.report_dir**: 监控报告输出目录
 - **app.case_dir**: 默认测试用例目录
 - **app.data_dir**: 数据存储目录（CSV/SQLite）
-- **app.severe_status**: 严重错误状态码列表，触发时发送告警
 - **app.global_pre**: 全局前置条件测试用例 ID 列表
 - **app.global_post**: 全局后置条件测试用例 ID 列表
 - **app.host_name**: 自定义设备名，用于告警邮件标识（留空则使用系统主机名）
@@ -252,7 +248,8 @@ gwatch/
 - **monitor.max_workers**: 最大并发执行任务数
 - **monitor.alert_interval**: 同一接口告警最小发送间隔（秒）
 - **monitor.daily_report / weekly_report / monthly_report / yearly_report**: 定期报告开关
-- **monitor.report_time**: 报告生成时间（HH:MM 格式）
+- **monitor.daily_all_reports**: 测试模式：每天都生成周/月/年报告，忽略周期日期限制
+- **monitor.report_time**: 报告生成时间（HH:MM 格式，默认 05:00）
 
 #### 采集器配置（Scraper）
 - **scraper.enabled**: 启用远程指标采集
@@ -311,39 +308,33 @@ gwatch/
 # 运行目录下的所有监控任务
 ./gwatch.exe cases
 
-# 标签过滤
+# 标签过滤（-T 为 --tags 简写）
 ./gwatch.exe --tags=health           # 只运行 health 标签的任务
-./gwatch.exe --tags=health,api       # 运行 health 和 api 标签的任务
+./gwatch.exe -T health,api           # 运行 health 和 api 标签的任务
 ```
 
-### 监控模式（持续运行）
-
-```bash
-# 启动监控模式（持续执行）
-./gwatch.exe --monitor
-
-# 监控模式 + 标签过滤
-./gwatch.exe --monitor --tags=health
-
-# 指定监控间隔
-./gwatch.exe --monitor --interval=30
-```
-
-### 启动数据采集器
+### 启动数据采集器（子命令）
 
 ```bash
 # 启动远程指标采集器
-./gwatch.exe --scraper
+./gwatch.exe scraper
 
 # 指定配置文件
-./gwatch.exe --config /path/to/config.yaml --scraper
+./gwatch.exe --config /path/to/config.yaml scraper
 ```
 
-### 生成系统报告
+### 探测目标 URL（调试 JSONPath）
 
 ```bash
-# 生成本机系统资源报告
-./gwatch.exe --sysreport
+# 发送 HTTP 请求并打印 JSON 树形结构，方便确定 JSONPath
+./gwatch.exe probe http://192.168.1.100/api/status
+```
+
+### 生成系统报告（子命令）
+
+```bash
+# 生成本机系统资源报告（终端输出 ASCII 图表）
+./gwatch.exe sys-report
 ```
 
 ## PSV 监控任务格式
@@ -471,14 +462,9 @@ subset_01|0|子集匹配|GET|{{base_url}}/get|200|{"args":{}}|api|subset|
 
 测试用例支持两种延迟方式，用于控制测试执行节奏：
 
-### 执行前延迟（delay_ms）
+### 执行前延迟（delay_ms）⚠️ 待实现
 
-在测试用例开始执行前等待指定时间：
-
-```psv
-# 等待上游服务就绪后再执行
-query_order|0|查询订单状态|GET|{{base_url}}/api/orders/{{order_id}}|{}|||{}||200||api|||1000||
-```
+在测试用例开始执行前等待指定时间。当前版本已在 PSV 字段中定义但尚未生效，暂不可用。
 
 ### 执行后延迟（delay_after_ms）
 
@@ -489,19 +475,12 @@ query_order|0|查询订单状态|GET|{{base_url}}/api/orders/{{order_id}}|{}|||{
 create_order|0|创建订单|POST|{{base_url}}/api/orders|{}|||{"amount":100}||201||api|order_id=id|||2000
 ```
 
-### 同时使用两种延迟
-
-```psv
-# 执行前等待500ms，执行后等待3秒
-complex_operation|0|复杂操作|POST|{{base_url}}/api/complex|{}|||{"data":"test"}||200||api|||500|3000
-```
-
 ### 延迟场景建议
 
 | 场景 | 使用字段 | 建议值 |
 |------|---------|-------|
-| 等待上游服务就绪 | `delay_ms` | 1000-3000ms |
-| 避免触发限流 | `delay_ms` 或 `delay_after_ms` | 100-500ms |
+| 等待上游服务就绪 | `delay_ms`（待实现） | 1000-3000ms |
+| 避免触发限流 | `delay_after_ms` | 100-500ms |
 | 给下游服务处理时间 | `delay_after_ms` | 2000-5000ms |
 | 数据库最终一致性 | `delay_after_ms` | 3000-10000ms |
 
@@ -537,16 +516,23 @@ app:
 - 各类报告中
 - 邮件主题（如果支持占位符）
 
-## 命令行参数
+## 命令行接口
 
-| 参数 | 说明 |
+### 子命令
+
+| 命令 | 说明 |
 |------|------|
-| `--config` | 指定配置文件路径（默认 `./config/config.yaml`） |
-| `--monitor` | 启用监控模式 |
-| `--scraper` | 启用数据采集器 |
-| `--sysreport` | 生成系统资源报告 |
-| `--tags` | 按标签过滤执行任务（逗号分隔） |
-| `--interval` | 覆盖默认监控间隔（秒） |
+| `gwatch [paths...]` | **默认进入监控模式**。运行指定 PSV 文件/目录（`cases/` 下全部），配合 `--tags` 过滤 |
+| `gwatch scraper` | 运行远程指标采集器（按 config 中的 `scraper.targets` 周期采集） |
+| `gwatch probe <url>` | 调试工具：对目标 URL 发起请求并打印 JSON 树形结构，便于确定 JSONPath 表达式 |
+| `gwatch sys-report` | 生成当前机器 CPU/内存/磁盘/网络等指标的 ASCII 图表报告 |
+
+### 全局参数（可与任意子命令组合）
+
+| 参数 | 简写 | 说明 |
+|------|------|------|
+| `--config` | — | 指定配置文件路径（默认 `./config/config.yaml`） |
+| `--tags` | `-T` | 按标签过滤执行任务，多个标签用逗号分隔（仅根命令有效） |
 
 ## 报告生成
 
