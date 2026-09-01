@@ -31,6 +31,13 @@ func Now() time.Time {
 	return time.Now().In(shanghaiLoc)
 }
 
+// Location 返回统一的东八区时区对象。
+// 存储层与报告层在把墙钟字符串解析回 time.Time 时应当使用该时区，
+// 否则 time.Parse 会按 UTC 解析，导致东八区写入的时间被偏移 8 小时。
+func Location() *time.Location {
+	return shanghaiLoc
+}
+
 // Format 使用指定 Go 格式串格式化时间为东八区时间字符串。
 func Format(t time.Time, layout string) string {
 	return t.In(shanghaiLoc).Format(layout)

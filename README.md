@@ -159,8 +159,8 @@ cleaner:
   retention_days: 30                    # 数据保留天数
   log_dir: "./logs"                     # 日志目录
   report_dir: ""                        # 报告目录（留空则不清理）
-  data_dir: ""                          # 数据目录（留空则不清理）
-  include_patterns: ["*.log", "*.json", "*.csv", "*.txt"]
+  # data_dir 已废弃：数据存储目录下的系统指标/告警/汇总 CSV 属于业务数据，不参与清理
+  include_patterns: ["*.log", "*.json", "*.txt"] # 包含的文件模式（不含 *.csv）
   exclude_patterns: []
   interval_hours: 24                    # 清理执行间隔（小时）
 
@@ -292,8 +292,9 @@ gwatch/
 #### 清理配置
 - **cleaner.enabled**: 启用自动清理
 - **cleaner.retention_days**: 数据保留天数
-- **cleaner.log_dir / report_dir / data_dir**: 待清理目录
-- **cleaner.include_patterns / exclude_patterns**: 文件匹配模式
+- **cleaner.log_dir / report_dir**: 待清理目录（日志 / 测试报告）
+- **cleaner.data_dir**: 已废弃，数据存储目录下的 CSV 属于业务数据，不再参与清理
+- **cleaner.include_patterns / exclude_patterns**: 文件匹配模式（默认不含 `*.csv`，系统指标 / 告警 / 汇总 CSV 受内置保护模式强制排除）
 - **cleaner.interval_hours**: 清理执行间隔（小时）
 
 ## 使用方法

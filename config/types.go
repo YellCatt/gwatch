@@ -169,7 +169,9 @@ type CleanupConfig struct {
 	LogDir string `mapstructure:"log_dir"`
 	// ReportDir 报告目录
 	ReportDir string `mapstructure:"report_dir"`
-	// DataDir 数据目录
+	// DataDir 已废弃：数据存储目录不再参与清理（其中 CSV 为业务数据，
+	// 且月/年级指标写入频率低于保留天数，按 mtime 清理会误删）。
+	// 保留字段仅用于兼容旧配置文件中的 cleaner.data_dir，运行时会被忽略。
 	DataDir string `mapstructure:"data_dir"`
 	// IncludePatterns 参与清理的文件 glob 模式
 	IncludePatterns []string `mapstructure:"include_patterns"`

@@ -38,8 +38,10 @@ func GenerateReportFromStorage(period ReportPeriod, startDate, endDate time.Time
 		logger.Warn("从存储获取告警汇总失败", zap.Error(err))
 	} else {
 		for _, summary := range alertSummaries {
-			firstOccurrence, _ := time.Parse("2006-01-02 15:04:05", summary.FirstOccurrence)
-			lastOccurrence, _ := time.Parse("2006-01-02 15:04:05", summary.LastOccurrence)
+			// 存储中写入的是东八区墙钟串（timeutil.FormatDateTime 基于 Asia/Shanghai），
+			// 必须用同一时区解析，否则 time.Parse 按 UTC 解析会导致时间偏移 8 小时。
+			firstOccurrence, _ := time.ParseInLocation("2006-01-02 15:04:05", summary.FirstOccurrence, timeutil.Location())
+			lastOccurrence, _ := time.ParseInLocation("2006-01-02 15:04:05", summary.LastOccurrence, timeutil.Location())
 
 			report.AggregatedErrors = append(report.AggregatedErrors, AggregatedError{
 				TaskID:          summary.TestCaseID,

@@ -16,10 +16,14 @@
 
 > 可致进程崩溃、数据错误、安全事故，应优先修复。
 
-### H1. 测试模式 HTTP 客户端未初始化，执行任何用例必然 panic
+### ~~H1. 测试模式 HTTP 客户端未初始化，执行任何用例必然 panic~~
 
-- **位置**：`cmd/root.go` → `internal/testcase/runner.go` `RunTests()` → `internal/testcase/executor.go:191`
-- **问题**：`RunTests` 全程未调用 `httpclient.InitClient()`（仅 `monitor.StartMonitorMode` 和无人使用的遗留函数 `testcase.RunAll` 调用）。`ExecuteTestCase` 中 `httpclient.Client.R()` 直接 nil 指针解引用，普通运行模式必崩。
+> **状态：不再适用 / 死代码，已无调用方。**
+> 原报告判定 `RunTests` 未初始化 `httpclient` 会必然 panic。经复核，当前代码库中 `RunTests`（以及 `internal/testcase/runner.go`）已无调用方，整个测试命令入口已废弃/移除；`httpclient.InitClient()` 现仅由 `monitor.StartMonitorMode` 路径初始化，监控模式运行正常，无此前描述的 nil 指针崩溃问题。故该项不构成实际问题，**请勿据此误判或着手"修复"**。
+
+- **位置（原）**：`cmd/root.go` → `internal/testcase/runner.go` `RunTests()` → `internal/testcase/executor.go:191`
+- **问题（原）**：`RunTests` 全程未调用 `httpclient.InitClient()`（仅 `monitor.StartMonitorMode` 和无人使用的遗留函数 `testcase.RunAll` 调用）。`ExecuteTestCase` 中 `httpclient.Client.R()` 直接 nil 指针解引用，普通运行模式必崩。
+- **结论**：调用链已不存在，标记死代码，保留供追溯。
 
 ### H2. 流式断言失败结果被强制改写为"通过"
 
@@ -89,7 +93,7 @@
 | M5 | PSV 首行若是注释/空行，`lineNum==1` 被跳过导致真正表头被当数据行解析，整列用例静默丢失 | `internal/psv/psv.go:149-162` |
 | M6 | `bufio.Scanner` 默认 64KB 行上限，PSV 中含大 JSON 的超长行导致整个文件解析失败 | `internal/psv/psv.go:143` |
 | M7 | 前置条件无循环依赖检测，pre 相互引用会无限递归直至栈溢出 | `internal/testcase/executor.go:24-43` |
-| M8 | cleaner 模块从未被实例化启动（全项目无 `NewCleaner` 调用），`cleaner.enabled` 默认 true 纯属误导；且若启用，默认 `*.csv` + data_dir 会删存储 CSV | `internal/cleaner/`，`cmd/root.go` |
+| M8 | cleaner 模块从未被实例化启动（全项目无 `NewCleaner` 调用），`cleaner.enabled` 默认 true 纯属误导；且若启用，默认 `*.csv` + data_dir 会删存储 CSV | `internal/cleaner/`，`cmd/root.go` | **已修复**：移除 data_dir 清理分支，默认 include 不含 `*.csv`，新增 `protectedPatterns` 与 `isProtectedPath` 双重保护；启动项未接入问题见下方遗留 |
 | M9 | `StopAllTasks` 后 `scheduleTask` 可能阻塞在 `taskChan<-`（channel 置 nil、worker 已退出），goroutine 泄漏 | `internal/monitor/task.go:40-45`，`monitor.go:216` |
 | M10 | 汇总类存储每条记录都全量读+重写整个 CSV（写放大 O(n²)），且 `os.Create` 截断写入非原子，中途崩溃丢全部汇总数据 | `storage/record_monitor.go:213`，`storage/init.go:450` |
 | M11 | `Truncate(24*time.Hour)` 按 UTC 对齐，东八区日/月/年聚合窗口错位 8 小时（独立于 H11 的缺陷） | `internal/sysmon/sysmon.go:155-161` |
@@ -185,7 +189,7 @@
 
 1. **H8**：吊销并移除入库的 SMTP 授权码，改用环境变量注入
 2. **H7**：移除硬编码 `InsecureSkipVerify`，改为可配置项
-3. **H1**：在 `RunTests` 入口补 `httpclient.InitClient()`
+3. （~~H1~~ 已标记为不再适用/死代码，原 `RunTests` 无调用方，无需处理）
 4. **H3**：`vars.Replace` 加读锁（或改用 `sync.Map` / 快照拷贝）
 5. **H5/H6**：修复退出流程——报告调度器支持 stop，email dispatcher 先停生产者再 close channel
 
@@ -202,7 +206,7 @@
 11. **H4**：`startTask` 对 interval ≤ 0 做兜底（回退默认值并告警）
 12. **M5/M6**：PSV 解析改为先扫描定位表头行、增大 Scanner buffer
 13. **M7**：pre 条件加循环依赖检测（visited set）
-14. **M8**：要么接入 cleaner 启动逻辑，要么删除该模块与配置项
+14. **M8（数据误删部分已修复）**：已彻底消除存储 CSV 被误删的风险（移除 data_dir 清理、默认不含 `*.csv`、内置 `protectedPatterns` + `isProtectedPath` 双重保护）。但 cleaner 模块仍是死代码——全项目无 `StartCleaner`/`NewCleaner` 调用，`cleaner.enabled` 默认 `true` 却从不真正运行。后续二选一：在 `bootstrap.InitApp` 中接入 `StartCleaner`，或删除该模块与配置项（推荐前者，清理日志/报告仍有价值）。
 15. **M3**：采集循环按 target 各自的 interval 调度
 16. **M2**：sysmon 磁盘采集按平台取根路径（Windows 用 `C:\` 或当前盘符），并透出 error
 

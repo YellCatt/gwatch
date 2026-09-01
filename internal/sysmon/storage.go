@@ -272,7 +272,8 @@ func loadMetrics(path string, since time.Time) ([]SystemMetric, error) {
 
 	for _, rec := range all[1:] {
 		tsStr := getCol(rec, colIndex, "time")
-		ts, err := time.ParseInLocation("2006-01-02 15:04:05", tsStr, time.Local)
+		// 写入时使用的是东八区墙钟串，解析须用 timeutil 统一时区，避免依赖进程本地时区（UTC 容器会偏移 8 小时）
+		ts, err := time.ParseInLocation("2006-01-02 15:04:05", tsStr, timeutil.Location())
 		if err != nil {
 			continue
 		}

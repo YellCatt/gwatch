@@ -46,7 +46,7 @@ func setCleanerDefaults() {
 		GlobalConfig.Cleaner.Enabled = true
 		GlobalConfig.Cleaner.RetentionDays = 30
 		GlobalConfig.Cleaner.LogDir = "./logs"
-		GlobalConfig.Cleaner.IncludePatterns = []string{"*.log", "*.json", "*.csv", "*.txt"}
+		GlobalConfig.Cleaner.IncludePatterns = []string{"*.log", "*.json", "*.txt"}
 		GlobalConfig.Cleaner.IntervalHours = 24
 		return
 	}
@@ -59,7 +59,7 @@ func setCleanerDefaults() {
 		GlobalConfig.Cleaner.LogDir = "./logs"
 	}
 	if len(GlobalConfig.Cleaner.IncludePatterns) == 0 {
-		GlobalConfig.Cleaner.IncludePatterns = []string{"*.log", "*.json", "*.csv", "*.txt"}
+		GlobalConfig.Cleaner.IncludePatterns = []string{"*.log", "*.json", "*.txt"}
 	}
 	if GlobalConfig.Cleaner.IntervalHours <= 0 {
 		GlobalConfig.Cleaner.IntervalHours = 24

@@ -9,6 +9,7 @@ import (
 	"go.uber.org/zap"
 
 	"gwatch/internal/logger"
+	"gwatch/internal/timeutil"
 )
 
 // RecordMonitorResult 记录一次监控执行的详细结果到 CSV 存储中。
@@ -78,7 +79,8 @@ func GetMonitorResultsByDate(date time.Time) ([]MonitorResultRecord, error) {
 	var results []MonitorResultRecord
 	for _, rec := range records {
 		timestampStr := get(rec, "timestamp")
-		timestamp, err := time.Parse("2006-01-02 15:04:05", timestampStr)
+		// 写入时使用的是东八区墙钟串，解析须用同一时区，否则按 UTC 解析偏移 8 小时
+		timestamp, err := time.ParseInLocation("2006-01-02 15:04:05", timestampStr, timeutil.Location())
 		if err != nil {
 			continue
 		}

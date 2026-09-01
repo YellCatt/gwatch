@@ -160,8 +160,8 @@ cleaner:
   retention_days: 30                        # 数据保留天数
   log_dir: "./logs"                         # 日志目录
   report_dir: ""                             # 报告目录（留空则不清理）
-  data_dir: ""                              # 数据目录（留空则不清理）
-  include_patterns: ["*.log", "*.json", "*.csv", "*.txt"] # 包含的文件模式
+  # data_dir 已废弃：数据存储目录下的系统指标/告警/汇总 CSV 属于业务数据，不参与清理
+  include_patterns: ["*.log", "*.json", "*.txt"] # 包含的文件模式（不含 *.csv）
   exclude_patterns: []                      # 排除的文件模式
   interval_hours: 24                        # 清理执行间隔（小时）
 

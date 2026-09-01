@@ -130,8 +130,8 @@ cleaner:
   retention_days: 30
   log_dir: "./logs"
   report_dir: "./reports"
-  data_dir: "./data"
-  include_patterns: ["*.log", "*.json", "*.csv", "*.txt"]
+  # data_dir 已废弃：数据存储目录下的系统指标/告警/汇总 CSV 属于业务数据，不参与清理
+  include_patterns: ["*.log", "*.json", "*.txt"]
   exclude_patterns: []
   interval_hours: 24
 ```

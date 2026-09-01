@@ -5,10 +5,12 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"go.uber.org/zap"
 
+	"gwatch/config"
 	"gwatch/internal/logger"
 	"gwatch/internal/timeutil"
 )
@@ -19,10 +21,21 @@ type Config struct {
 	RetentionDays   int      `mapstructure:"retention_days"`   // 文件保留天数
 	LogDir          string   `mapstructure:"log_dir"`          // 日志目录
 	ReportDir       string   `mapstructure:"report_dir"`       // 测试报告目录
-	DataDir         string   `mapstructure:"data_dir"`         // 数据目录
+	DataDir         string   `mapstructure:"data_dir"`         // 已废弃：数据存储目录不再参与清理，保留字段仅为兼容旧配置
 	IncludePatterns []string `mapstructure:"include_patterns"` // 要清理的文件模式列表
 	ExcludePatterns []string `mapstructure:"exclude_patterns"` // 排除的文件模式列表
 	IntervalHours   int      `mapstructure:"interval_hours"`   // 定时清理间隔（小时）
+}
+
+// protectedPatterns 内置强制排除的文件模式。
+//
+// 这些文件承载系统指标与调度状态，属于持续使用的业务数据，删除后无法再生，
+// 且部分文件（如年级指标 CSV）写入频率低于保留天数，按 mtime 判断必然被误删。
+// 因此无论用户如何配置 include_patterns，这些文件都不会被清理器删除。
+var protectedPatterns = []string{
+	"system_metrics_*.csv", // 系统指标小时/日/月/年聚合数据
+	"csv_index.csv",        // 存储层索引文件
+	"last_report_sent.txt", // 报告调度去重状态，删除会导致重复发送报告
 }
 
 // Cleaner 清理器
@@ -33,9 +46,9 @@ type Cleaner struct {
 }
 
 // NewCleaner 创建清理器实例
-func NewCleaner(config Config) *Cleaner {
+func NewCleaner(cfg Config) *Cleaner {
 	return &Cleaner{
-		config:   config,
+		config:   cfg,
 		stopChan: make(chan struct{}),
 	}
 }
@@ -53,13 +66,17 @@ func (c *Cleaner) Start() error {
 
 	c.setDefaults()
 
+	if c.config.DataDir != "" {
+		logger.Warn("cleaner.data_dir 已废弃：数据存储目录包含系统指标与告警历史等业务数据，不再参与清理",
+			zap.String("data_dir", c.config.DataDir))
+	}
+
 	c.running = true
 	interval := time.Duration(c.config.IntervalHours) * time.Hour
 	logger.Info("启动清理器",
 		zap.Int("retention_days", c.config.RetentionDays),
 		zap.String("log_dir", c.config.LogDir),
 		zap.String("report_dir", c.config.ReportDir),
-		zap.String("data_dir", c.config.DataDir),
 		zap.Int("interval_hours", c.config.IntervalHours))
 
 	// 立即执行一次清理
@@ -102,7 +119,10 @@ func (c *Cleaner) Cleanup() error {
 	return c.cleanup()
 }
 
-// setDefaults 设置默认值
+// setDefaults 设置默认值并合并内置保护模式。
+//
+// 默认包含模式只覆盖日志与报告产物（*.log / *.json / *.txt），不再包含 *.csv：
+// CSV 是本项目的业务数据载体（指标、告警、汇总），不是可再生的日志。
 func (c *Cleaner) setDefaults() {
 	if c.config.RetentionDays <= 0 {
 		c.config.RetentionDays = 30
@@ -111,8 +131,57 @@ func (c *Cleaner) setDefaults() {
 		c.config.IntervalHours = 24
 	}
 	if len(c.config.IncludePatterns) == 0 {
-		c.config.IncludePatterns = []string{"*.log", "*.json", "*.csv", "*.txt"}
+		c.config.IncludePatterns = []string{"*.log", "*.json", "*.txt"}
 	}
+	c.mergeProtectedPatterns()
+}
+
+// mergeProtectedPatterns 将内置保护模式追加到排除列表末尾。
+// 排除优先级高于包含，因此即使这些模式同时出现在 include_patterns 中也不会被删除。
+func (c *Cleaner) mergeProtectedPatterns() {
+	for _, p := range protectedPatterns {
+		if !containsString(c.config.ExcludePatterns, p) {
+			c.config.ExcludePatterns = append(c.config.ExcludePatterns, p)
+		}
+	}
+}
+
+// containsString 判断字符串切片中是否存在目标值（精确匹配）。
+func containsString(list []string, target string) bool {
+	for _, s := range list {
+		if s == target {
+			return true
+		}
+	}
+	return false
+}
+
+// isProtectedPath 判断文件是否位于数据存储目录（app.data_dir）之内。
+//
+// 数据存储目录承载系统指标、告警历史、监控汇总等业务数据，不能按修改时间清理。
+// 即使使用者把 log_dir / report_dir 误配成数据目录，该目录下的文件也不会被删除。
+func isProtectedPath(path string) bool {
+	dataDir := strings.TrimSpace(config.GlobalConfig.App.DataDir)
+	if dataDir == "" {
+		return false
+	}
+
+	absPath, err := filepath.Abs(path)
+	if err != nil {
+		return false
+	}
+	absDir, err := filepath.Abs(dataDir)
+	if err != nil {
+		return false
+	}
+
+	rel, err := filepath.Rel(absDir, absPath)
+	if err != nil {
+		return false
+	}
+	// rel 为 "." 表示路径就是数据目录本身；
+	// 不以 ".." 开头且非绝对路径，表示位于数据目录之内。
+	return rel == "." || (!strings.HasPrefix(rel, "..") && !filepath.IsAbs(rel))
 }
 
 // cleanup 执行实际的清理操作
@@ -140,14 +209,9 @@ func (c *Cleaner) cleanup() error {
 		}
 	}
 
-	if c.config.DataDir != "" {
-		count, err := c.cleanupDirectory(c.config.DataDir, threshold)
-		if err != nil {
-			logger.Warn("清理数据目录失败", zap.String("dir", c.config.DataDir), zap.Error(err))
-		} else {
-			totalDeleted += count
-		}
-	}
+	// 数据存储目录（app.data_dir）不参与清理：
+	// 其中的系统指标 CSV、告警历史、汇总记录均属于业务数据，
+	// 且年级/月级指标写入频率低于保留天数，按 mtime 判断必然被误删。
 
 	logger.Info("清理任务完成", zap.Int("files_deleted", totalDeleted))
 	return nil
@@ -167,6 +231,11 @@ func (c *Cleaner) cleanupDirectory(dir string, threshold time.Time) (int, error)
 		}
 
 		if info.IsDir() {
+			return nil
+		}
+
+		// 数据存储目录整体豁免，优先于包含模式判断
+		if isProtectedPath(path) {
 			return nil
 		}
 
