@@ -15,7 +15,7 @@ import (
 // main 函数是程序的入口点
 // 调用 cmd.Execute() 启动命令行应用
 func main() {
-	fmt.Printf("gwatch %s\n", config.Version)
+	fmt.Printf("gwatch version %s\n", config.Version)
 	cmd.Execute()
 	
 	// 在 Windows 上，如果是双击运行，保持窗口打开
