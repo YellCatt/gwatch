@@ -562,8 +562,16 @@ func loadSystemMetrics(period ReportPeriod, startDate, endDate time.Time) *Syste
 	)
 
 	if !series.hasData() {
-		logger.Info("暂无系统指标数据，跳过图表生成")
-		return snapshot
+		// 周期内没有任何历史数据（例如年报统计的上一年度尚未开始采集）时，
+		// 仍然要绘制图表：改用等长的全无效槽位序列，图表内部会输出"无有效数据"占位，
+		// 保证报告结构完整，而不是让整块图表消失。
+		logger.Info("周期内暂无系统指标历史数据，图表以无数据占位绘制",
+			zap.String("周期", string(period)),
+			zap.String("起始", startDate.Format("2006-01-02 15:04")),
+			zap.String("结束", endDate.Format("2006-01-02 15:04")),
+		)
+		series = emptyMetricSeries(period, startDate)
+		metrics, valid = series.metrics, series.valid
 	}
 
 	chartWidth := len(metrics)
@@ -667,6 +675,45 @@ func (s metricSeries) validCount() int {
 		}
 	}
 	return n
+}
+
+// emptyMetricSeries 构造一个与报告周期时间槽位数量一致、但没有任何有效数据点的指标序列。
+//
+// 用于周期内完全没有采集数据的场景（如年报统计的上一年度尚未开始采集）：
+// 图表函数会基于这些全无效的槽位输出"无有效数据"占位，使图表区块照常绘制，
+// 而不是因为无数据就整块跳过，导致报告结构缺失。
+func emptyMetricSeries(period ReportPeriod, startDate time.Time) metricSeries {
+	switch period {
+	case PeriodYearly:
+		return emptyAlignedSeries(12, startDate, monthAt, "2006-01")
+	case PeriodWeekly:
+		return emptyAlignedSeries(7, startDate, dayAt, "01-02")
+	case PeriodMonthly:
+		return emptyAlignedSeries(daysInMonthOf(startDate), startDate, dayAt, "01-02")
+	default:
+		dayStart := time.Date(startDate.Year(), startDate.Month(), startDate.Day(), 0, 0, 0, 0, startDate.Location())
+		return emptyAlignedSeries(24, dayStart, hourAt, "01-02 15:04")
+	}
+}
+
+// emptyAlignedSeries 生成 count 个时间槽位全部无效的空指标序列，槽位时间戳按 dateAt 计算。
+func emptyAlignedSeries(count int, startDate time.Time,
+	dateAt func(time.Time, int) time.Time, format string) metricSeries {
+
+	series := metricSeries{
+		metrics: make([]sysmon.SystemMetric, count),
+		valid:   make([]bool, count),
+		format:  format,
+	}
+	for i := 0; i < count; i++ {
+		series.metrics[i].Timestamp = dateAt(startDate, i)
+	}
+	return series
+}
+
+// hourAt 返回 startDate 起第 i 个小时的时间。
+func hourAt(start time.Time, i int) time.Time {
+	return start.Add(time.Duration(i) * time.Hour)
 }
 
 // alignMetrics 将指标按日期归位到固定长度的时间槽位序列中。
@@ -773,6 +820,56 @@ func mergeMetricsByDay(preferred, fallback []sysmon.SystemMetric) []sysmon.Syste
 	return merged
 }
 
+// mergeMetricsByMonth 合并两组按月聚合的指标，同一月份的数据以 preferred 为准。
+// 用于月级 CSV 不完整时，用日级/小时级聚合结果补齐缺失的月份。
+func mergeMetricsByMonth(preferred, fallback []sysmon.SystemMetric) []sysmon.SystemMetric {
+	if len(preferred) == 0 {
+		return fallback
+	}
+	if len(fallback) == 0 {
+		return preferred
+	}
+
+	monthOf := func(m sysmon.SystemMetric) time.Time {
+		return time.Date(m.Timestamp.Year(), m.Timestamp.Month(), 1, 0, 0, 0, 0, m.Timestamp.Location())
+	}
+
+	byMonth := make(map[time.Time]sysmon.SystemMetric, len(preferred)+len(fallback))
+	for _, m := range fallback {
+		byMonth[monthOf(m)] = m
+	}
+	for _, m := range preferred {
+		byMonth[monthOf(m)] = m
+	}
+
+	merged := make([]sysmon.SystemMetric, 0, len(byMonth))
+	for _, m := range byMonth {
+		merged = append(merged, m)
+	}
+	sort.Slice(merged, func(i, j int) bool {
+		return merged[i].Timestamp.Before(merged[j].Timestamp)
+	})
+	return merged
+}
+
+// countDistinctMonths 统计指标序列覆盖的不同月份数量，用于判断月级数据是否完整。
+func countDistinctMonths(metrics []sysmon.SystemMetric) int {
+	seen := make(map[int]struct{}, len(metrics))
+	for _, m := range metrics {
+		seen[m.Timestamp.Year()*12+int(m.Timestamp.Month())] = struct{}{}
+	}
+	return len(seen)
+}
+
+// monthsBetween 返回 [startDate, endDate) 区间覆盖的月份数量，至少为 1。
+func monthsBetween(startDate, endDate time.Time) int {
+	n := (endDate.Year()-startDate.Year())*12 + int(endDate.Month()) - int(startDate.Month())
+	if n < 1 {
+		return 1
+	}
+	return n
+}
+
 // loadMetricsWithFallback 根据报告周期加载系统指标序列。
 //
 // 各周期使用的图表粒度：日报 24 小时、周报 7 天、月报 当月天数、年报 12 个月。
@@ -796,46 +893,52 @@ func loadMetricsWithFallback(period ReportPeriod, startDate, endDate time.Time) 
 }
 
 // loadYearlyMetricsWithAggregation 加载年度报告的系统指标数据。
-// 优先使用月级 CSV 数据；若数据不足，则从日级/小时级数据按月聚合。
+//
+// 年报「不完整」（年份还没走完）也要照常绘制图表：只要有任意月份存在数据就绘制，
+// 不会因为缺少后续月份而放弃整张图。
+//
+// 数据源优先级：月级 CSV → 日级 CSV 按月聚合 → 小时级 CSV 按月聚合。
+// 月级 CSV 覆盖的月份不完整时，会用细粒度数据聚合出的月份补齐（同月以月级为准），
+// 避免只有一两个月数据就把整年图表画成单点。
 // 结果对齐到 12 个月槽位，缺失月份标记为无效。
 func loadYearlyMetricsWithAggregation(startDate, endDate time.Time) metricSeries {
 	const format = "2006-01"
 
-	metrics, err := sysmon.LoadMonthlyMetricsByRange(startDate, endDate)
+	monthCount := monthsBetween(startDate, endDate)
+
+	monthly, err := sysmon.LoadMonthlyMetricsByRange(startDate, endDate)
 	if err != nil {
 		logger.Warn("加载月级指标失败", zap.Error(err))
 	}
-	if len(metrics) > 0 {
-		logger.Info(fmt.Sprintf("使用月级数据源生成年报图表 (数据点: %d)", len(metrics)))
-		return alignMetrics(metrics, 12, startDate, monthAt, format)
+	monthlyMonths := countDistinctMonths(monthly)
+	if monthlyMonths >= monthCount {
+		logger.Info(fmt.Sprintf("使用月级数据源生成年报图表 (月份: %d/%d)", monthlyMonths, monthCount))
+		return alignMetrics(monthly, 12, startDate, monthAt, format)
 	}
 
-	logger.Info("月级数据不足，回退到日级数据按月聚合")
-	dailyMetrics, err := sysmon.LoadDailyMetricsByRange(startDate, endDate)
+	logger.Info("月级数据不完整，回退到日级/小时级数据按月聚合补齐",
+		zap.Int("月级月份数", monthlyMonths),
+		zap.Int("应有月份数", monthCount),
+	)
+
+	daily, err := sysmon.LoadDailyMetricsByRange(startDate, endDate)
 	if err != nil {
 		logger.Warn("加载日级指标失败", zap.Error(err))
 	}
-	if len(dailyMetrics) > 0 {
-		if aggregated := aggregateMetricsByMonth(dailyMetrics); len(aggregated) > 0 {
-			logger.Info(fmt.Sprintf("日级数据按月聚合成功 (聚合后: %d 个月)", len(aggregated)))
-			return alignMetrics(aggregated, 12, startDate, monthAt, format)
-		}
-	}
-
-	logger.Info("日级数据也不足，回退到小时级数据按月聚合")
-	hourlyMetrics, err := sysmon.LoadMetricsByRange(startDate, endDate)
+	hourly, err := sysmon.LoadMetricsByRange(startDate, endDate)
 	if err != nil {
 		logger.Warn("加载小时级指标失败", zap.Error(err))
 	}
-	if len(hourlyMetrics) > 0 {
-		if aggregated := aggregateMetricsByMonth(hourlyMetrics); len(aggregated) > 0 {
-			logger.Info(fmt.Sprintf("小时级数据按月聚合成功 (聚合后: %d 个月)", len(aggregated)))
-			return alignMetrics(aggregated, 12, startDate, monthAt, format)
-		}
+
+	aggregated := aggregateMetricsByMonth(mergeMetricsByDay(daily, sysmon.AggregateMetricsByDay(hourly)))
+	merged := mergeMetricsByMonth(monthly, aggregated)
+	if len(merged) == 0 {
+		logger.Info("所有数据源均无数据，无法生成年报图表")
+		return metricSeries{format: format}
 	}
 
-	logger.Info("所有数据源均无数据，无法生成年报图表")
-	return metricSeries{format: format}
+	logger.Info(fmt.Sprintf("使用合并数据源生成年报图表 (月份: %d/%d)", countDistinctMonths(merged), monthCount))
+	return alignMetrics(merged, 12, startDate, monthAt, format)
 }
 
 // loadWeeklyMetricsWithFallback 加载周报的系统指标数据。

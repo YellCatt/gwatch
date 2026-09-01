@@ -48,7 +48,8 @@ func reportSentStatePath() string {
 }
 
 // generateAllReports 根据全局配置依次生成并发送日、周、月、年报告。
-// 每种报告都针对上一个完整周期：日报=昨天，周报=上周，月报=上月，年报=去年。
+// 每种报告都针对上一个完整周期：日报=昨天，周报=上周，月报=上月；
+// 年报是累计型报告，统计当年 1 月 ~ 上月末（1 月时统计上一年度），具体区间见 YearlyRange。
 // 当 DailyAllReports 为 true 时，忽略周/月/年的日期限制，每天都生成所有报告（测试用）。
 func (rs *ReportScheduler) generateAllReports() {
 	now := timeutil.Now()
@@ -97,9 +98,10 @@ func (rs *ReportScheduler) generateAllReports() {
 
 	if config.GlobalConfig.Monitor.YearlyReport {
 		if dailyAll || scheduler.ShouldTriggerYearly(now) {
-			lastYear := now.AddDate(-1, 0, 0)
-			logger.Info("正在生成年报", zap.String("年份", lastYear.Format("2006")))
-			generateAndSendReport(PeriodYearly, lastYear, rs.sender)
+			start, end := YearlyRange(now)
+			logger.Info("正在生成年报",
+				zap.String("统计区间", start.Format("2006-01-02")+" ~ "+end.Format("2006-01-02")))
+			generateAndSendReport(PeriodYearly, now, rs.sender)
 		} else {
 			logger.Debug("跳过年报：尚未到触发时间",
 				zap.Time("当前", now),
@@ -123,8 +125,7 @@ func generateAndSendReport(period ReportPeriod, date time.Time, sender EmailSend
 		startDate = time.Date(date.Year(), date.Month(), 1, 0, 0, 0, 0, date.Location())
 		endDate = startDate.AddDate(0, 1, 0)
 	case PeriodYearly:
-		startDate = time.Date(date.Year(), 1, 1, 0, 0, 0, 0, date.Location())
-		endDate = startDate.AddDate(1, 0, 0)
+		startDate, endDate = YearlyRange(date)
 	default:
 		logger.Warn("未知的报告周期", zap.String("周期", string(period)))
 		return

@@ -153,6 +153,10 @@ func buildDailyChartData(r *Report) []string {
 // buildMonthlyChartData 从 Report 构建每月资源指标的 ASCII 图表列表。
 // 遍历所有采集器目标的月级指标，过滤掉哨兵值（-1），以 20 列宽度生成柱状图。
 // 每个图表以目标名称和指标别名作为标题。
+//
+// 即使某组指标 12 个月全为哨兵值（年度报告统计的年度没有任何采集数据），
+// 也会照常生成带标题的图表块，图表内部显示"无数据"占位，
+// 保证年报里每个受监控的「目标×指标」都有对应位置。
 func buildMonthlyChartData(r *Report) []string {
 	charts := make([]string, 0, len(r.MonthlyMetrics))
 	for _, m := range r.MonthlyMetrics {
@@ -164,10 +168,6 @@ func buildMonthlyChartData(r *Report) []string {
 			}
 			values = append(values, d.AvgValue)
 			labels = append(labels, d.MonthLabel)
-		}
-
-		if len(values) == 0 {
-			continue
 		}
 
 		header := fmt.Sprintf("  🖥️ %s - %s (%s)\n", m.TargetName, m.MetricAlias, m.Unit)

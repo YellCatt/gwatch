@@ -214,9 +214,11 @@ func ShouldTriggerMonthly(now time.Time) bool {
 	return now.Day() == 1
 }
 
-// ShouldTriggerYearly 判断是否需要触发年报（每年 1 月 1 日）。
+// ShouldTriggerYearly 判断是否需要触发年报（每月 1 日）。
+// 年报是「当年 1 月 ~ 上月末」的累计报告，因此每月 1 日刷新一次；
+// 其中 1 月 1 日那次统计的正好是上一个完整年度。
 func ShouldTriggerYearly(now time.Time) bool {
-	return now.Month() == time.January && now.Day() == 1
+	return now.Day() == 1
 }
 
 // GetWeekStart 获取指定日期所在周的周一 00:00:00。
