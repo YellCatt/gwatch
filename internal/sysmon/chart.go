@@ -16,6 +16,9 @@ import (
 	"gwatch/internal/util"
 )
 
+// chartBarWidth 柱状图的固定字符宽度，保证不同周期、不同数据量的图表视觉宽度一致。
+const chartBarWidth = 20
+
 // ChartAggregation 图表分桶聚合模式，决定一个图表列由多个原始数据点合并时如何取值。
 type ChartAggregation int
 
@@ -51,8 +54,10 @@ func GenerateASCIIChartWithTime(data []float64, width int, unit string, timeLabe
 //   - timeLabels: 与 data 等长的时间标签
 //   - thresholds: 阈值列表，第一个用于绘制阈值线与 ⚠️ 标记
 //
-// 图表不会为无效数据点伪造数值：无数据的位置直接不输出行，
+// 图表不会为无效数据点伪造数值：部分缺失时无数据的位置直接不输出行，
 // 保证"看到的柱子"都对应真实采集到的数据。
+// 完全没有任何有效数据点时（如年报统计的年度尚未开始采集），
+// 改为按时间槽位逐行绘制空占位（数值 0），使图表结构在报告中保持完整。
 func GenerateASCIIChartWithTimeEx(data []float64, valid []bool, agg ChartAggregation, width int, unit string, timeLabels []string, thresholds ...float64) string {
 	if len(data) == 0 {
 		return "  (无数据)\n"
@@ -67,7 +72,10 @@ func GenerateASCIIChartWithTimeEx(data []float64, valid []bool, agg ChartAggrega
 		validIdx = append(validIdx, i)
 	}
 	if len(validIdx) == 0 {
-		return "  (无有效数据)\n"
+		// 周期内完全没有采集到数据（如年报统计的年度尚未积累数据）时，
+		// 仍按时间槽位逐行绘制空占位：年报 12 个月、日报 24 小时，
+		// 与有数据时的图表结构保持一致，避免整块图表从报告中消失。
+		return generateEmptyChartWithTime(len(data), timeLabels, unit, thresholds...)
 	}
 
 	if width <= 0 {
@@ -130,7 +138,7 @@ func GenerateASCIIChartWithTimeEx(data []float64, valid []bool, agg ChartAggrega
 		maxVal = 1
 	}
 
-	barWidth := 20
+	barWidth := chartBarWidth
 
 	labelWidth := 0
 	for _, p := range points {
@@ -176,19 +184,60 @@ func GenerateASCIIChartWithTimeEx(data []float64, valid []bool, agg ChartAggrega
 			thresholdMark = " ⚠️"
 		}
 
-		var valueStr string
-		if unit == "%" {
-			valueStr = fmt.Sprintf("%6.2f%%", p.value)
-		} else {
-			valueStr = fmt.Sprintf("%8.2f %s", p.value, unit)
-		}
-
-		builder.WriteString(fmt.Sprintf("  %s %s %s%s\n", padChartLabel(label, labelWidth), barStr, valueStr, thresholdMark))
+		builder.WriteString(fmt.Sprintf("  %s %s %s%s\n", padChartLabel(label, labelWidth), barStr, formatChartValue(p.value, unit), thresholdMark))
 	}
 
 	builder.WriteString("\n")
 
 	return builder.String()
+}
+
+// generateEmptyChartWithTime 在周期内没有任何有效数据点时生成占位图表。
+//
+// 按 slots 个时间槽位逐行输出空柱子（数值 0），表头显式标注有效样本为 0，
+// 使图表在完全无数据时依然保持与正常图表相同的结构：
+// 年报逐月输出 12 行、日报逐小时输出 24 行、周报逐日输出 7 行。
+func generateEmptyChartWithTime(slots int, timeLabels []string, unit string, thresholds ...float64) string {
+	if slots <= 0 {
+		return "  (无数据)\n"
+	}
+
+	labels := make([]string, slots)
+	labelWidth := 0
+	for i := 0; i < slots; i++ {
+		labels[i] = chartLabelAt(timeLabels, i)
+		if len(labels[i]) > labelWidth {
+			labelWidth = len(labels[i])
+		}
+	}
+
+	barStr := strings.Repeat("░", chartBarWidth)
+
+	var builder strings.Builder
+	builder.WriteString(fmt.Sprintf("  图表 (有效样本: 0 / %d, 时间点: %d)\n", slots, slots))
+	builder.WriteString(fmt.Sprintf("  时间范围: %s → %s\n", labels[0], labels[slots-1]))
+	if len(thresholds) > 0 {
+		builder.WriteString(fmt.Sprintf("  阈值线: %.1f%s\n", thresholds[0], unit))
+	}
+	builder.WriteString("  ⚠️ 周期内无有效采集数据，以下为按时间槽位绘制的占位行\n")
+	builder.WriteString("\n")
+
+	for _, label := range labels {
+		builder.WriteString(fmt.Sprintf("  %s %s %s\n",
+			padChartLabel(label, labelWidth), barStr, formatChartValue(0, unit)))
+	}
+	builder.WriteString("\n")
+
+	return builder.String()
+}
+
+// formatChartValue 按单位格式化图表右侧的数值文本：
+// 百分比单位右对齐到 6 位并附加 %，其他单位右对齐到 8 位并附加单位后缀。
+func formatChartValue(value float64, unit string) string {
+	if unit == "%" {
+		return fmt.Sprintf("%6.2f%%", value)
+	}
+	return fmt.Sprintf("%8.2f %s", value, unit)
 }
 
 // chartLabelAt 取第 i 个数据点的时间标签，缺失时回退为序号，避免使用当前时间凭空构造标签。

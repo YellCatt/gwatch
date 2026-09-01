@@ -87,6 +87,44 @@ func generateASCIIChart(data []float64, labels []string, unit string, barWidth i
 	return builder.String()
 }
 
+// generateEmptyASCIIChart 在整组指标完全没有数据时生成占位图表。
+//
+// 按 labels 逐个槽位输出空柱子（数值 0），年度报告中即 12 个月各一行，
+// 与日报按 24 小时逐行绘制的占位行为保持一致，
+// 避免某个「目标×指标」的图表块因为无数据而在报告中消失。
+func generateEmptyASCIIChart(labels []string, unit string, barWidth int) string {
+	if len(labels) == 0 {
+		return "  (无数据)\n"
+	}
+
+	if barWidth <= 0 {
+		barWidth = 20
+	}
+
+	barStr := strings.Repeat("░", barWidth)
+
+	var builder strings.Builder
+	builder.WriteString(fmt.Sprintf("  图表 (有效数据点: 0 / %d)\n", len(labels)))
+	builder.WriteString("  ⚠️ 周期内无有效采集数据，以下为按时间槽位绘制的占位行\n")
+	builder.WriteString("\n")
+
+	for _, label := range labels {
+		builder.WriteString(fmt.Sprintf("  %s %s %s\n",
+			padRight(label, 6), barStr, formatChartValueASCII(0, unit)))
+	}
+
+	builder.WriteString("\n")
+	return builder.String()
+}
+
+// formatChartValueASCII 按单位格式化资源指标图表右侧的数值文本。
+func formatChartValueASCII(value float64, unit string) string {
+	if unit == "%" {
+		return fmt.Sprintf("%6.2f%%", value)
+	}
+	return fmt.Sprintf("%8.2f %s", value, unit)
+}
+
 // padRight 将字符串右填充空格到指定长度，用于对齐柱状图标签。
 // 若源字符串长度已达到或超过目标长度，原样返回。
 func padRight(s string, length int) string {
@@ -155,14 +193,17 @@ func buildDailyChartData(r *Report) []string {
 // 每个图表以目标名称和指标别名作为标题。
 //
 // 即使某组指标 12 个月全为哨兵值（年度报告统计的年度没有任何采集数据），
-// 也会照常生成带标题的图表块，图表内部显示"无数据"占位，
+// 也会照常生成带标题的图表块，并按 12 个月槽位逐行绘制空占位（数值 0），
+// 与日报按 24 小时逐行绘制的占位行为一致，
 // 保证年报里每个受监控的「目标×指标」都有对应位置。
 func buildMonthlyChartData(r *Report) []string {
 	charts := make([]string, 0, len(r.MonthlyMetrics))
 	for _, m := range r.MonthlyMetrics {
 		values := make([]float64, 0)
 		labels := make([]string, 0)
+		monthLabels := make([]string, 0, len(m.MonthlyData))
 		for _, d := range m.MonthlyData {
+			monthLabels = append(monthLabels, d.MonthLabel)
 			if d.AvgValue < 0 {
 				continue
 			}
@@ -171,7 +212,15 @@ func buildMonthlyChartData(r *Report) []string {
 		}
 
 		header := fmt.Sprintf("  🖥️ %s - %s (%s)\n", m.TargetName, m.MetricAlias, m.Unit)
-		chart := header + generateASCIIChart(values, labels, m.Unit, 20)
+
+		var chart string
+		if len(values) == 0 {
+			// 整年 12 个月全是哨兵值：按月份槽位逐行绘制空占位，
+			// 与日报 24 小时逐行绘制的行为保持一致。
+			chart = header + generateEmptyASCIIChart(monthLabels, m.Unit, 20)
+		} else {
+			chart = header + generateASCIIChart(values, labels, m.Unit, 20)
+		}
 		charts = append(charts, chart)
 	}
 	return charts
