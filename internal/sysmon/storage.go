@@ -391,6 +391,44 @@ func LoadWeeklyMetricsByRange(start, end time.Time) ([]SystemMetric, error) {
 	return results, nil
 }
 
+// AggregateMetricsByDay 将细粒度（小时级/分钟级）指标按自然日聚合，每天输出一条记录。
+//
+// 聚合规则与小时聚合保持一致：CPU/内存/磁盘/网络速率取日内的算术平均值，
+// CPU/内存/网络峰值取日内的最大值，时间戳为该日 00:00:00。
+// 用于日级 CSV 缺失或不完整时，从小时级数据还原日粒度趋势，结果按时间升序排列。
+func AggregateMetricsByDay(metrics []SystemMetric) []SystemMetric {
+	if len(metrics) == 0 {
+		return nil
+	}
+
+	type dayKey struct {
+		year  int
+		month time.Month
+		day   int
+	}
+
+	aggMap := make(map[dayKey]*hourlyAggregator)
+	for _, m := range metrics {
+		y, mo, d := m.Timestamp.Date()
+		key := dayKey{year: y, month: mo, day: d}
+		if aggMap[key] == nil {
+			agg := &hourlyAggregator{}
+			agg.reset(time.Date(y, mo, d, 0, 0, 0, 0, m.Timestamp.Location()))
+			aggMap[key] = agg
+		}
+		aggMap[key].add(m)
+	}
+
+	results := make([]SystemMetric, 0, len(aggMap))
+	for _, agg := range aggMap {
+		results = append(results, agg.toSystemMetric())
+	}
+	sort.Slice(results, func(i, j int) bool {
+		return results[i].Timestamp.Before(results[j].Timestamp)
+	})
+	return results
+}
+
 // LoadMonthlyMetricsByRange 加载指定时间区间 [start, end) 内的月级指标记录。
 func LoadMonthlyMetricsByRange(start, end time.Time) ([]SystemMetric, error) {
 	all, err := loadMetrics(monthlyPath(), start)

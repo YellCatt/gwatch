@@ -508,12 +508,15 @@ func (r *Report) GenerateContent() string {
 //
 // 处理流程：
 //  1. 采集当前实时指标作为快照的基础值；
-//  2. 根据报告周期选择数据源（小时级/日级/周级/月级），数据不足时回退到更细粒度；
+//  2. 根据报告周期选择数据源并按时间槽位对齐（日报 24 小时、周报 7 天、月报当月天数、年报 12 个月），
+//     数据不足时回退到更细粒度重新聚合；没有采集记录的槽位标记为无效；
 //  3. 从历史数据中提取 CPU、内存、磁盘、网络上下行等指标序列；
-//  4. 计算整个周期内的最大值（CPU 峰值、内存峰值、网络峰值等）；
-//  5. 使用 ASCII 图表生成函数为每项指标生成带时间标签和阈值线的趋势图。
+//  4. 计算整个周期内的最大值（CPU 峰值、内存峰值、网络峰值等），只统计有效数据点；
+//  5. 使用 ASCII 图表生成函数为每项指标生成带时间标签和阈值线的趋势图，
+//     平均值序列分桶取平均、峰值序列分桶取最大，无效数据点直接跳过不绘制。
 //
-// 图表宽度由历史数据点数决定，上限 20 列，保证不同周期的图表视觉宽度一致。
+// 图表宽度由槽位数决定，上限 20 列，保证不同周期的图表视觉宽度一致。
+// 有效数据点不足 20 个时按实际点数绘制，不会复制填充出虚假的趋势。
 func loadSystemMetrics(period ReportPeriod, startDate, endDate time.Time) *SystemMetricsSnapshot {
 	current, err := sysmon.CollectMetrics()
 	if err != nil {
@@ -549,33 +552,18 @@ func loadSystemMetrics(period ReportPeriod, startDate, endDate time.Time) *Syste
 
 	sysmon.FlushHourlyAgg()
 
-	metrics, labelFormat := loadMetricsWithFallback(period, startDate, endDate)
+	series := loadMetricsWithFallback(period, startDate, endDate)
+	metrics, valid := series.metrics, series.valid
 	logger.Info("系统指标加载完成",
 		zap.String("周期", string(period)),
-		zap.Int("数据点数", len(metrics)),
-		zap.String("标签格式", labelFormat),
+		zap.Int("槽位数", len(metrics)),
+		zap.Int("有效数据点", series.validCount()),
+		zap.String("标签格式", series.format),
 	)
 
-	if len(metrics) == 0 {
+	if !series.hasData() {
 		logger.Info("暂无系统指标数据，跳过图表生成")
 		return snapshot
-	}
-
-	if period == PeriodDaily {
-		hourStart := time.Date(startDate.Year(), startDate.Month(), startDate.Day(), 0, 0, 0, 0, startDate.Location())
-		normalized := make([]sysmon.SystemMetric, 24)
-		for i := 0; i < 24; i++ {
-			normalized[i] = sysmon.SystemMetric{
-				Timestamp: hourStart.Add(time.Duration(i) * time.Hour),
-			}
-		}
-		for _, m := range metrics {
-			h := m.Timestamp.Hour()
-			if h >= 0 && h < 24 {
-				normalized[h] = m
-			}
-		}
-		metrics = normalized
 	}
 
 	chartWidth := len(metrics)
@@ -596,12 +584,17 @@ func loadSystemMetrics(period ReportPeriod, startDate, endDate time.Time) *Syste
 	netDownMaxData := make([]float64, len(metrics))
 	netUpMaxData := make([]float64, len(metrics))
 
+	firstIdx, lastIdx := -1, -1
 	for i, m := range metrics {
-		if period == PeriodDaily {
-			labels[i] = startDate.Add(time.Duration(i) * time.Hour).Format("01-02 15:04")
-		} else {
-			labels[i] = m.Timestamp.Format(labelFormat)
+		labels[i] = m.Timestamp.Format(series.format)
+		if !valid[i] {
+			continue
 		}
+		if firstIdx < 0 {
+			firstIdx = i
+		}
+		lastIdx = i
+
 		cpuData[i] = m.CPUPercent
 		cpuMaxData[i] = m.CPUMaxPercent
 		memData[i] = m.MemoryPercent
@@ -627,31 +620,164 @@ func loadSystemMetrics(period ReportPeriod, startDate, endDate time.Time) *Syste
 	}
 
 	cfg := config.GlobalConfig.SystemMon
-	snapshot.CPUChart = sysmon.GenerateASCIIChartWithTime(cpuData, chartWidth, "%", labels, cfg.CPUThreshold)
-	snapshot.CPUMaxChart = sysmon.GenerateASCIIChartWithTime(cpuMaxData, chartWidth, "%", labels, cfg.CPUThreshold)
-	snapshot.MemoryChart = sysmon.GenerateASCIIChartWithTime(memData, chartWidth, "%", labels, cfg.MemoryThreshold)
-	snapshot.MemoryMaxChart = sysmon.GenerateASCIIChartWithTime(memMaxData, chartWidth, "%", labels, cfg.MemoryThreshold)
-	snapshot.DiskChart = sysmon.GenerateASCIIChartWithTime(diskData, chartWidth, "%", labels, cfg.DiskUsageThreshold)
-	snapshot.NetDownChart = sysmon.GenerateASCIIChartWithTime(netDownData, chartWidth, "KB/s", labels, cfg.NetworkDownThreshold)
-	snapshot.NetUpChart = sysmon.GenerateASCIIChartWithTime(netUpData, chartWidth, "KB/s", labels, cfg.NetworkUpThreshold)
-	snapshot.NetDownMaxChart = sysmon.GenerateASCIIChartWithTime(netDownMaxData, chartWidth, "KB/s", labels, cfg.NetworkDownThreshold)
-	snapshot.NetUpMaxChart = sysmon.GenerateASCIIChartWithTime(netUpMaxData, chartWidth, "KB/s", labels, cfg.NetworkUpThreshold)
+	// 平均/瞬时值序列分桶取平均，峰值序列分桶取最大，两者语义不同不能混用。
+	snapshot.CPUChart = sysmon.GenerateASCIIChartWithTimeEx(cpuData, valid, sysmon.AggAvg, chartWidth, "%", labels, cfg.CPUThreshold)
+	snapshot.CPUMaxChart = sysmon.GenerateASCIIChartWithTimeEx(cpuMaxData, valid, sysmon.AggMax, chartWidth, "%", labels, cfg.CPUThreshold)
+	snapshot.MemoryChart = sysmon.GenerateASCIIChartWithTimeEx(memData, valid, sysmon.AggAvg, chartWidth, "%", labels, cfg.MemoryThreshold)
+	snapshot.MemoryMaxChart = sysmon.GenerateASCIIChartWithTimeEx(memMaxData, valid, sysmon.AggMax, chartWidth, "%", labels, cfg.MemoryThreshold)
+	snapshot.DiskChart = sysmon.GenerateASCIIChartWithTimeEx(diskData, valid, sysmon.AggAvg, chartWidth, "%", labels, cfg.DiskUsageThreshold)
+	snapshot.NetDownChart = sysmon.GenerateASCIIChartWithTimeEx(netDownData, valid, sysmon.AggAvg, chartWidth, "KB/s", labels, cfg.NetworkDownThreshold)
+	snapshot.NetUpChart = sysmon.GenerateASCIIChartWithTimeEx(netUpData, valid, sysmon.AggAvg, chartWidth, "KB/s", labels, cfg.NetworkUpThreshold)
+	snapshot.NetDownMaxChart = sysmon.GenerateASCIIChartWithTimeEx(netDownMaxData, valid, sysmon.AggMax, chartWidth, "KB/s", labels, cfg.NetworkDownThreshold)
+	snapshot.NetUpMaxChart = sysmon.GenerateASCIIChartWithTimeEx(netUpMaxData, valid, sysmon.AggMax, chartWidth, "KB/s", labels, cfg.NetworkUpThreshold)
 
-	if period == PeriodDaily {
+	if firstIdx >= 0 {
+		snapshot.StartTime = metrics[firstIdx].Timestamp.Format("2006-01-02 15:04")
+		snapshot.EndTime = metrics[lastIdx].Timestamp.Format("2006-01-02 15:04")
+	} else {
 		snapshot.StartTime = startDate.Format("2006-01-02 15:04")
 		snapshot.EndTime = endDate.Format("2006-01-02 15:04")
-	} else {
-		snapshot.StartTime = metrics[0].Timestamp.Format("2006-01-02 15:04")
-		snapshot.EndTime = metrics[len(metrics)-1].Timestamp.Format("2006-01-02 15:04")
 	}
 
 	return snapshot
 }
 
-// loadMetricsWithFallback 根据报告周期加载系统指标数据。
-// 对于年度报告，若月级数据不足则从日级/小时级数据按月聚合，确保始终展示月度维度的图表。
-// 对于周/月报告，回退到更细粒度的数据源（粒度降级在短周期场景下可接受）。
-func loadMetricsWithFallback(period ReportPeriod, startDate, endDate time.Time) ([]sysmon.SystemMetric, string) {
+// metricSeries 报告趋势图使用的系统指标序列。
+//
+// metrics 按报告周期的时间槽位对齐（日报 24 小时、周报 7 天、月报当月天数、年报 12 个月），
+// valid 标记对应槽位是否真实存在采集数据。缺失的槽位保留零值并将 valid 置为 false，
+// 图表生成时会跳过这些点，绝不使用其它时间点的数据复制填充 —— 否则会画出不存在的"平台趋势"。
+type metricSeries struct {
+	metrics []sysmon.SystemMetric // 按时间槽位对齐后的指标序列
+	valid   []bool                // 与 metrics 等长的有效性标记
+	format  string                // 时间标签格式
+}
+
+// hasData 返回序列中是否至少存在一个有效数据点。
+func (s metricSeries) hasData() bool {
+	return s.validCount() > 0
+}
+
+// validCount 返回有效数据点的数量。
+func (s metricSeries) validCount() int {
+	n := 0
+	for _, ok := range s.valid {
+		if ok {
+			n++
+		}
+	}
+	return n
+}
+
+// alignMetrics 将指标按日期归位到固定长度的时间槽位序列中。
+//
+// count 为目标槽位数量，dateAt(start, i) 返回第 i 个槽位对应的日期。
+// 落在序列范围之外的记录会被忽略；无数据的槽位保持零值且 valid 为 false。
+func alignMetrics(metrics []sysmon.SystemMetric, count int, startDate time.Time,
+	dateAt func(time.Time, int) time.Time, format string) metricSeries {
+
+	series := metricSeries{
+		metrics: make([]sysmon.SystemMetric, count),
+		valid:   make([]bool, count),
+		format:  format,
+	}
+
+	index := make(map[time.Time]int, count)
+	for i := 0; i < count; i++ {
+		day := dateAt(startDate, i)
+		series.metrics[i].Timestamp = day
+		index[day] = i
+	}
+
+	for _, m := range metrics {
+		y, mo, d := m.Timestamp.Date()
+		day := time.Date(y, mo, d, 0, 0, 0, 0, startDate.Location())
+		if i, ok := index[day]; ok {
+			series.metrics[i] = m
+			series.valid[i] = true
+		}
+	}
+	return series
+}
+
+// alignHourlyMetrics 将指标按小时归位到 24 个小时槽位，缺失小时保持零值并标记为无效。
+func alignHourlyMetrics(metrics []sysmon.SystemMetric, startDate time.Time, format string) metricSeries {
+	const count = 24
+
+	dayStart := time.Date(startDate.Year(), startDate.Month(), startDate.Day(), 0, 0, 0, 0, startDate.Location())
+
+	series := metricSeries{
+		metrics: make([]sysmon.SystemMetric, count),
+		valid:   make([]bool, count),
+		format:  format,
+	}
+	for i := 0; i < count; i++ {
+		series.metrics[i].Timestamp = dayStart.Add(time.Duration(i) * time.Hour)
+	}
+	for _, m := range metrics {
+		h := m.Timestamp.Hour()
+		if h >= 0 && h < count {
+			series.metrics[h] = m
+			series.valid[h] = true
+		}
+	}
+	return series
+}
+
+// dayAt 返回 startDate 所在日起第 i 天的零点时间。
+func dayAt(start time.Time, i int) time.Time {
+	return time.Date(start.Year(), start.Month(), start.Day(), 0, 0, 0, 0, start.Location()).AddDate(0, 0, i)
+}
+
+// monthAt 返回 startDate 所在月起第 i 个月的 1 号零点时间。
+func monthAt(start time.Time, i int) time.Time {
+	return time.Date(start.Year(), start.Month()+time.Month(i), 1, 0, 0, 0, 0, start.Location())
+}
+
+// daysInMonthOf 返回 startDate 所在月的天数。
+func daysInMonthOf(start time.Time) int {
+	year, month, _ := start.Date()
+	return time.Date(year, month+1, 0, 0, 0, 0, 0, start.Location()).Day()
+}
+
+// mergeMetricsByDay 合并两组按天聚合的指标，同一天的数据以 preferred 为准。
+// 用于日级 CSV 不完整时，用小时级聚合结果补齐缺失的日期。
+func mergeMetricsByDay(preferred, fallback []sysmon.SystemMetric) []sysmon.SystemMetric {
+	if len(preferred) == 0 {
+		return fallback
+	}
+	if len(fallback) == 0 {
+		return preferred
+	}
+
+	byDay := make(map[time.Time]sysmon.SystemMetric, len(preferred)+len(fallback))
+	loc := preferred[0].Timestamp.Location()
+	dayOf := func(m sysmon.SystemMetric) time.Time {
+		y, mo, d := m.Timestamp.Date()
+		return time.Date(y, mo, d, 0, 0, 0, 0, loc)
+	}
+	for _, m := range fallback {
+		byDay[dayOf(m)] = m
+	}
+	for _, m := range preferred {
+		byDay[dayOf(m)] = m
+	}
+
+	merged := make([]sysmon.SystemMetric, 0, len(byDay))
+	for _, m := range byDay {
+		merged = append(merged, m)
+	}
+	sort.Slice(merged, func(i, j int) bool {
+		return merged[i].Timestamp.Before(merged[j].Timestamp)
+	})
+	return merged
+}
+
+// loadMetricsWithFallback 根据报告周期加载系统指标序列。
+//
+// 各周期使用的图表粒度：日报 24 小时、周报 7 天、月报 当月天数、年报 12 个月。
+// 数据不足时会回退到更细粒度的数据源重新聚合，但绝不用已有数据复制填充缺失的时间槽位。
+func loadMetricsWithFallback(period ReportPeriod, startDate, endDate time.Time) metricSeries {
 	switch period {
 	case PeriodYearly:
 		return loadYearlyMetricsWithAggregation(startDate, endDate)
@@ -663,35 +789,36 @@ func loadMetricsWithFallback(period ReportPeriod, startDate, endDate time.Time) 
 		metrics, err := sysmon.LoadMetricsByRange(startDate, endDate)
 		if err != nil {
 			logger.Warn("加载小时级指标失败", zap.Error(err))
-			return nil, "01-02 15:04"
+			return metricSeries{format: "01-02 15:04"}
 		}
-		return metrics, "01-02 15:04"
+		return alignHourlyMetrics(metrics, startDate, "01-02 15:04")
 	}
 }
 
 // loadYearlyMetricsWithAggregation 加载年度报告的系统指标数据。
-// 优先使用月级 CSV 数据；若数据不足，则从日级/小时级数据按月聚合，确保月度维度的图表始终可用。
-// 最终将数据填充至 12 个月（缺失月份复用已存在的数据），保证图表宽度与日/周/月报一致。
-func loadYearlyMetricsWithAggregation(startDate, endDate time.Time) ([]sysmon.SystemMetric, string) {
+// 优先使用月级 CSV 数据；若数据不足，则从日级/小时级数据按月聚合。
+// 结果对齐到 12 个月槽位，缺失月份标记为无效。
+func loadYearlyMetricsWithAggregation(startDate, endDate time.Time) metricSeries {
+	const format = "2006-01"
+
 	metrics, err := sysmon.LoadMonthlyMetricsByRange(startDate, endDate)
 	if err != nil {
 		logger.Warn("加载月级指标失败", zap.Error(err))
 	}
-	if len(metrics) >= 2 {
+	if len(metrics) > 0 {
 		logger.Info(fmt.Sprintf("使用月级数据源生成年报图表 (数据点: %d)", len(metrics)))
-		return padYearlyMetrics(metrics), "2006-01"
+		return alignMetrics(metrics, 12, startDate, monthAt, format)
 	}
 
-	logger.Info(fmt.Sprintf("月级数据不足 (仅 %d 条)，回退到日级数据按月聚合", len(metrics)))
+	logger.Info("月级数据不足，回退到日级数据按月聚合")
 	dailyMetrics, err := sysmon.LoadDailyMetricsByRange(startDate, endDate)
 	if err != nil {
 		logger.Warn("加载日级指标失败", zap.Error(err))
 	}
 	if len(dailyMetrics) > 0 {
-		aggregated := aggregateMetricsByMonth(dailyMetrics)
-		if len(aggregated) >= 1 {
+		if aggregated := aggregateMetricsByMonth(dailyMetrics); len(aggregated) > 0 {
 			logger.Info(fmt.Sprintf("日级数据按月聚合成功 (聚合后: %d 个月)", len(aggregated)))
-			return padYearlyMetrics(aggregated), "2006-01"
+			return alignMetrics(aggregated, 12, startDate, monthAt, format)
 		}
 	}
 
@@ -701,163 +828,77 @@ func loadYearlyMetricsWithAggregation(startDate, endDate time.Time) ([]sysmon.Sy
 		logger.Warn("加载小时级指标失败", zap.Error(err))
 	}
 	if len(hourlyMetrics) > 0 {
-		aggregated := aggregateMetricsByMonth(hourlyMetrics)
-		if len(aggregated) >= 1 {
+		if aggregated := aggregateMetricsByMonth(hourlyMetrics); len(aggregated) > 0 {
 			logger.Info(fmt.Sprintf("小时级数据按月聚合成功 (聚合后: %d 个月)", len(aggregated)))
-			return padYearlyMetrics(aggregated), "2006-01"
+			return alignMetrics(aggregated, 12, startDate, monthAt, format)
 		}
 	}
 
 	logger.Info("所有数据源均无数据，无法生成年报图表")
-	return nil, "2006-01"
+	return metricSeries{format: format}
 }
 
-// padYearlyMetrics 将年度系统指标补齐到 12 个月。
-// 缺失的月份使用已存在的数据点填充，保证图表宽度与其它报告一致。
-func padYearlyMetrics(metrics []sysmon.SystemMetric) []sysmon.SystemMetric {
-	if len(metrics) >= 12 {
-		return metrics
-	}
-	if len(metrics) == 0 {
-		return metrics
-	}
+// loadWeeklyMetricsWithFallback 加载周报的系统指标数据。
+// 以「天」为图表粒度：优先使用日级数据，日级不完整时用小时级数据按天聚合补齐。
+// 结果对齐到 7 天槽位，缺失日期标记为无效。
+func loadWeeklyMetricsWithFallback(startDate, endDate time.Time) metricSeries {
+	const format = "01-02"
 
-	year := metrics[0].Timestamp.Year()
-	monthMap := make(map[time.Month]sysmon.SystemMetric, len(metrics))
-	for _, m := range metrics {
-		monthMap[m.Timestamp.Month()] = m
-	}
-
-	base := metrics[0]
-	padded := make([]sysmon.SystemMetric, 0, 12)
-	for month := time.Month(1); month <= 12; month++ {
-		if m, ok := monthMap[month]; ok {
-			padded = append(padded, m)
-		} else {
-			filler := base
-			filler.Timestamp = time.Date(year, month, 1, 0, 0, 0, 0, base.Timestamp.Location())
-			padded = append(padded, filler)
-		}
-	}
-	return padded
-}
-
-// padWeeklyMetrics 将周报系统指标补齐到 7 天，保证图表宽度稳定。
-// 缺失的日期使用已存在的数据点填充。
-func padWeeklyMetrics(metrics []sysmon.SystemMetric, startDate time.Time) []sysmon.SystemMetric {
-	const target = 7
-	if len(metrics) >= target || len(metrics) == 0 {
-		return metrics
-	}
-
-	base := metrics[0]
-	slotMap := make(map[int]sysmon.SystemMetric, len(metrics))
-	for _, m := range metrics {
-		slot := int(m.Timestamp.Sub(startDate).Hours() / 24)
-		if slot >= 0 && slot < target {
-			slotMap[slot] = m
-		}
-	}
-
-	padded := make([]sysmon.SystemMetric, 0, target)
-	for i := 0; i < target; i++ {
-		if m, ok := slotMap[i]; ok {
-			padded = append(padded, m)
-		} else {
-			filler := base
-			filler.Timestamp = startDate.AddDate(0, 0, i)
-			padded = append(padded, filler)
-		}
-	}
-	return padded
-}
-
-// padMonthlyMetrics 将月报系统指标补齐到当月天数，保证图表宽度稳定。
-// 缺失的日期使用已存在的数据点填充。
-func padMonthlyMetrics(metrics []sysmon.SystemMetric, startDate time.Time) []sysmon.SystemMetric {
-	year, month, _ := startDate.Date()
-	daysInMonth := time.Date(year, month+1, 0, 0, 0, 0, 0, startDate.Location()).Day()
-
-	if len(metrics) >= daysInMonth || len(metrics) == 0 {
-		return metrics
-	}
-
-	base := metrics[0]
-	dayMap := make(map[int]sysmon.SystemMetric, len(metrics))
-	for _, m := range metrics {
-		dayMap[m.Timestamp.Day()] = m
-	}
-
-	padded := make([]sysmon.SystemMetric, 0, daysInMonth)
-	for day := 1; day <= daysInMonth; day++ {
-		if m, ok := dayMap[day]; ok {
-			padded = append(padded, m)
-		} else {
-			filler := base
-			filler.Timestamp = time.Date(year, month, day, 0, 0, 0, 0, startDate.Location())
-			padded = append(padded, filler)
-		}
-	}
-	return padded
-}
-
-// loadWeeklyMetricsWithFallback 加载周报的系统指标数据，使用日级数据源，回退到小时级。
-// 返回前将数据补齐到 7 天，保证图表宽度稳定。
-func loadWeeklyMetricsWithFallback(startDate, endDate time.Time) ([]sysmon.SystemMetric, string) {
-	metrics, err := sysmon.LoadDailyMetricsByRange(startDate, endDate)
+	daily, err := sysmon.LoadDailyMetricsByRange(startDate, endDate)
 	if err != nil {
 		logger.Warn("加载日级指标失败", zap.Error(err))
 	}
-	if len(metrics) > 0 {
-		logger.Info(fmt.Sprintf("使用日级数据源生成周报图表 (数据点: %d)", len(metrics)))
-		return padWeeklyMetrics(metrics, startDate), "01-02"
-	}
-
-	metrics, err = sysmon.LoadMetricsByRange(startDate, endDate)
+	hourly, err := sysmon.LoadMetricsByRange(startDate, endDate)
 	if err != nil {
 		logger.Warn("加载小时级指标失败", zap.Error(err))
 	}
-	if len(metrics) > 0 {
-		logger.Info(fmt.Sprintf("使用小时级数据源生成周报图表 (数据点: %d)", len(metrics)))
-		return padWeeklyMetrics(metrics, startDate), "01-02 15:04"
+
+	merged := mergeMetricsByDay(daily, sysmon.AggregateMetricsByDay(hourly))
+	if len(merged) == 0 {
+		logger.Info("所有数据源均无数据，无法生成周报图表")
+		return metricSeries{format: format}
 	}
 
-	logger.Info("所有数据源均无数据，无法生成周报图表")
-	return nil, "01-02"
+	logger.Info(fmt.Sprintf("使用日级数据源生成周报图表 (有效天数: %d/7)", len(merged)))
+	return alignMetrics(merged, 7, startDate, dayAt, format)
 }
 
-// loadMonthlyMetricsWithFallback 加载月报的系统指标数据，使用周级数据源，回退到日级，再回退到小时级。
-// 返回前将数据补齐到当月天数，保证图表宽度稳定。
-func loadMonthlyMetricsWithFallback(startDate, endDate time.Time) ([]sysmon.SystemMetric, string) {
-	metrics, err := sysmon.LoadWeeklyMetricsByRange(startDate, endDate)
+// loadMonthlyMetricsWithFallback 加载月报的系统指标数据。
+//
+// 月报必须以「天」为图表粒度，因此不再使用周级数据源（一个月只有 4~6 个周，
+// 无法表达每日趋势，还会导致缺失日期被复制填充成平台状折线）。
+// 优先使用日级 CSV，日级不完整时用小时级数据按自然日聚合补齐；
+// 两者都缺失时才回退到周级数据，此时图表仅显示有数据的周。
+// 结果对齐到当月天数个槽位，缺失日期标记为无效。
+func loadMonthlyMetricsWithFallback(startDate, endDate time.Time) metricSeries {
+	const format = "01-02"
+	days := daysInMonthOf(startDate)
+
+	daily, err := sysmon.LoadDailyMetricsByRange(startDate, endDate)
+	if err != nil {
+		logger.Warn("加载日级指标失败", zap.Error(err))
+	}
+	hourly, err := sysmon.LoadMetricsByRange(startDate, endDate)
+	if err != nil {
+		logger.Warn("加载小时级指标失败", zap.Error(err))
+	}
+
+	if merged := mergeMetricsByDay(daily, sysmon.AggregateMetricsByDay(hourly)); len(merged) > 0 {
+		logger.Info(fmt.Sprintf("使用日级数据源生成月报图表 (有效天数: %d/%d)", len(merged), days))
+		return alignMetrics(merged, days, startDate, dayAt, format)
+	}
+
+	weekly, err := sysmon.LoadWeeklyMetricsByRange(startDate, endDate)
 	if err != nil {
 		logger.Warn("加载周级指标失败", zap.Error(err))
 	}
-	if len(metrics) > 0 {
-		logger.Info(fmt.Sprintf("使用周级数据源生成月报图表 (数据点: %d)", len(metrics)))
-		return padMonthlyMetrics(metrics, startDate), "01-02"
-	}
-
-	metrics, err = sysmon.LoadDailyMetricsByRange(startDate, endDate)
-	if err != nil {
-		logger.Warn("加载日级指标失败", zap.Error(err))
-	}
-	if len(metrics) > 0 {
-		logger.Info(fmt.Sprintf("使用日级数据源生成月报图表 (数据点: %d)", len(metrics)))
-		return padMonthlyMetrics(metrics, startDate), "01-02"
-	}
-
-	metrics, err = sysmon.LoadMetricsByRange(startDate, endDate)
-	if err != nil {
-		logger.Warn("加载小时级指标失败", zap.Error(err))
-	}
-	if len(metrics) > 0 {
-		logger.Info(fmt.Sprintf("使用小时级数据源生成月报图表 (数据点: %d)", len(metrics)))
-		return padMonthlyMetrics(metrics, startDate), "01-02 15:04"
+	if len(weekly) > 0 {
+		logger.Warn("日级与小时级数据均缺失，回退到周级数据源生成月报图表", zap.Int("数据点", len(weekly)))
+		return alignMetrics(weekly, days, startDate, dayAt, format)
 	}
 
 	logger.Info("所有数据源均无数据，无法生成月报图表")
-	return nil, "01-02"
+	return metricSeries{format: format}
 }
 
 // partitionAggregate 磁盘分区的聚合中间数据结构。

@@ -2,6 +2,7 @@ package sysmon
 
 import (
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"strings"
@@ -15,24 +16,109 @@ import (
 	"gwatch/internal/util"
 )
 
+// ChartAggregation 图表分桶聚合模式，决定一个图表列由多个原始数据点合并时如何取值。
+type ChartAggregation int
+
+const (
+	// AggAvg 桶内取算术平均值，适用于平均值/瞬时值序列。
+	AggAvg ChartAggregation = iota
+	// AggMax 桶内取最大值，适用于峰值序列（CPU 最高使用率、网络峰值速率等）。
+	AggMax
+)
+
 // GenerateASCIIChart 生成一个简单的 ASCII 柱状图（无时间标签版本）。
-// 内部委托给 GenerateASCIIChartWithTime 处理。
+// 内部委托给 GenerateASCIIChartWithTimeEx 处理。
 func GenerateASCIIChart(data []float64, width int, unit string, thresholds ...float64) string {
-	return GenerateASCIIChartWithTime(data, width, unit, nil, thresholds...)
+	return GenerateASCIIChartWithTimeEx(data, nil, AggAvg, width, unit, nil, thresholds...)
 }
 
 // GenerateASCIIChartWithTime 生成带时间标签的 ASCII 柱状图。
-// 将数据按宽度分桶求平均值，绘制为 █/░ 组合的柱状图，
-// 并在超过阈值时添加 ⚠️ 标记。
+// 全部数据点均视为有效，桶内取平均值。
 func GenerateASCIIChartWithTime(data []float64, width int, unit string, timeLabels []string, thresholds ...float64) string {
+	return GenerateASCIIChartWithTimeEx(data, nil, AggAvg, width, unit, timeLabels, thresholds...)
+}
+
+// GenerateASCIIChartWithTimeEx 生成带时间标签的 ASCII 柱状图，支持数据有效性标记与聚合模式。
+//
+// 参数说明：
+//   - data: 按时间升序排列的原始数值序列
+//   - valid: 与 data 等长的有效性标记；为 nil 时表示全部有效。
+//     为 false 的数据点（如没有采集记录的日期）会被直接忽略，
+//     既不参与分桶聚合，也不参与最大值计算
+//   - agg: 分桶聚合模式，AggAvg 取平均、AggMax 取最大
+//   - width: 图表最大列数。有效点数超过 width 时按等宽分桶降采样；
+//     否则每个有效点单独一列，不会为了凑宽度而复制数据
+//   - timeLabels: 与 data 等长的时间标签
+//   - thresholds: 阈值列表，第一个用于绘制阈值线与 ⚠️ 标记
+//
+// 图表不会为无效数据点伪造数值：无数据的位置直接不输出行，
+// 保证"看到的柱子"都对应真实采集到的数据。
+func GenerateASCIIChartWithTimeEx(data []float64, valid []bool, agg ChartAggregation, width int, unit string, timeLabels []string, thresholds ...float64) string {
 	if len(data) == 0 {
-		return "(无数据)"
+		return "  (无数据)\n"
 	}
 
-	var maxVal float64
-	for _, v := range data {
-		if v > maxVal {
-			maxVal = v
+	// 先筛出有效数据点，后续所有计算都只基于这些点进行。
+	validIdx := make([]int, 0, len(data))
+	for i := range data {
+		if valid != nil && i < len(valid) && !valid[i] {
+			continue
+		}
+		validIdx = append(validIdx, i)
+	}
+	if len(validIdx) == 0 {
+		return "  (无有效数据)\n"
+	}
+
+	if width <= 0 {
+		width = 20
+	}
+	buckets := len(validIdx)
+	if buckets > width {
+		buckets = width
+	}
+
+	type chartPoint struct {
+		label string
+		value float64
+	}
+
+	points := make([]chartPoint, 0, buckets)
+	step := float64(len(validIdx)) / float64(buckets)
+	for b := 0; b < buckets; b++ {
+		start := int(float64(b) * step)
+		end := int(float64(b+1) * step)
+		if b == buckets-1 {
+			end = len(validIdx)
+		}
+		if start >= end {
+			continue
+		}
+
+		var value float64
+		if agg == AggMax {
+			value = math.Inf(-1)
+			for k := start; k < end; k++ {
+				if v := data[validIdx[k]]; v > value {
+					value = v
+				}
+			}
+		} else {
+			sum := 0.0
+			for k := start; k < end; k++ {
+				sum += data[validIdx[k]]
+			}
+			value = sum / float64(end-start)
+		}
+
+		first := validIdx[start]
+		points = append(points, chartPoint{label: chartLabelAt(timeLabels, first), value: value})
+	}
+
+	maxVal := 0.0
+	for _, p := range points {
+		if p.value > maxVal {
+			maxVal = p.value
 		}
 	}
 	for _, t := range thresholds {
@@ -40,63 +126,34 @@ func GenerateASCIIChartWithTime(data []float64, width int, unit string, timeLabe
 			maxVal = t
 		}
 	}
-	if maxVal == 0 {
+	if maxVal <= 0 {
 		maxVal = 1
-	}
-
-	if width <= 0 {
-		width = 20
-	}
-
-	bins := make([]float64, width)
-	binStartIdx := make([]int, width)
-	step := float64(len(data)) / float64(width)
-	for i := 0; i < width; i++ {
-		start := int(float64(i) * step)
-		end := int(float64(i+1) * step)
-		if end > len(data) {
-			end = len(data)
-		}
-		if start >= len(data) {
-			break
-		}
-		binStartIdx[i] = start
-		sum := 0.0
-		count := 0
-		for j := start; j < end; j++ {
-			sum += data[j]
-			count++
-		}
-		if count > 0 {
-			bins[i] = sum / float64(count)
-		}
 	}
 
 	barWidth := 20
 
+	labelWidth := 0
+	for _, p := range points {
+		if len(p.label) > labelWidth {
+			labelWidth = len(p.label)
+		}
+	}
+
 	var builder strings.Builder
 
-	builder.WriteString(fmt.Sprintf("  图表 (样本: %d, 时间点: %d)\n", len(data), width))
-
-	var timeRange string
-	if len(timeLabels) >= 2 {
-		timeRange = fmt.Sprintf("  时间范围: %s → %s\n", timeLabels[0], timeLabels[len(timeLabels)-1])
-	} else {
-		now := timeutil.Now()
-		timeRange = fmt.Sprintf("  时间范围: %s → %s\n",
-			formatHourLabel(now.Add(-24*time.Hour)),
-			formatHourLabel(now))
-	}
-	builder.WriteString(timeRange)
+	builder.WriteString(fmt.Sprintf("  图表 (有效样本: %d / %d, 时间点: %d)\n", len(validIdx), len(data), len(points)))
+	builder.WriteString(fmt.Sprintf("  时间范围: %s → %s\n",
+		chartLabelAt(timeLabels, validIdx[0]),
+		chartLabelAt(timeLabels, validIdx[len(validIdx)-1])))
 
 	if len(thresholds) > 0 {
 		builder.WriteString(fmt.Sprintf("  阈值线: %.1f%s\n", thresholds[0], unit))
 	}
 	builder.WriteString("\n")
 
-	var prevTimeLabel string
-	for i, v := range bins {
-		percent := v / maxVal
+	var prevLabel string
+	for _, p := range points {
+		percent := p.value / maxVal
 		if percent > 1.0 {
 			percent = 1.0
 		}
@@ -105,43 +162,49 @@ func GenerateASCIIChartWithTime(data []float64, width int, unit string, timeLabe
 		}
 
 		filled := int(percent * float64(barWidth))
-		empty := barWidth - filled
+		barStr := strings.Repeat("█", filled) + strings.Repeat("░", barWidth-filled)
 
-		barStr := strings.Repeat("█", filled) + strings.Repeat("░", empty)
-
-		var timeLabel string
-		idx := binStartIdx[i]
-		if len(timeLabels) > idx && timeLabels[idx] != "" {
-			timeLabel = timeLabels[idx]
+		label := p.label
+		if label == prevLabel {
+			label = ""
 		} else {
-			now := timeutil.Now()
-			ts := now.Add(-24*time.Hour + time.Duration(idx)*24*time.Hour/time.Duration(len(data)))
-			timeLabel = formatHourLabel(ts)
-		}
-		if i > 0 && timeLabel == prevTimeLabel {
-			timeLabel = ""
-		} else if timeLabel != "" {
-			prevTimeLabel = timeLabel
+			prevLabel = label
 		}
 
 		thresholdMark := ""
-		if len(thresholds) > 0 && v >= thresholds[0] {
+		if len(thresholds) > 0 && p.value >= thresholds[0] {
 			thresholdMark = " ⚠️"
 		}
 
 		var valueStr string
 		if unit == "%" {
-			valueStr = fmt.Sprintf("%6.2f%%", v)
+			valueStr = fmt.Sprintf("%6.2f%%", p.value)
 		} else {
-			valueStr = fmt.Sprintf("%8.2f %s", v, unit)
+			valueStr = fmt.Sprintf("%8.2f %s", p.value, unit)
 		}
 
-		builder.WriteString(fmt.Sprintf("  %s %s %s%s\n", timeLabel, barStr, valueStr, thresholdMark))
+		builder.WriteString(fmt.Sprintf("  %s %s %s%s\n", padChartLabel(label, labelWidth), barStr, valueStr, thresholdMark))
 	}
 
 	builder.WriteString("\n")
 
 	return builder.String()
+}
+
+// chartLabelAt 取第 i 个数据点的时间标签，缺失时回退为序号，避免使用当前时间凭空构造标签。
+func chartLabelAt(labels []string, i int) string {
+	if i >= 0 && i < len(labels) && labels[i] != "" {
+		return labels[i]
+	}
+	return fmt.Sprintf("#%d", i)
+}
+
+// padChartLabel 将标签右侧补齐空格到指定宽度，保证图表各列对齐。
+func padChartLabel(s string, width int) string {
+	if len(s) >= width {
+		return s
+	}
+	return s + strings.Repeat(" ", width-len(s))
 }
 
 // GenerateSystemReport 根据系统指标和告警列表生成完整的系统状态报告文本。
@@ -212,7 +275,7 @@ func GenerateSystemReport(metrics []SystemMetric, alerts []AlertItem) string {
 	builder.WriteString("\n")
 
 	builder.WriteString("  【CPU 使用率 - 最高值趋势】\n")
-	builder.WriteString(GenerateASCIIChartWithTime(cpuMaxData, 20, "%", timeLabels, cfg.CPUThreshold))
+	builder.WriteString(GenerateASCIIChartWithTimeEx(cpuMaxData, nil, AggMax, 20, "%", timeLabels, cfg.CPUThreshold))
 	builder.WriteString("\n")
 
 	builder.WriteString("  【内存使用率 - 平均值趋势】\n")
@@ -220,7 +283,7 @@ func GenerateSystemReport(metrics []SystemMetric, alerts []AlertItem) string {
 	builder.WriteString("\n")
 
 	builder.WriteString("  【内存使用率 - 最高值趋势】\n")
-	builder.WriteString(GenerateASCIIChartWithTime(memMaxData, 20, "%", timeLabels, cfg.MemoryThreshold))
+	builder.WriteString(GenerateASCIIChartWithTimeEx(memMaxData, nil, AggMax, 20, "%", timeLabels, cfg.MemoryThreshold))
 	builder.WriteString("\n")
 
 	builder.WriteString("  【磁盘使用率趋势】\n")
@@ -235,7 +298,7 @@ func GenerateSystemReport(metrics []SystemMetric, alerts []AlertItem) string {
 	builder.WriteString("\n")
 
 	builder.WriteString("  【网络下行速度 - 最高值趋势】\n")
-	builder.WriteString(GenerateASCIIChartWithTime(netDownMaxData, 20, "KB/s", timeLabels, cfg.NetworkDownThreshold))
+	builder.WriteString(GenerateASCIIChartWithTimeEx(netDownMaxData, nil, AggMax, 20, "KB/s", timeLabels, cfg.NetworkDownThreshold))
 	builder.WriteString("\n")
 
 	builder.WriteString("  【网络上行速度 - 平均值趋势】\n")
@@ -243,7 +306,7 @@ func GenerateSystemReport(metrics []SystemMetric, alerts []AlertItem) string {
 	builder.WriteString("\n")
 
 	builder.WriteString("  【网络上行速度 - 最高值趋势】\n")
-	builder.WriteString(GenerateASCIIChartWithTime(netUpMaxData, 20, "KB/s", timeLabels, cfg.NetworkUpThreshold))
+	builder.WriteString(GenerateASCIIChartWithTimeEx(netUpMaxData, nil, AggMax, 20, "KB/s", timeLabels, cfg.NetworkUpThreshold))
 	builder.WriteString("\n")
 
 	if len(alerts) > 0 {
@@ -284,22 +347,25 @@ func GenerateSystemReport(metrics []SystemMetric, alerts []AlertItem) string {
 }
 
 // generateTimeLabels 生成一组时间标签，用于图表的横轴。
-// 从当前时间往前推 24 小时，均匀分为 width 个时间点。
+// 标签基于 metrics 自身的真实时间戳，在首尾时间之间均匀取 width 个点；
+// 不再使用"当前时间往前推 24 小时"的硬编码区间，避免时间轴与实际数据不符。
 func generateTimeLabels(metrics []SystemMetric, width int) []string {
-	if len(metrics) == 0 {
+	if len(metrics) == 0 || width <= 0 {
 		return nil
 	}
 
-	now := timeutil.Now()
-	startTime := now.Add(-24 * time.Hour)
+	start := metrics[0].Timestamp
+	end := metrics[len(metrics)-1].Timestamp
 
 	labels := make([]string, width)
 	for i := 0; i < width; i++ {
-		offset := time.Duration(float64(i) / float64(width-1) * 24 * float64(time.Hour))
-		if width == 1 {
-			offset = 0
+		var ts time.Time
+		if width == 1 || len(metrics) == 1 {
+			ts = start
+		} else {
+			offset := time.Duration(float64(i) / float64(width-1) * float64(end.Sub(start)))
+			ts = start.Add(offset)
 		}
-		ts := startTime.Add(offset)
 		labels[i] = ts.Format("01-02 15:04")
 	}
 
