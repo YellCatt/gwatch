@@ -41,7 +41,7 @@ gwatch {{.Period}}运维报告
 {{- if .SystemAlerts}}
 🖥️ 系统资源告警
 {{range .SystemAlerts}}▸ {{.Icon}} 【{{.Level}}】{{.Metric}}
-  当前值: {{.Value}} {{.Unit}}  阈值: {{.Threshold}} {{.Unit}}
+  当前值: {{.Value}}  阈值: {{.Threshold}}
   告警次数: {{.AlertCount}} 次
   首次: {{.FirstOccurrence}}
   最近: {{.LastOccurrence}}
@@ -55,7 +55,7 @@ gwatch {{.Period}}运维报告
 🔍 远程资源告警
 {{range .ScraperAlerts}}▸ {{.Icon}} 【{{.Level}}】{{.TargetName}} - {{.MetricName}}
   目标: {{.TargetURL}}
-  当前值: {{.Value}} {{.Unit}}  阈值: {{.Threshold}} {{.Unit}}
+  当前值: {{.Value}}  阈值: {{.Threshold}}
   告警次数: {{.AlertCount}} 次
   首次: {{.FirstOccurrence}}
   最近: {{.LastOccurrence}}

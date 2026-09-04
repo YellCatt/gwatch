@@ -43,6 +43,16 @@ func NormalizeSpeed(threshold float64, unit string) float64 {
 	}
 }
 
+// FormatUnitValue 按单位格式化指标数值：
+// 速度类单位（KB/s 等，内部统一以 KB/s 存储）自动进位到 KB/s / MB/s / GB/s，
+// 其余单位保留两位小数并附带原单位。
+func FormatUnitValue(value float64, unit string) string {
+	if IsSpeedUnit(unit) {
+		return FormatSpeed(value)
+	}
+	return fmt.Sprintf("%.2f %s", value, unit)
+}
+
 // IsSpeedUnit 判断给定单位是否为速度类单位（需要归一化到 KB/s）。
 func IsSpeedUnit(unit string) bool {
 	switch unit {

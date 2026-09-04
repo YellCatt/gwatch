@@ -155,7 +155,7 @@ func GenerateASCIIChartWithTimeEx(data []float64, valid []bool, agg ChartAggrega
 		chartLabelAt(timeLabels, validIdx[len(validIdx)-1])))
 
 	if len(thresholds) > 0 {
-		builder.WriteString(fmt.Sprintf("  阈值线: %.1f%s\n", thresholds[0], unit))
+		builder.WriteString(fmt.Sprintf("  阈值线: %s\n", formatChartThreshold(thresholds[0], unit)))
 	}
 	builder.WriteString("\n")
 
@@ -217,7 +217,7 @@ func generateEmptyChartWithTime(slots int, timeLabels []string, unit string, thr
 	builder.WriteString(fmt.Sprintf("  图表 (有效样本: 0 / %d, 时间点: %d)\n", slots, slots))
 	builder.WriteString(fmt.Sprintf("  时间范围: %s → %s\n", labels[0], labels[slots-1]))
 	if len(thresholds) > 0 {
-		builder.WriteString(fmt.Sprintf("  阈值线: %.1f%s\n", thresholds[0], unit))
+		builder.WriteString(fmt.Sprintf("  阈值线: %s\n", formatChartThreshold(thresholds[0], unit)))
 	}
 	builder.WriteString("  ⚠️ 周期内无有效采集数据，以下为按时间槽位绘制的占位行\n")
 	builder.WriteString("\n")
@@ -232,12 +232,29 @@ func generateEmptyChartWithTime(slots int, timeLabels []string, unit string, thr
 }
 
 // formatChartValue 按单位格式化图表右侧的数值文本：
-// 百分比单位右对齐到 6 位并附加 %，其他单位右对齐到 8 位并附加单位后缀。
+// 百分比单位右对齐到 6 位并附加 %；
+// 速度类单位（网速、磁盘 IO 等）超过 1024 时自动进位（KB/s → MB/s → GB/s），右对齐到 12 位；
+// 其他单位右对齐到 8 位并附加单位后缀。
 func formatChartValue(value float64, unit string) string {
 	if unit == "%" {
 		return fmt.Sprintf("%6.2f%%", value)
 	}
+	if util.IsSpeedUnit(unit) {
+		return fmt.Sprintf("%12s", util.FormatSpeed(value))
+	}
 	return fmt.Sprintf("%8.2f %s", value, unit)
+}
+
+// formatChartThreshold 按单位格式化图表阈值线文本，规则与 formatChartValue 保持一致，
+// 速度类单位同样自动进位，避免阈值线出现 "3072.0KB/s" 这类未进位展示。
+func formatChartThreshold(threshold float64, unit string) string {
+	if unit == "%" {
+		return fmt.Sprintf("%.1f%%", threshold)
+	}
+	if util.IsSpeedUnit(unit) {
+		return util.FormatSpeed(threshold)
+	}
+	return fmt.Sprintf("%.1f%s", threshold, unit)
 }
 
 // chartLabelAt 取第 i 个数据点的时间标签，缺失时回退为序号，避免使用当前时间凭空构造标签。
@@ -361,7 +378,7 @@ func GenerateSystemReport(metrics []SystemMetric, alerts []AlertItem) string {
 	if len(alerts) > 0 {
 		builder.WriteString("  🚨 当前告警\n\n")
 		for _, a := range alerts {
-			if a.Unit == "KB/s" {
+			if util.IsSpeedUnit(a.Unit) {
 				builder.WriteString(fmt.Sprintf("  [%s] %s: %s (阈值: %s)\n",
 					a.Level, a.Metric, util.FormatSpeed(a.Value), util.FormatSpeed(a.Threshold)))
 			} else {

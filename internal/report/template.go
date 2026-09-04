@@ -224,6 +224,16 @@ type monthlyMetricRow struct {
 	Values      []string
 }
 
+// formatAlertValue 按单位格式化告警中的数值/阈值：
+// 速度类单位（网速、磁盘 IO 等）超过 1024 时自动进位（KB/s → MB/s → GB/s），
+// 其余单位保留一位小数并附带原单位。返回值已自带单位，模板中无需再拼接 Unit。
+func formatAlertValue(value float64, unit string) string {
+	if util.IsSpeedUnit(unit) {
+		return util.FormatSpeed(value)
+	}
+	return fmt.Sprintf("%.1f %s", value, unit)
+}
+
 // buildBaseData 从 Report 对象构建基础报告数据结构，包含接口统计、告警汇总等。
 // 计算成功率、聚合告警级别分布（严重/警告/总次数），将内部数据结构转换为模板友好的扁平结构。
 // 该数据供 base/daily/weekly/monthly/yearly 等所有周期报告模板共用。
@@ -293,8 +303,8 @@ func buildBaseData(r *Report) baseReportData {
 			Level:           label,
 			Metric:          a.Metric,
 			MetricAlias:     a.MetricAlias,
-			Value:           fmt.Sprintf("%.1f", a.Value),
-			Threshold:       fmt.Sprintf("%.1f", a.Threshold),
+			Value:           formatAlertValue(a.Value, a.Unit),
+			Threshold:       formatAlertValue(a.Threshold, a.Unit),
 			Unit:            a.Unit,
 			AlertCount:      a.AlertCount,
 			FirstOccurrence: a.FirstOccurrence,
@@ -323,8 +333,8 @@ func buildBaseData(r *Report) baseReportData {
 			TargetURL:       a.TargetURL,
 			MetricName:      a.MetricName,
 			MetricAlias:     a.MetricAlias,
-			Value:           fmt.Sprintf("%.2f", a.Value),
-			Threshold:       fmt.Sprintf("%.2f", a.Threshold),
+			Value:           formatAlertValue(a.Value, a.Unit),
+			Threshold:       formatAlertValue(a.Threshold, a.Unit),
 			Unit:            a.Unit,
 			AlertCount:      a.AlertCount,
 			FirstOccurrence: a.FirstOccurrence,

@@ -3,6 +3,8 @@ package report
 import (
 	"fmt"
 	"strings"
+
+	"gwatch/internal/util"
 )
 
 // generateASCIIChart 根据数据数组和标签生成 ASCII 柱状图。
@@ -69,14 +71,7 @@ func generateASCIIChart(data []float64, labels []string, unit string, barWidth i
 		}
 		label = padRight(label, 6)
 
-		var valueStr string
-		if unit == "%" {
-			valueStr = fmt.Sprintf("%6.2f%%", v)
-		} else {
-			valueStr = fmt.Sprintf("%8.2f %s", v, unit)
-		}
-
-		builder.WriteString(fmt.Sprintf("  %s %s %s\n", label, barStr, valueStr))
+		builder.WriteString(fmt.Sprintf("  %s %s %s\n", label, barStr, formatChartValueASCII(v, unit)))
 	}
 
 	if !anyValid {
@@ -118,9 +113,15 @@ func generateEmptyASCIIChart(labels []string, unit string, barWidth int) string 
 }
 
 // formatChartValueASCII 按单位格式化资源指标图表右侧的数值文本。
+// 百分比单位右对齐到 6 位并附加 %；
+// 速度类单位（网速、磁盘 IO 等）超过 1024 时自动进位（KB/s → MB/s → GB/s），右对齐到 12 位；
+// 其他单位右对齐到 8 位并附加单位后缀。
 func formatChartValueASCII(value float64, unit string) string {
 	if unit == "%" {
 		return fmt.Sprintf("%6.2f%%", value)
+	}
+	if util.IsSpeedUnit(unit) {
+		return fmt.Sprintf("%12s", util.FormatSpeed(value))
 	}
 	return fmt.Sprintf("%8.2f %s", value, unit)
 }

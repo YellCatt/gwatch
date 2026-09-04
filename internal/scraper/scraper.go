@@ -379,10 +379,11 @@ func compare(op string, value float64, threshold float64) bool {
 func logAlert(level string, metric MetricConfig, value float64, threshold float64, unit string, levelDesc string) {
 	var msg string
 	if util.IsSpeedUnit(unit) {
-		msg = fmt.Sprintf("[%s] %s (%s): %s %s %s %s",
+		// 速度类单位的格式化结果已自带进位后的单位，无需再拼接原单位。
+		msg = fmt.Sprintf("[%s] %s (%s): %s %s %s",
 			levelDesc, metric.Name, metric.Alias,
-			util.FormatSpeed(value), getOpDesc(metric.CompareOp),
-			util.FormatSpeed(threshold), unit)
+			util.FormatUnitValue(value, unit), getOpDesc(metric.CompareOp),
+			util.FormatUnitValue(threshold, unit))
 	} else {
 		msg = fmt.Sprintf("[%s] %s (%s): %.2f %s %s 阈值 %.2f",
 			levelDesc, metric.Name, metric.Alias, value, unit, getOpDesc(metric.CompareOp), threshold)

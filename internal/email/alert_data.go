@@ -16,12 +16,9 @@ var alertTemplateFS embed.FS
 // alertTmpl 预编译的告警邮件模板集合，从 templates/*.tmpl 加载。
 var alertTmpl *template.Template
 
-// formatValue 根据单位对阈值/数值做格式化：速度类单位走 FormatSpeed，其他保留两位小数。
+// formatValue 根据单位对阈值/数值做格式化：速度类单位自动进位，其他保留两位小数。
 func formatValue(v float64, unit string) string {
-	if unit == "KB/s" {
-		return util.FormatSpeed(v)
-	}
-	return fmt.Sprintf("%.2f %s", v, unit)
+	return util.FormatUnitValue(v, unit)
 }
 
 // levelDisplay 将英文告警级别转换为中文展示文本。
